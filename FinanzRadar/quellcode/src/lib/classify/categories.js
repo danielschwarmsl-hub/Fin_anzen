@@ -7,7 +7,7 @@ export const CATEGORIES = [
   {
     id: 'einkommen', label: 'Einkommen', color: '#2fb67c', icon: 'wallet', kind: 'income',
     subs: [sub('gehalt', 'Gehalt'), sub('zinsen', 'Zinsen'), sub('dividenden', 'Dividenden & Ausschüttungen'), sub('erstattung', 'Steuererstattung'),
-      sub('rente', 'Rente & Versorgung'), sub('nebenjob', 'Nebenverdienst'), sub('verkauf', 'Verkäufe'), sub('sonstiges', 'Sonstige Einnahmen')],
+      sub('rente', 'Rente & Versorgung'), sub('nebenjob', 'Nebenverdienst'), sub('mieteinnahmen', 'Mieteinnahmen'),sub('verkauf', 'Verkäufe'), sub('sonstiges', 'Sonstige Einnahmen')],
   },
   {
     id: 'steuern_abgaben', label: 'Steuern & Abgaben', color: '#8a6fd1', icon: 'tax', kind: 'tax',
@@ -17,7 +17,7 @@ export const CATEGORIES = [
   },
   {
     id: 'wohnen', label: 'Wohnen', color: '#4c8bf5', icon: 'home', kind: 'expense',
-    subs: [sub('miete', 'Miete'), sub('nebenkosten', 'Nebenkosten'), sub('strom_gas', 'Strom & Gas'), sub('internet_telefon', 'Internet & Telefon'),
+    subs: [sub('miete', 'Miete'), sub('nebenkosten', 'Nebenkosten'), sub('wasser', 'Wasser'), sub('strom_gas', 'Strom & Gas'),sub('internet_telefon', 'Internet & Telefon'),
       sub('rundfunk', 'Rundfunkbeitrag'), sub('handwerker', 'Handwerker & Reparaturen'), sub('einrichtung', 'Einrichtung & Haushalt'), sub('garten', 'Garten')],
   },
   {
@@ -27,8 +27,8 @@ export const CATEGORIES = [
   },
   {
     id: 'mobilitaet', label: 'Mobilität', color: '#27b5c9', icon: 'car', kind: 'expense',
-    subs: [sub('tanken', 'Tanken'), sub('oepnv', 'ÖPNV & Deutschlandticket'), sub('bahn_fernverkehr', 'Bahn & Fernbus'), sub('taxi_sharing', 'Taxi & Sharing'),
-      sub('auto', 'Auto (Werkstatt, Parken, Maut)'), sub('fahrrad', 'Fahrrad')],
+    subs: [sub('tanken', 'Tanken'), sub('e_laden', 'E-Laden'), sub('oepnv', 'ÖPNV & Deutschlandticket'), sub('bahn_fernverkehr', 'Bahn & Fernbus'), sub('taxi_sharing', 'Taxi & Sharing'),
+      sub('auto', 'Auto (Werkstatt, Parken, Maut)'), sub('autowaesche', 'Autowäsche'), sub('fahrrad', 'Fahrrad')],
   },
   {
     id: 'versicherungen', label: 'Versicherungen', color: '#5b6fe0', icon: 'shield', kind: 'expense',
@@ -51,7 +51,7 @@ export const CATEGORIES = [
   },
   {
     id: 'freizeit_reisen', label: 'Freizeit & Reisen', color: '#f0b429', icon: 'sparkles', kind: 'expense',
-    subs: [sub('urlaub', 'Urlaub & Reisen'), sub('hotel', 'Unterkunft'), sub('kultur', 'Kultur & Events'), sub('hobby', 'Hobby'), sub('sport', 'Sport'), sub('geschenke', 'Geschenke')],
+    subs: [sub('urlaub', 'Urlaub & Reisen'), sub('fluege', 'Flüge'), sub('hotel', 'Unterkunft & Hotel'), sub('kreuzfahrt', 'Kreuzfahrt'),sub('kultur', 'Kultur & Events'), sub('hobby', 'Hobby'), sub('sport', 'Sport'), sub('geschenke', 'Geschenke')],
   },
   {
     id: 'shopping', label: 'Shopping', color: '#c26ad6', icon: 'tag', kind: 'expense',

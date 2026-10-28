@@ -1,9 +1,11 @@
 <script>
   import { onMount } from 'svelte';
-  import { app, saveSettings, reload, resetAll, deleteRecord, getBlob, toast } from '../store/state.svelte.js';
+  import { app, saveSettings, reload, resetAll, deleteRecord, getBlob, toast, applyRule } from '../store/state.svelte.js';
   import { postProcess } from '../store/postprocess.js';
   import { db, loadAll, TABLES } from '../store/db.js';
   import { CATEGORIES, categoryLabel } from '../classify/categories.js';
+  import { ruleHits } from '../classify/rules.js';
+  import { uid } from '../util/format.js';
   import * as zip from '../export/zip.js';
   import AiSettings from '../ai/AiSettings.svelte';
   import Seg from '../ui/Seg.svelte';
@@ -66,9 +68,11 @@
   // ---- Kategorien & Regeln ----
   const rules = $derived(app.data.rules || []);
 
+  const FIELD_LABEL = { text: 'Text', counterparty: 'Gegenpartei', purpose: 'Zweck', iban: 'IBAN', creditorId: 'Gläubiger-ID' };
   function ruleMatch(r) {
     const m = r.match;
     if (typeof m === 'string' && m) return m;
+    if (m?.value && (m.op || 'contains') !== 'regex') return `${FIELD_LABEL[m.field] || 'Text'} ${m.op === 'equals' ? 'ist' : 'enthält'} „${m.value}“`;
     if (m && typeof m === 'object') {
       const s = Object.entries(m)
         .filter(([, v]) => v != null && v !== '')
@@ -97,6 +101,46 @@
       await reload();
       toast('Regeln neu angewendet', { tone: 'good' });
     });
+
+  // Neue Regel „Text enthält … → Kategorie“ (Gegenpartei, Zweck und Buchungstext zugleich); greift vor allen eingebauten Regeln
+  let newText = $state('');
+  let newTarget = $state('');
+  const draftRule = $derived(newText.trim() ? { match: { field: 'text', op: 'contains', value: newText.trim() } } : null);
+  const draftHits = $derived(draftRule ? ruleHits(draftRule, app.data.transactions).length : 0);
+  const draftReady = $derived(!!draftRule && !!newTarget && !busy);
+  const addRule = () =>
+    run(async () => {
+      if (!draftRule || !newTarget) return;
+      const [category, subcategory] = newTarget.split('.');
+      const rule = { id: uid('rule_'), match: { ...draftRule.match }, set: { category, subcategory: subcategory || null }, createdAt: new Date().toISOString() };
+      const n = await applyRule(rule);
+      newText = '';
+      newTarget = '';
+      toast(`Regel angelegt · ${n} ${n === 1 ? 'Buchung' : 'Buchungen'}`, { tone: 'good' });
+    });
+
+  // ---- Alle Dateien neu einlesen ----
+  let reprocessOpen = $state(false);
+  async function reprocessAll() {
+    reprocessOpen = false;
+    await run(async () => {
+      let fn = null;
+      try {
+        fn = (await import('../store/importer.js'))?.reprocessAll;
+      } catch (e) {
+        console.warn(e);
+      }
+      if (typeof fn !== 'function') {
+        toast('Neu einlesen ist noch nicht verfügbar');
+        return;
+      }
+      const res = (await fn()) || {};
+      await reload();
+      const done = res.done ?? 0;
+      const failed = res.failed ?? 0;
+      toast(`${done} ${done === 1 ? 'Datei' : 'Dateien'} neu eingelesen${failed ? ` · ${failed} fehlgeschlagen` : ''}`, { tone: failed ? 'bad' : 'good', ms: 6000 });
+    });
+  }
 
   // ---- Cloud-Zugänge ----
   async function copyRedirect() {
@@ -228,6 +272,24 @@
       <button class="btn btn-sm" onclick={rebuild} disabled={busy}><Icon name="refresh" size={14} />Neu anwenden</button>
     </div>
     <div class="stack tight">
+      <div class="newrule">
+        <span class="small muted row">Wenn Text enthält<Tip text="Durchsucht Gegenpartei, Verwendungszweck und Buchungstext (ab Wortanfang). Eigene Regeln gehen allen eingebauten Regeln und Händlern vor; manuell gesetzte Kategorien bleiben." /></span>
+        <input class="input" bind:value={newText} placeholder="z. B. Hansa Wohnbau" aria-label="Suchtext der Regel" autocomplete="off" spellcheck="false" />
+        <span class="small muted">→</span>
+        <select class="input" bind:value={newTarget} aria-label="Zielkategorie">
+          <option value="" disabled>Kategorie …</option>
+          {#each CATEGORIES as c (c.id)}
+            <optgroup label={c.label}>
+              <option value={c.id}>{c.label}</option>
+              {#each c.subs || [] as s (s.id)}
+                <option value={`${c.id}.${s.id}`}>{c.label} › {s.label}</option>
+              {/each}
+            </optgroup>
+          {/each}
+        </select>
+        <span class="small faint num" title="Buchungen, die die Regel heute trifft">{draftRule ? `${draftHits} Treffer` : ''}</span>
+        <button class="btn btn-sm" onclick={addRule} disabled={!draftReady}><Icon name="check" size={14} />Anlegen</button>
+      </div>
       <Collapsible title="Regeln" badge={rules.length}>
         {#if rules.length}
           <ul class="plain">
@@ -326,6 +388,15 @@
 
     <div class="sep"></div>
 
+    <Collapsible title="Wartung">
+      <div class="row between wrap">
+        <span class="small muted row">Alle Dateien neu einlesen<Tip text="Liest alle gespeicherten Dateien mit der aktuellen Erkennung neu ein. Manuelle Korrekturen bleiben erhalten." /></span>
+        <button class="btn btn-sm" onclick={() => (reprocessOpen = true)} disabled={busy || app.progress.running}><Icon name="refresh" size={14} />Alle Dateien neu einlesen</button>
+      </div>
+    </Collapsible>
+
+    <div class="sep"></div>
+
     <Collapsible title="Gefahrenbereich">
       <div class="row between wrap">
         <span class="small muted">Alle Daten in diesem Browser entfernen</span>
@@ -342,6 +413,14 @@
     </div>
   </section>
 </div>
+
+<Modal bind:open={reprocessOpen} title="Alle Dateien neu einlesen" width={460}>
+  <p class="small muted">Alle {app.data.files?.length || 0} gespeicherten Dateien werden erneut verarbeitet. Das kann einige Minuten dauern.</p>
+  {#snippet footer()}
+    <button class="btn" onclick={() => (reprocessOpen = false)}>Abbrechen</button>
+    <button class="btn btn-primary" onclick={reprocessAll} disabled={busy}><Icon name="refresh" size={14} />Neu einlesen</button>
+  {/snippet}
+</Modal>
 
 <Modal bind:open={wipeOpen} title="Alle Daten löschen" width={460}>
   <div class="stack tight">
@@ -371,4 +450,6 @@
   .solid-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
   .solid-danger:hover { filter: brightness(1.08); background: var(--bad); }
   .storage { row-gap: 10px; }
+  .newrule { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-bottom: 6px; }
+  .newrule .input { flex: 1 1 180px; min-width: 0; }
 </style>
