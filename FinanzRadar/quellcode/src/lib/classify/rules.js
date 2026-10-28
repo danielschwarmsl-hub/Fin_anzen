@@ -1,7 +1,7 @@
 // Kategorisierung von Buchungen.
-// Reihenfolge: Nutzerregeln → Umbuchung → Einkommens-Stichworte → Händlerliste (0,9) → Stichwortregeln (≈0,7) → Vorzeichen-Standard.
+// Reihenfolge: Nutzerregeln → Umbuchung → Miete/Wasser → Einkommens-Stichworte → Händlerliste (0,9) → Stichwortregeln (≈0,7) → Vorzeichen-Standard.
 // Nutzerentscheidungen (categorySource 'user') werden nie überschrieben.
-import { fold, findMerchant } from './merchants.de.js';
+import { fold, findMerchant, findSubscription } from './merchants.de.js';
 import { getCategory, getSub } from './categories.js';
 import { resolveCounterparty } from './normalize.js';
 import { normalizeIban, uid } from '../util/format.js';
@@ -12,7 +12,7 @@ const R = (re, category, sub, conf, dir = null) => ({ re, category, sub, conf, d
 
 // Starke Einkommens-Stichworte: gelten vor der Händlerliste (z. B. Zinsgutschrift der Renault Bank)
 const INCOME_FIRST = [
-  R(/(?<![a-z])(?:gehalt|lohn|loehne|bezuege|besoldung|gehaltszahlung|lohnzahlung|arbeitsentgelt|verguetung)(?![a-z])/, 'einkommen', 'gehalt', 0.85, 'in'),
+  R(/(?<![a-z])(?:gehalt|lohn|loehne|bezuege|besoldung|gehaltszahlung|lohnzahlung|arbeitsentgelt|verguetung|urlaubsgeld|urlaubsentgelt|weihnachtsgeld)(?![a-z])/, 'einkommen', 'gehalt', 0.85, 'in'),
   R(/(?<![a-z])(?:erstattung|rueckerstattung|gutschrift)[a-z ]{0,30}(?:finanzamt|steuer)|finanzamt[a-z ]{0,30}erstattung|steuererstattung|einkommensteuererstattung/, 'einkommen', 'erstattung', 0.85, 'in'),
   R(/(?<![a-z])(?:dividende|dividenden|ausschuettung|ertragsgutschrift|fondsertrag|kuponzahlung|kupon)(?![a-z])/, 'einkommen', 'dividenden', 0.85, 'in'),
   R(/(?<![a-z])(?:zinsen|zinsgutschrift|habenzinsen|guthabenzinsen|zinsertrag|zinszahlung|zins)(?![a-z])/, 'einkommen', 'zinsen', 0.85, 'in'),
@@ -21,6 +21,8 @@ const INCOME_FIRST = [
 ];
 
 const KEYWORDS = [
+  // Reisepass/Visum: Behörde (vor Gebühren und dem allgemeinen „Reise“)
+  R(/(?<![a-z])(?:reisepass[a-z]*|visum|visumantrag|einreise(?:gebuehr)?|evisa|e visa)(?![a-z])/, 'sonstiges', 'behoerden', 0.7, 'out'),
   // Bargeld
   R(/bargeldauszahlung|geldautomat|(?<![a-z])gaa(?![a-z])|bargeldabhebung|cash ?withdrawal|(?<![a-z])atm(?![a-z])|geldausgabeautomat|bargeldeinzahlung|einzahlung bar/, 'bargeld', 'auszahlung', 0.85),
   // Gebühren / Zinsen auf dem Konto
@@ -78,7 +80,13 @@ const KEYWORDS = [
   R(/restaurant|(?<![a-z])cafe(?![a-z])|bistro|pizzeria|gaststaette|imbiss|lieferdienst|biergarten/, 'lebensmittel', 'restaurant', 0.65, 'out'),
   R(/supermarkt|lebensmittel|wochenmarkt|baeckerei|metzgerei/, 'lebensmittel', 'supermarkt', 0.6, 'out'),
   // Freizeit / Reisen
-  R(/urlaub|reisebuero|reisebuchung|(?<![a-z])flug(?![a-z])|ferienwohnung|(?<![a-z])hotel(?![a-z])/, 'freizeit_reisen', 'urlaub', 0.6, 'out'),
+  // „visa“ allein nie (Kreditkarte), „pension“/„lounge“ allein nie (Reisepass/Visum steht oben)
+  R(/(?<![a-z])(?:mietwagen|mietauto|autovermietung|mietfahrzeug|car rental|rent a car)/, 'mobilitaet', 'taxi_sharing', 0.7, 'out'),
+  R(/(?<![a-z])(?:faehre|faehrticket|faehrverbindung|faehrfahrt|ferry)(?![a-z])/, 'mobilitaet', 'bahn_fernverkehr', 0.65, 'out'),
+  R(/(?<![a-z])(?:flug(?!hafen)[a-z]*|fluege|boarding|bordkarte|gepaeck[a-z]*|zusatzgepaeck|sperrgepaeck)(?![a-z])/, 'freizeit_reisen', 'fluege', 0.6, 'out'),
+  R(/(?<![a-z])(?:kreuzfahrt[a-z]*|flusskreuzfahrt|cruise)(?![a-z])/, 'freizeit_reisen', 'kreuzfahrt', 0.6, 'out'),
+  R(/(?<![a-z])(?:hotel[a-z]*|ferienwohnung[a-z]*|ferienhaus[a-z]*|ferienpark|unterkunft|uebernachtung(?:en)?|hostels?|jugendherberge|herberge|gaestehaus|halbpension|vollpension|kurtaxe|city ?tax|tourist tax|touristensteuer|bettensteuer|uebernachtungssteuer|kurabgabe|kurbeitrag)(?![a-z])/, 'freizeit_reisen', 'hotel', 0.6, 'out'),
+  R(/(?<![a-z])(?:urlaub(?!sgeld|sentgelt|skasse)[a-z]*|reise(?!kosten|pass)[a-z]*|staedtereise|strandurlaub|badeurlaub|wellnessurlaub|all inclusive|pauschalreise|last minute|flughafen[a-z]*|airport|aeroport|airport lounge|duty ?free|reiseversicherung|auslandskranken[a-z]*)(?![a-z])/, 'freizeit_reisen', 'urlaub', 0.6, 'out'),
   R(/(?<![a-z])(?:kino|theater|konzert|eintritt|museum|veranstaltung)(?![a-z])/, 'freizeit_reisen', 'kultur', 0.6, 'out'),
   // Abos / Mitgliedschaften
   R(/(?<![a-z])(?:abo|abonnement|subscription|membership)(?![a-z])/, 'abos_medien', null, 0.55, 'out'),
@@ -86,6 +94,43 @@ const KEYWORDS = [
   // Shopping
   R(/(?<![a-z])(?:bestellung|onlinekauf|online kauf|warenbestellung|retoure)(?![a-z])/, 'shopping', 'online', 0.55),
 ];
+
+// Urlaubsziele (nur eindeutige; Städte wie Paris/London/Porto zu mehrdeutig). Schwaches Signal, nur bei Kartenumsatz im Ausland
+// (Länderkürzel/Fremdwährung) – sonst wäre jedes „Restaurant Mykonos“ in Hamburg Urlaub. Händlertreffer haben Vorrang.
+const DESTINATION = /(?<![a-z])(?:teneriffa|tenerife|gran canaria|lanzarote|fuerteventura|mallorca|majorca|ibiza|eivissa|menorca|minorca|costa del sol|costa brava|costa blanca|algarve|madeira|kreta|crete|heraklion|iraklio|chania|rhodos|rhodes|rodos|korfu|corfu|kerkyra|santorini?|thira|mykonos|zakynthos|zante|kos island|insel kos|chalkidiki|halkidiki|antalya|alanya|belek|bodrum|marmaris|kusadasi|hurghada|hurgada|sharm el sh[a-z]*|marsa alam|marrakesc?h|marrakech|agadir|djerba|jerba|hammamet|kapverden|kap verden|sal island|boa vista|bangkok|krung thep|phuket|krabi|pattaya|ko(?:h)? samui|chiang ?mai|bali|denpasar|dubai|malediven|maldives|sri lanka|tokio|tokyo|hanoi|ho chi minh|las vegas|punta cana|dominikanische republik|dominican republic|varadero|cancun|playa del carmen|venedig|venice|venezia|sizilien|sicily|sicilia|sardinien|sardinia|sardegna|amalfi|positano|gardasee|lake garda|dubrovnik|zypern|cyprus|paphos|limassol|larnaka|malta)(?![a-z])/;
+const ABROAD = /(?<![a-z])(?:es|pt|gr|it|hr|cy|mt|tr|eg|ma|tn|cv|th|id|ae|mv|lk|jp|vn|us|usa|do|cu|mx|esp|prt|grc|ita|hrv|cyp|mlt|tur|egy|mar|tha|idn|are|jpn|usd|thb|try|aed|egp|mad|jpy|vnd|idr|kurs|wechselkurs|fremdwaehrung[a-z]*|waehrungsumrechnung)(?![a-z])/;
+const CARD = /kartenzahlung|kartenumsatz|debitkartenumsatz|kreditkartenumsatz|girocard|(?<![a-z])(?:visa|mastercard|maestro)(?![a-z])|apple pay|google pay|kaufumsatz/;
+
+// ---------------------------------------------------------------- Miete & Wasser (vor Händlerliste, Bargeld und Stichworten)
+// „Miete“ als eigenes Wort bzw. Wortanfang fester Formen – nicht Mietwagen, Mieterverein, Vermietung (Ausgabe), Mietkaution
+const MIETE = /(?<![a-z])(?:kalt|warm|monats|wohnungs|netto|brutto|garagen|stellplatz)?(?:miete|mietzahlung|mietzins|mieteinnahmen?)(?![a-z])/;
+const VERMIETUNG = /(?<![a-z])vermietung(?![a-z])/;
+// „Wasser“ als Wortanfang (Wasserwerk, Wasserversorgung, Wassergeld …) sowie Abwasser/Trinkwasser & Co.; kein Mineralwasser, Wasserkocher …
+const WASSER = /(?<![a-z])(?<!mineral )(?:ab|trink|schmutz|niederschlags|regen|frisch|kalt|warm)?wasser(?!kocher|filter|sport|pistole|flasche|bett|ski|ball|farbe|spiel|strasse|str(?![a-z])|weg|gasse|turm|burg|kante|tank|pfeife|uhr|dicht|fest)[a-z]*/;
+// Gegenpartei mit Wasser auf dem Kassenbon (Supermarkt, Drogerie, Getränke, Tankstelle, Apotheke …)
+const WATER_SELLER = new Set(['lebensmittel', 'shopping', 'freizeit_reisen', 'gesundheit', 'mobilitaet']);
+// „Miete“ bei Mietwagen, Ferienwohnung & Co. ist keine Wohnungsmiete
+const RENT_NOT = new Set(['mobilitaet', 'freizeit_reisen']);
+const RENT_NOT_TEXT = /ferienwohnung|ferienhaus|(?<![a-z])fewo|mietwagen|autovermietung|(?<![a-z])hotel|urlaub/;
+
+/** Händler im Verwendungszweck – bei Kartenzahlungen auch Einträge, die sonst nur für die Gegenpartei gelten */
+function purposeMerchant(purposeFold, card) {
+  return card ? findMerchant(purposeFold, '') : findMerchant('', purposeFold);
+}
+
+function wohnenFirst(tx, { pos, text, cpMerchant }) {
+  if (MIETE.test(text) || (pos && VERMIETUNG.test(text))) {
+    if (!(cpMerchant && RENT_NOT.has(cpMerchant.category)) && !RENT_NOT_TEXT.test(text)) {
+      return pos
+        ? { category: 'einkommen', subcategory: 'mieteinnahmen', categorySource: 'keyword', confidence: 0.85 }
+        : { category: 'wohnen', subcategory: 'miete', categorySource: 'keyword', confidence: 0.9 };
+    }
+  }
+  if (WASSER.test(text) && !(cpMerchant && WATER_SELLER.has(cpMerchant.category))) {
+    return { category: 'wohnen', subcategory: 'wasser', categorySource: 'keyword', confidence: 0.9 };
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------- Verfeinerung der Unterkategorie
 function refineInsurance(text, cpText) {
@@ -197,6 +242,20 @@ function decide(tx, ctx, userRules, cache) {
     return { category: 'finanzen', subcategory: null, categorySource: 'keyword', confidence: 0.8 };
   }
 
+  const card = CARD.test(`${btFold} ${purposeFold} ${rawFold}`);
+  // Händler der Gegenpartei (gecacht; auch für Miete/Wasser-Ausnahmen)
+  const mkey = cpFold + '|' + rawFold;
+  let cpMerchant = cache.cp.get(mkey);
+  if (cpMerchant === undefined) { cpMerchant = findMerchant(cpFold, '') || (rawFold && rawFold !== cpFold ? findMerchant(rawFold, '') : null); cache.cp.set(mkey, cpMerchant); }
+
+  // 2b'. Miete und Wasser: direkt nach den Nutzerregeln – vor Bargeld, Händlern und Stichworten
+  //      (eigene Überweisungen ausgenommen, sonst zählte das Umbuchen fürs Mietkonto als Ausgabe)
+  if (!tx.ownTransfer) {
+    const sellerOf = cpMerchant && !cpMerchant.intermediary ? cpMerchant : purposeMerchant(purposeFold, card);
+    const w = wohnenFirst(tx, { pos, text, cpMerchant: sellerOf && !sellerOf.intermediary ? sellerOf : null });
+    if (w) return w;
+  }
+
   // 2c. Wertpapierkauf / Sparplan (Abfluss) – vor der Händlerliste, damit „comdirect“ & Co. nicht als Bankgebühr enden
   if (!pos && !DEPOT_NOT.test(text)) {
     const depotAcc = cache.depot.has(tx.accountId) && /(?<![a-z])kauf(?![a-z])|sparplan|ausfuehrung|wertpapier/.test(`${btFold} ${purposeFold}`);
@@ -214,10 +273,10 @@ function decide(tx, ctx, userRules, cache) {
 
   // 3b. Händlerliste (gefaltete Gegenpartei, dann Verwendungszweck)
   let weak = null;
-  const mkey = cpFold + '|' + rawFold;
-  let m = cache.cp.get(mkey);
-  if (m === undefined) { m = findMerchant(cpFold, '') || (rawFold && rawFold !== cpFold ? findMerchant(rawFold, '') : null); cache.cp.set(mkey, m); }
-  if (!m) m = findMerchant('', purposeFold);
+  let m = cpMerchant;
+  if (!m || m.intermediary) m = purposeMerchant(purposeFold, card) || m;
+  // Plattform (Amazon): ein Abo-Anbieter in Rohtext/Zweck (Audible, Prime Video …) ist genauer
+  if (m?.platform) m = findSubscription('', `${rawFold} ${purposeFold}`) || m;
   if (m && !m.intermediary) {
     if (m.conf < 0.6) weak = m;
     else {
@@ -228,6 +287,8 @@ function decide(tx, ctx, userRules, cache) {
       if (pos && category === 'steuern_abgaben') { category = 'einkommen'; sub = 'erstattung'; }
       // Rückfluss von Sparprodukten mit Zinsen/Ausschüttung
       if (pos && category === 'vorsorge_sparen' && /zins/.test(purposeFold)) { category = 'einkommen'; sub = 'zinsen'; }
+      // DB-Abbuchung in Höhe des Deutschlandtickets (49 / 58 / 63 €) bzw. mit Ticketnamen: ÖPNV-Abo statt Fernverkehr
+      if (m.name === 'Deutsche Bahn' && !pos && (/deutschland ?ticket|d ticket|deutschlandabo/.test(text) || [4900, 5800, 6300].includes(-tx.amount))) sub = 'oepnv';
       if (sub && !getSub(category, sub)) sub = null;
       const conf = !sub && category === 'versicherungen' ? Math.min(m.conf, 0.75) : m.conf;
       return { category, subcategory: sub, categorySource: 'merchant', confidence: conf, merchant: m.name };
@@ -238,6 +299,7 @@ function decide(tx, ctx, userRules, cache) {
   for (const k of KEYWORDS) {
     if (k.dir === 'in' && !pos) continue;
     if (!k.re.test(text)) continue;
+    if (k.sub === 'miete' && RENT_NOT_TEXT.test(text)) continue;
     let category = k.category, sub = k.sub;
     if (category === 'versicherungen') {
       const r = refineInsurance(`${purposeFold} ${btFold}`, `${cpFold} ${rawFold}`);
@@ -246,6 +308,11 @@ function decide(tx, ctx, userRules, cache) {
     }
     if (pos && category === 'steuern_abgaben') { category = 'einkommen'; sub = 'erstattung'; }
     return { category, subcategory: sub, categorySource: 'keyword', confidence: k.conf };
+  }
+
+  // 4a. Urlaubsziel im Kartenumsatz im Ausland (schwach)
+  if (!pos && DESTINATION.test(text) && (ABROAD.test(text) || (tx.currency && tx.currency !== 'EUR') || tx.originalCurrency)) {
+    return { category: 'freizeit_reisen', subcategory: 'urlaub', categorySource: 'keyword', confidence: 0.55 };
   }
 
   // 4b. Schwache Händlertreffer (Banken u. Ä.)
@@ -268,7 +335,9 @@ function decide(tx, ctx, userRules, cache) {
 export function classifyTransactions(txs, { rules = [], accounts = [] } = {}) {
   const ctx = makeCtx();
   const cache = { cp: new Map(), depot: new Set((accounts || []).filter(a => a?.kind === 'depot').map(a => a.id)) };
-  const userRules = (rules || []).filter(r => r && r.enabled !== false && r.match && r.set);
+  // Nutzerregeln greifen vor allem anderen; selbst angelegte vor automatisch gelernten
+  const userRules = (rules || []).filter(r => r && r.enabled !== false && r.match && r.set)
+    .map((r, i) => ({ r, i })).sort((a, b) => (!!a.r.auto - !!b.r.auto) || (a.i - b.i)).map(x => x.r);
   const out = txs.map(tx => {
     if (tx.categorySource === 'user') return tx;
     const d = decide(tx, ctx, userRules, cache);

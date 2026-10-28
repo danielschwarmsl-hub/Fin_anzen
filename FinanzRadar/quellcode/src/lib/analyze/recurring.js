@@ -1,7 +1,9 @@
 // Wiederkehrende Zahlungen (Abos, Versicherungen, Miete, Daueraufträge, Gehalt ...) erkennen.
 // detectRecurring(txs, userContracts) → Contract[]   linkContracts(txs, contracts) → txs mit contractId
 // linkContractDocs(contracts, documents, txs, previous) → Verträge mit Vertragsdokument; Dokumente ohne Zahlung als Vertrag mit noPayments
-import { fold, findMerchant } from '../classify/merchants.de.js';
+// Bekannte Abo-Anbieter (Händlerliste mit recurringHint) werden über ihren Händlereintrag gruppiert – auch hinter Debitkarte,
+// PayPal oder Amazon – und gelten schon ab der ersten Zahlung als Vertrag (fromKnownProvider).
+import { fold, findMerchant, findSubscription } from '../classify/merchants.de.js';
 
 // Intervallklassen: [name, Zentrum (Tage), Toleranz, Zahlungen pro Jahr]
 const CLASSES = [
@@ -16,6 +18,9 @@ const MONTHS_PER = { weekly: 0, biweekly: 0, monthly: 1, quarterly: 3, halfyearl
 const DAYS_PER = { weekly: 7, biweekly: 14, monthly: 30.44, quarterly: 91.3, halfyearly: 182.6, yearly: 365.25 };
 const AMOUNT_TOL = 0.15;
 const PLATEAU_TOL = 0.08;
+// Bekannter Anbieter: Abbuchungstag schwankt um bis zu ±5 Tage (Abstand zweier Zahlungen also bis ±10), Preiserhöhung bis +30 %
+const KNOWN_DAY_JITTER = 5;
+const KNOWN_PRICE_TOL = 0.3;
 
 const dayNum = (iso) => Math.floor(Date.parse(iso + 'T00:00:00Z') / 864e5);
 
@@ -39,7 +44,9 @@ function intervalOf(days, hintInterval) {
   const need = Math.ceil(gaps.length * 0.6);
   const needStrict = Math.max(1, Math.ceil(gaps.length * 0.5));
   let best = null;
-  for (const [name, c, tol] of CLASSES) {
+  for (const [name, c, baseTol] of CLASSES) {
+    // Rhythmus des bekannten Anbieters: schwankender Abbuchungstag (z. B. Kartenzahlung, Wochenende) tolerieren
+    const tol = name === hintInterval && c >= 30 ? Math.max(baseTol, 2 * KNOWN_DAY_JITTER) : baseTol;
     let strict = 0, loose = 0;
     for (const g of gaps) {
       if (Math.abs(g - c) <= tol) strict++;
@@ -102,6 +109,26 @@ function analyzeSeries(items, minOccBase, hint) {
   return { interval: iv.name, amount: last.med, priceChange, count: n };
 }
 
+/**
+ * Bekannter Abo-Anbieter ohne belastbare Serie (eine Zahlung, unregelmäßige Abstände): Vertrag aus der jüngsten Zahlung
+ * und den unmittelbar vorangehenden Zahlungen ähnlicher Höhe (Preiserhöhung bis +30 %); Rhythmus aus dem recurringHint.
+ * Nur für Abos/Versicherungen und nicht für Läden mit Einzelkäufen (noSingle: App-/Spiele-Stores).
+ */
+function knownSingle(items, known) {
+  if (!known?.recurringHint || known.noSingle) return null;
+  const list = items.filter(i => !i.tx.isTransfer && i.tx.category !== 'umbuchung' && i.tx.amount < 0);
+  if (!list.length) return null;
+  const last = list[list.length - 1];
+  if (!['abo', 'versicherung'].includes(kindOf(last.tx.category, last.tx.subcategory, []))) return null;
+  let from = list.length - 1;
+  while (from > 0 && Math.abs(list[from - 1].amt - last.amt) <= list[from - 1].amt * KNOWN_PRICE_TOL) from--;
+  const sel = list.slice(from);
+  const firstAmt = sel[0].amt;
+  const priceChange = Math.abs(firstAmt - last.amt) > firstAmt * PLATEAU_TOL
+    ? { from: firstAmt, to: last.amt, date: sel.find(i => Math.abs(i.amt - firstAmt) > firstAmt * PLATEAU_TOL).tx.bookingDate } : null;
+  return { items: sel, res: { interval: known.recurringHint, amount: last.amt, priceChange, count: sel.length, fromKnownProvider: true } };
+}
+
 function kindOf(category, sub, txs) {
   if (category === 'einkommen') return 'einkommen';
   if (category === 'abos_medien') return 'abo';
@@ -131,11 +158,25 @@ function nextDateOf(last, interval) {
   return d.toISOString().slice(0, 10);
 }
 
-function groupKey(t) {
+/**
+ * Bekannter Abo-Anbieter einer Abbuchung: Gegenpartei (Name/Rohtext) bzw. – hinter Debitkarte, PayPal, Amazon & Co. –
+ * der Verwendungszweck. Ein anderer bekannter Händler ohne Abo-Hinweis als Gegenpartei schließt den Zweck aus.
+ */
+function knownOf(t) {
+  if (!(t.amount < 0)) return null;
+  const cp = fold(t.counterparty), raw = fold(t.counterpartyRaw);
+  const direct = findMerchant(cp, '') || (raw && raw !== cp ? findMerchant(raw, '') : null);
+  if (direct && !direct.intermediary && !direct.platform) return direct.recurringHint ? direct : null;
+  return findSubscription('', `${raw} ${fold(t.purpose)}`);
+}
+
+function groupKey(t, known) {
   const sign = t.amount < 0 ? '-' : '+';
   const cp = nameKey(t);
   if (t.mandateId) return `${sign}m:${t.mandateId}`;
   if (t.creditorId && cp) return `${sign}c:${t.creditorId}|${cp}`;
+  // wechselnde Referenzen im Namen („AUDIBLE 4S7XK1“) oder Kartenumsatz ohne Händlernamen: über den Händlereintrag bündeln
+  if (known) return `${sign}k:${known.id}`;
   return cp ? `${sign}n:${cp}` : null;
 }
 const nameKey = (t) => fold(t.counterparty || t.counterpartyRaw || '').replace(/[0-9]+/g, '').trim();
@@ -157,12 +198,15 @@ function mergeUnreferenced(groups) {
     for (const n of new Set(items.map(i => `${k[0]}|${nameKey(i.tx)}`))) { if (!refBy.has(n)) refBy.set(n, new Set()); refBy.get(n).add(k); }
   }
   for (const [k, items] of [...groups]) {
-    if (!/^[-+]n:/.test(k)) continue;
-    const targets = refBy.get(`${k[0]}|${k.slice(3)}`);
-    if (!targets || targets.size !== 1) continue;
-    const target = groups.get([...targets][0]);
-    for (const it of items) target.push(it);
-    groups.delete(k);
+    if (!/^[-+][nk]:/.test(k)) continue;
+    const rest = [];
+    for (const it of items) {
+      const targets = refBy.get(`${k[0]}|${nameKey(it.tx)}`);
+      if (targets && targets.size === 1) groups.get([...targets][0]).push(it);
+      else rest.push(it);
+    }
+    if (!rest.length) groups.delete(k);
+    else if (rest.length !== items.length) { items.length = 0; items.push(...rest); }
   }
 }
 
@@ -191,12 +235,15 @@ export function detectRecurring(txs, existingContracts = []) {
   for (const t of txs) if (t.bookingDate) { const d = dayNum(t.bookingDate); if (d > latest) latest = d; }
 
   const groups = new Map();
+  const knownBy = new Map(); // Gruppenschlüssel → bekannter Anbieter (Händlereintrag)
   for (const t of usable) {
-    const k = groupKey(t);
+    const known = knownOf(t);
+    const k = groupKey(t, known);
     if (!k) continue;
     let g = groups.get(k);
     if (!g) groups.set(k, g = []);
     g.push({ day: dayNum(t.bookingDate), amt: Math.abs(t.amount), tx: t });
+    if (known && !knownBy.has(k)) knownBy.set(k, known);
   }
   mergeUnreferenced(groups);
 
@@ -204,12 +251,17 @@ export function detectRecurring(txs, existingContracts = []) {
   const out = [];
   const used = new Set();
 
-  const build = (key, items, res) => {
+  const build = (key, items, res, known = null) => {
     const list = items.map(i => i.tx);
-    if (list.filter(t => !t.isTransfer && t.category !== 'umbuchung').length * 2 < list.length) return;
+    if (list.filter(t => !t.isTransfer && t.category !== 'umbuchung').length * 2 < list.length) return false;
     const sign = list[0].amount < 0 ? -1 : 1;
-    const provider = mode(list.map(t => t.counterparty || t.counterpartyRaw)) || 'Unbekannt';
-    if (userNames.has(fold(provider))) return;
+    let provider = mode(list.map(t => t.counterparty || t.counterpartyRaw)) || 'Unbekannt';
+    // Kartenumsatz/Plattform als Gegenpartei („VISA …“, „Amazon“) oder Name mit Referenz („Audible 4S7XK1“): Name des bekannten Anbieters
+    if (known) {
+      const f = fold(provider), hit = known.re.exec(f);
+      if (!hit || hit.index !== 0 || /\d/.test(f)) provider = known.name;
+    }
+    if (userNames.has(fold(provider))) return false;
     const category = mode(list.filter(t => !t.isTransfer).map(t => t.category)) || 'sonstiges';
     const sub = mode(list.filter(t => t.category === category).map(t => t.subcategory)) || null;
     const acc = mode(list.map(t => t.accountId));
@@ -228,23 +280,34 @@ export function detectRecurring(txs, existingContracts = []) {
       interval: res.interval, amount, monthly: Math.round(res.amount * perYear / 12), firstDate, lastDate,
       nextDate: nextDateOf(lastDate, res.interval), accountId: acc, txIds: list.map(t => t.id), count: list.length,
       priceChange: pc, active, yearlyCost: Math.round(res.amount * perYear), source: 'auto',
+      ...(res.fromKnownProvider ? { fromKnownProvider: true } : {}),
     });
     for (const t of list) used.add(t.id);
+    return true;
   };
 
   for (const [key, items] of groups) {
     items.sort((a, b) => a.day - b.day);
-    if (items.length < 2) continue;
+    const known = knownBy.get(key) || null;
+    if (items.length < 2 && !known) continue;
     const first = items[0].tx;
-    const hint = findMerchant(fold(first.counterparty || first.counterpartyRaw), '')?.recurringHint || null;
-    const base = analyzeSeries(items, 3, hint);
-    if (base) { build(key, items, base); continue; }
+    // ÖPNV-Abo (Deutschlandticket über DB Vertrieb & Co.): monatlich
+    const hint = known?.recurringHint || findMerchant(fold(first.counterparty || first.counterpartyRaw), '')?.recurringHint
+      || (items[items.length - 1].tx.subcategory === 'oepnv' ? 'monthly' : null);
+    const base = items.length >= 2 ? analyzeSeries(items, 3, hint) : null;
+    if (base) { build(key, items, base, known); continue; }
     // Gemischte Gruppe (z. B. Amazon, Google): Cluster gleicher Beträge einzeln prüfen
+    let built = false;
     if (items.length >= 4) {
       for (const cl of amountClusters(items)) {
         const r = analyzeSeries(cl, 3, hint);
-        if (r) { cl.clusterBase = cl[0].amt; build(key, cl, r); }
+        if (r) { cl.clusterBase = cl[0].amt; built = build(key, cl, r, known) || built; }
       }
+    }
+    // Bekannter Abo-Anbieter: schon die erste Zahlung (bzw. die jüngste Preisstufe) ist ein Vertrag
+    if (!built && known) {
+      const single = knownSingle(items, known);
+      if (single) build(key, single.items, single.res, known);
     }
   }
   out.sort((a, b) => b.yearlyCost - a.yearlyCost);
