@@ -1,16 +1,49 @@
 <script>
-  import { app } from '../store/state.svelte.js';
+  // Fortschritt während des Imports; mit `report` der kompakte Importbericht danach
+  import { app, live, setView } from '../store/state.svelte.js';
   import { pauseImport, resumeImport, cancelImport } from '../store/importer.js';
   import Icon from '../ui/Icon.svelte';
   import Collapsible from '../ui/Collapsible.svelte';
   import { TYPE_LABELS } from '../parsers/naming.js';
-  let { compact = false } = $props();
+  import Tip from '../ui/Tip.svelte';
+  let { compact = false, report = false, ondismiss = null } = $props();
   const p = app.progress;
   const pct = $derived(p.total ? Math.round((p.done / p.total) * 100) : 0);
   const label = (t) => (t === 'irrelevant' ? 'Ohne Finanzbezug' : TYPE_LABELS?.[t]?.name || TYPE_LABELS?.[t]?.label || t);
   const icon = (t) => TYPE_LABELS?.[t]?.icon || 'file';
   const PHASES = { collect: 'Sammeln', process: 'Lesen', analyze: 'Analysieren', ai: 'KI', done: 'Fertig' };
+
+  // Importbericht: nichts verschwindet still
+  const rep = $derived({
+    neu: p.newTx || 0,
+    docs: p.newDocs || 0,
+    dupTx: p.dupTx || 0,
+    dupFiles: p.skipped || 0,
+    enriched: p.enrichedTx || 0,
+    ignored: p.counts?.irrelevant || 0,
+    errors: p.errors?.length || 0,
+    review: live.reviewCount || 0,
+  });
 </script>
+
+{#if report}
+<div class="rep row wrap" role="status">
+  <Icon name="check" size={15} />
+  <span><b class="num">{rep.neu}</b> neu<Tip text={`${rep.neu} Buchungen aus ${rep.docs} Dokumenten`} /></span>
+  <span class="sep">·</span>
+  <span><b class="num">{rep.dupTx + rep.dupFiles}</b> Dubletten übersprungen<Tip text={`${rep.dupTx} Buchungen, ${rep.dupFiles} bereits bekannte Dateien`} /></span>
+  <span class="sep">·</span>
+  <span><b class="num">{rep.enriched}</b> ergänzt</span>
+  <span class="sep">·</span>
+  <span><b class="num">{rep.ignored}</b> ignoriert</span>
+  {#if rep.errors}<span class="sep">·</span><span class="negc"><b class="num">{rep.errors}</b> Fehler</span>{/if}
+  <span class="sep">·</span>
+  {#if rep.review}
+    <button class="btn btn-sm btn-primary" onclick={() => setView('review')}><b class="num">{rep.review}</b>&nbsp;brauchen dich<Icon name="arrowRight" size={14} /></button>
+  {:else}<span class="good"><b class="num">0</b> brauchen dich</span>{/if}
+  {#if ondismiss}<span class="grow"></span><button class="btn btn-ghost btn-icon btn-sm" onclick={ondismiss} aria-label="Bericht schließen"><Icon name="x" size={14} /></button>{/if}
+</div>
+{:else}
 
 <div class="pb" class:compact>
   <div class="row">
@@ -39,8 +72,12 @@
     {/if}
   {/if}
 </div>
+{/if}
 
 <style>
+  .rep { gap: 6px; align-items: center; font-size: 13px; }
+  .rep .sep { color: var(--text-3); }
+  .rep .good { color: var(--good); }
   .pb { display: flex; flex-direction: column; gap: 10px; }
   .pb.compact { padding: 10px 28px; background: var(--surface); border-bottom: 1px solid var(--border); }
   .bar { height: 6px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }

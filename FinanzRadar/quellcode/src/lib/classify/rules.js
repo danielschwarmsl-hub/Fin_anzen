@@ -137,7 +137,16 @@ function ruleMatches(rule, tx, ctx) {
   const a = fold(hay), b = fold(m.value);
   if (!b) return false;
   if (op === 'equals') return fold(tx.counterparty) === b || fold(tx.counterpartyRaw) === b || a === b;
-  return a.includes(b);
+  return containsWord(a, b);
+}
+
+/**
+ * „enthält“ mit Wortgrenze: der Suchtext muss an einem Wortanfang beginnen („ING“ trifft „ING-DiBa“,
+ * aber nicht „Shopping“; „Rewe“ trifft „Rewe Markt“ und „Rewemarkt“). Beide Texte sind gefaltet (fold).
+ */
+export function containsWord(hayFold, needleFold) {
+  if (!needleFold) return false;
+  return (' ' + hayFold).includes(' ' + needleFold);
 }
 
 function makeCtx() {
@@ -154,6 +163,12 @@ function transferSub(tx, cp, purpose) {
 }
 
 const hasCat = (c, s) => !!getCategory(c) && (!s || !!getSub(c, s));
+
+// Wertpapierkauf / Sparplanausführung (Giro- oder Depotseite): Sparen, kein Konsum
+const DEPOT_BUY = /wertpapierkauf|wertpapier ?kauf|kauf wertpapier|wertpapierabrechnung kauf|(?<![a-z])(?:etf|fonds|wertpapier)sparplan|(?<![a-z])sparplan(?:ausfuehrung| ausfuehrung)?(?![a-z])|sparplanausfuehrung|fondskauf|etf kauf|kauf etf|(?<![a-z])depotkauf/;
+const DEPOT_NOT = /riester|ruerup|bauspar|basisrente/;
+// PayPal-Währungsumrechnung: Gegenstück zur Fremdwährungszahlung, kein eigener Einkauf
+const CONVERSION = /waehrungsumrechnung|currency conversion|general currency conversion/;
 
 function decide(tx, ctx, userRules, cache) {
   // 1. Nutzerregeln
@@ -172,9 +187,20 @@ function decide(tx, ctx, userRules, cache) {
   const btFold = fold(tx.bookingText);
   const text = `${purposeFold} ${btFold} ${cpFold}${rawFold && rawFold !== cpFold ? ' ' + rawFold : ''}`;
 
-  // 2. Umbuchung
-  if (tx.isTransfer) {
+  // 2. Umbuchung – ein nur mittel sicheres, unbestätigtes Paar behält seine eigentliche Kategorie (Steuer/USt greifen weiter)
+  if (tx.isTransfer && !(tx.transferConfidence === 'medium' && tx.transferSource !== 'user')) {
     return { category: 'umbuchung', subcategory: transferSub(tx, cpFold + ' ' + rawFold, purposeFold), categorySource: 'transfer', confidence: 1 };
+  }
+
+  // 2b. Währungsumrechnung (PayPal): Finanzen statt Händlerkategorie (sonst zählt der Einkauf doppelt als Konsum)
+  if (CONVERSION.test(btFold) || (tx.bookingText === 'Währungsumrechnung')) {
+    return { category: 'finanzen', subcategory: null, categorySource: 'keyword', confidence: 0.8 };
+  }
+
+  // 2c. Wertpapierkauf / Sparplan (Abfluss) – vor der Händlerliste, damit „comdirect“ & Co. nicht als Bankgebühr enden
+  if (!pos && !DEPOT_NOT.test(text)) {
+    const depotAcc = cache.depot.has(tx.accountId) && /(?<![a-z])kauf(?![a-z])|sparplan|ausfuehrung|wertpapier/.test(`${btFold} ${purposeFold}`);
+    if (depotAcc || DEPOT_BUY.test(text)) return { category: 'vorsorge_sparen', subcategory: 'sparplan_depot', categorySource: 'keyword', confidence: 0.85 };
   }
 
   // 3a. Einkommens-Stichworte (Zufluss) und Gehaltsbuchung der Bank
@@ -241,9 +267,8 @@ function decide(tx, ctx, userRules, cache) {
  */
 export function classifyTransactions(txs, { rules = [], accounts = [] } = {}) {
   const ctx = makeCtx();
-  const cache = { cp: new Map() };
+  const cache = { cp: new Map(), depot: new Set((accounts || []).filter(a => a?.kind === 'depot').map(a => a.id)) };
   const userRules = (rules || []).filter(r => r && r.enabled !== false && r.match && r.set);
-  void accounts;
   const out = txs.map(tx => {
     if (tx.categorySource === 'user') return tx;
     const d = decide(tx, ctx, userRules, cache);
@@ -252,6 +277,8 @@ export function classifyTransactions(txs, { rules = [], accounts = [] } = {}) {
     const { merchant, fallback, ruleId, ...rest } = d;
     const next = { ...tx, ...rest, needsReview: rest.confidence < 0.6 && !tx.reviewed };
     if (merchant) next.merchant = merchant;
+    // Für „Warum?“: welche Nutzerregel gegriffen hat
+    if (ruleId) next.ruleId = ruleId; else if (next.ruleId) delete next.ruleId;
     return next;
   });
   inferRefunds(out);
@@ -305,6 +332,44 @@ export function suggestRuleFromCorrection(tx, newCategory) {
     match = { field: 'purpose', op: 'contains', value: words.join(' ') };
   }
   return { id: uid('rule_'), match, set: { category: cat, subcategory: sub }, createdAt: new Date().toISOString() };
+}
+
+/** Buchungen, die eine Regel treffen würde (ohne Nutzerentscheidungen – die bleiben unangetastet) */
+export function ruleHits(rule, txs) {
+  if (!rule?.match) return [];
+  const ctx = makeCtx();
+  return (txs || []).filter(t => t && t.categorySource !== 'user' && ruleMatches(rule, t, ctx));
+}
+
+/** Greift schon eine aktive Nutzerregel für diese Buchung? */
+export function matchingRule(tx, rules) {
+  const ctx = makeCtx();
+  return (rules || []).find(r => r && r.enabled !== false && r.match && r.set && ruleMatches(r, tx, ctx)) || null;
+}
+
+const cpKey = (t) => fold(t?.counterparty || t?.counterpartyRaw || '');
+
+/**
+ * Automatisches Lernen: korrigiert der Nutzer dieselbe Gegenpartei zum zweiten Mal auf dieselbe Kategorie,
+ * entsteht daraus eine Regel. Gibt die neue Regel zurück (mit `auto: true`) oder null.
+ * @param {object} tx korrigierte Buchung (Stand vor oder nach der Korrektur)
+ * @param {string} category neue Kategorie
+ * @param {string|null} subcategory neue Unterkategorie
+ * @param {object[]} txs alle Buchungen (inkl. früherer Nutzerentscheidungen)
+ * @param {object[]} rules vorhandene Regeln
+ */
+export function learnRuleFromCorrection(tx, category, subcategory, txs, rules) {
+  if (!tx || !category || !getCategory(category) || category === 'umbuchung') return null;
+  const key = cpKey(tx);
+  if (key.length < 3) return null;
+  const earlier = (txs || []).some(x => x && x.id !== tx.id && x.categorySource === 'user' && !x.isTransfer && x.category === category && cpKey(x) === key);
+  if (!earlier) return null;
+  // Gibt es schon eine Regel, die greift, bleibt es bei ihr (der Nutzer kann sie in den Einstellungen ändern)
+  if (matchingRule(tx, rules)) return null;
+  const rule = suggestRuleFromCorrection({ ...tx, category, subcategory: subcategory || null }, subcategory ? `${category}.${subcategory}` : category);
+  if (!rule) return null;
+  rule.auto = true;
+  return rule;
 }
 
 export { INCOME_FIRST as _INCOME_FIRST, KEYWORDS as _KEYWORDS };

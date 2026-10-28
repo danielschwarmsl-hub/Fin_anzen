@@ -1,7 +1,8 @@
 <script>
   // Buchungen: vollständiges Journal mit Filtern, Gruppierung nach Monat, Mehrfachauswahl und Detail-Panel
   import { untrack, tick } from 'svelte';
-  import { app, setView, effectiveRange, updateTransaction, updateTransactions, putRecord, toast, reload } from '../store/state.svelte.js';
+  import { app, setView, effectiveRange, updateTransaction, updateTransactions, putRecord, toast, reload, autoLearn } from '../store/state.svelte.js';
+  import { isPendingTx } from './reviewModel.js';
   import { search } from '../store/search.js';
   import { postProcess } from '../store/postprocess.js';
   import { CATEGORIES } from '../classify/categories.js';
@@ -124,7 +125,7 @@
       if (!st && (t.isTransfer || t.category === 'umbuchung')) return false;
       if (ot && !t.taxRelevant) return false;
       if (oa && !t.contractId) return false;
-      if (or && !(t.needsReview && !t.reviewed)) return false;
+      if (or && !isPendingTx(t)) return false;
       if (ss && !ss.has(t.id)) return false;
       return true;
     }));
@@ -164,7 +165,8 @@
       return out;
     });
   });
-  const reviewCount = $derived.by(() => { void app.dataVersion; return untrack(() => app.data.transactions.reduce((n, t) => n + (t.needsReview && !t.reviewed ? 1 : 0), 0)); });
+  // Gleiches Kriterium wie die Prüfliste (Kategorie unsicher oder offene Prüfungen)
+  const reviewCount = $derived.by(() => { void app.dataVersion; return untrack(() => app.data.transactions.reduce((n, t) => n + (isPendingTx(t) ? 1 : 0), 0)); });
   const accLabels = $derived(new Map(app.data.accounts.map(a => [a.id, accLabel(a)])));
   function accLabel(a) {
     const inst = a.institution, nm = a.name;
@@ -231,9 +233,14 @@
     if (!category) return;
     if (ruleBusy) { toast('Bitte kurz warten …'); return; }
     if (tx.category === category && (tx.subcategory || null) === (subcategory || null)) return;
-    await updateTransaction(tx.id, { category, subcategory: subcategory || null, categorySource: 'user', confidence: 1, needsReview: false });
     const snap = $state.snapshot(tx);
-    toast(`Kategorie: ${catLabel(category, subcategory)}`, { ms: 9000, action: { label: 'Immer so', fn: () => alwaysSo(snap, category) } });
+    await updateTransaction(tx.id, { category, subcategory: subcategory || null, categorySource: 'user', confidence: 1, needsReview: false, reviewed: true });
+    // Zweite gleiche Korrektur derselben Gegenpartei → Regel entsteht automatisch (eigener Toast mit Rückgängig)
+    ruleBusy = true;
+    let learned = false;
+    try { learned = await autoLearn(snap, category, subcategory || null); } finally { ruleBusy = false; }
+    if (learned) return;
+    toast(`Kategorie: ${catLabel(category, subcategory)}`, { ms: 9000, action: { label: 'Immer so', fn: () => alwaysSo(snap, subcategory ? `${category}.${subcategory}` : category) } });
   }
   async function alwaysSo(snap, category) {
     if (ruleBusy) return;
@@ -248,7 +255,8 @@
       await postProcess();
       await reload();
       let n = 0;
-      for (const t of app.data.transactions) if (t.category === category && before.get(t.id) !== category) n++;
+      const cat = String(category).split('.')[0];
+      for (const t of app.data.transactions) if (t.category === cat && before.get(t.id) !== cat) n++;
       n = Math.max(n, 1);
       toast(`Regel angewendet auf ${n} ${n === 1 ? 'Buchung' : 'Buchungen'}`, { tone: 'good' });
     } catch (e) {
@@ -344,7 +352,7 @@
     {#if tx.isTransfer}<span class="fl" title="Umbuchung"><Icon name="refresh" size={15} /></span>{/if}
     {#if tx.splits?.length}<span class="fl" title="Aufgeteilt"><Icon name="split" size={15} /></span>{/if}
     {#if tx.taxRelevant}<span class="badge tax" title="Steuerrelevant">Steuer</span>{/if}
-    {#if tx.needsReview && !tx.reviewed}<span class="rdot" title="Bitte prüfen"></span>{/if}
+    {#if isPendingTx(tx)}<span class="rdot" title="Bitte prüfen"></span>{/if}
   </span>
 {/snippet}
 

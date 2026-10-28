@@ -33,6 +33,8 @@
   import Money from '../ui/Money.svelte';
   import Empty from '../ui/Empty.svelte';
   import DocViewer from './DocViewer.svelte';
+  import DocFix from '../ui/DocFix.svelte';
+  import { isPendingDoc, isUnreadable, docReason } from './reviewModel.js';
 
   const PAGE_GRID = 120;
   const PAGE_LIST = 200;
@@ -101,7 +103,7 @@
     return list.filter((d) =>
       (year === 'all' || dateOf(d).startsWith(year)) &&
       (!taxOnly || d.taxRelevant) &&
-      (!reviewOnly || (d.needsReview && !d.reviewed)));
+      (!reviewOnly || isPendingDoc(d)));
   });
   const typeCounts = $derived.by(() => {
     const m = new Map();
@@ -109,6 +111,8 @@
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   });
   const shown = $derived(typeF ? base.filter((d) => d.type === typeF) : base);
+  // Unlesbare/unsichere Belege: oben mit Schnellaktionen („Neu prüfen“, „Ist eher: X“)
+  const fixable = $derived(docs.filter((d) => isPendingDoc(d) && (isUnreadable(d) || d.alternatives?.length)));
   const pageSize = $derived(view === 'list' ? PAGE_LIST : PAGE_GRID);
   const visible = $derived(shown.slice(0, more * pageSize));
 
@@ -252,6 +256,22 @@
       </Empty>
     </div>
   {:else}
+    {#if fixable.length && !q}
+      <div class="card fixes">
+        <div class="row between"><strong class="small">Unlesbar oder unsicher <span class="badge warn">{fixable.length}</span></strong><Tip text="Neu prüfen liest die Datei mit höherer Auflösung. „Ist eher“ übernimmt einen anderen erkannten Typ." /></div>
+        {#each fixable.slice(0, 6) as d (d.id)}
+          <div class="fixrow">
+            <button class="fixname" onclick={() => open(d.id)}>
+              <Icon name={isUnreadable(d) ? 'alert' : typeIcon(d.type)} size={15} />
+              <span class="ellipsis">{d.title || d.displayName || 'Ohne Titel'}</span>
+              <span class="small faint ellipsis">{docReason(d)}</span>
+            </button>
+            <DocFix doc={d} />
+          </div>
+        {/each}
+        {#if fixable.length > 6}<button class="btn btn-sm btn-ghost" onclick={() => setView('review', { tab: 'docs' })}>Alle {fixable.length} in der Prüfliste</button>{/if}
+      </div>
+    {/if}
     <div class="count small muted num">{shown.length} {shown.length === 1 ? 'Dokument' : 'Dokumente'}</div>
 
     {#if view === 'grid'}
@@ -316,6 +336,9 @@
 
 <style>
   .docs { gap: 14px; }
+  .fixes { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
+  .fixrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
+  .fixname { display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 240px; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; padding: 4px 0; }
   .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .search { position: relative; flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 6px; }
   .search .input { width: 100%; padding-left: 34px; padding-right: 36px; }

@@ -1,38 +1,38 @@
 <script>
-  // Prüfen: fokussierter Karten-Ablauf für unsichere Dokumente und Buchungen
+  // Prüfliste: eine Karte je unsicherem Eintrag (Buchung oder Dokument), sortiert nach Geldwirkung.
+  // Logik (Kriterium, Sortierung, Patches) liegt DOM-frei in reviewModel.js.
   import { untrack } from 'svelte';
-  import { app, setView, updateTransaction, updateDocument, putRecord, toast, reload, getThumb, getBlob, sourceOf, accountName } from '../store/state.svelte.js';
+  import { app, setView, updateDocument, applyTxPatches, applyRule, removeRule, autoLearn, toast, reload, getThumb, getBlob, sourceOf, accountName } from '../store/state.svelte.js';
   import { postProcess } from '../store/postprocess.js';
   import { CATEGORIES } from '../classify/categories.js';
   import { TYPE_LABELS } from '../parsers/naming.js';
-  import { suggestRuleFromCorrection } from '../classify/rules.js';
+  import { suggestRuleFromCorrection, ruleHits } from '../classify/rules.js';
+  import {
+    buildQueue, isReceiptSuggestion, isPendingTx, isPendingDoc, isUnreadable, txAspects, docReason, confirmPatches, rejectPatches, confirmAllPatches,
+    mergePatches, prevFor, similarOpen, pairOf, splitsFromSuggestion, KIND_LABEL, CONFIDENCE_TEXT,
+  } from './reviewModel.js';
   import Icon from '../ui/Icon.svelte';
   import Seg from '../ui/Seg.svelte';
   import Empty from '../ui/Empty.svelte';
   import Money from '../ui/Money.svelte';
   import Tip from '../ui/Tip.svelte';
   import CategoryPicker from '../ui/CategoryPicker.svelte';
-  import { fmtDate, parseGermanAmount, uid } from '../util/format.js';
+  import DocFix from '../ui/DocFix.svelte';
+  import { fmtDate, parseGermanAmount } from '../util/format.js';
 
   const CAT = new Map(CATEGORIES.map(c => [c.id, c]));
   const SRC = { rule: 'Regel', merchant: 'Händler', keyword: 'Stichwort', user: 'Manuell', ai: 'KI', transfer: 'Umbuchung' };
   const TYPES = Object.entries(TYPE_LABELS || {}).filter(([value]) => value !== 'irrelevant').map(([value, v]) => ({ value, label: v.name || v.label || value }));
   TYPES.push({ value: 'irrelevant', label: 'Kein Finanzdokument' });
+  const REJECT = { receipt: 'Lösen', transfer: 'Keine Umbuchung', paypal: 'Nicht dieselbe Zahlung', depot: 'Nicht doppelt', storno: 'Kein Storno', split: 'Nicht aufteilen' };
+  const CONFIRM = { split: 'Übernehmen' };
 
-  const pendingDoc = (d) => d.needsReview && !d.reviewed && d.type !== 'irrelevant';
-  const pendingTx = (t) => t.needsReview && !t.reviewed;
+  const build = (f) => buildQueue({ transactions: app.data.transactions, documents: app.data.documents }, f);
+  const initialTab = app.params?.tab === 'tx' || app.params?.tab === 'docs' ? app.params.tab : 'all';
 
-  function buildQueue(kind) {
-    if (kind === 'docs') {
-      return app.data.documents.filter(pendingDoc).sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(d => d.id);
-    }
-    return app.data.transactions.filter(pendingTx)
-      .sort((a, b) => (a.confidence ?? 0) - (b.confidence ?? 0) || Math.abs(b.amount) - Math.abs(a.amount)).map(t => t.id);
-  }
-
-  let queues = $state({ docs: buildQueue('docs'), tx: buildQueue('tx') });
-  let pos = $state({ docs: 0, tx: 0 });
-  let tab = $state(app.params?.tab === 'tx' || app.params?.tab === 'docs' ? app.params.tab : (queues.docs.length ? 'docs' : 'tx'));
+  let filter = $state(initialTab);
+  let queue = $state(build(initialTab));
+  let pos = $state(0);
   let busy = $state(false);
   let makeRule = $state(false);
   let choice = $state(null);
@@ -42,89 +42,183 @@
   let pickerEl = $state(null);
   let typeEl = $state(null);
 
-  const pendingDocs = $derived.by(() => { void app.dataVersion; return untrack(() => app.data.documents.filter(pendingDoc).length); });
-  const pendingTxs = $derived.by(() => { void app.dataVersion; return untrack(() => app.data.transactions.filter(pendingTx).length); });
-  const tabs = $derived([{ value: 'docs', label: `Dokumente · ${pendingDocs}` }, { value: 'tx', label: `Buchungen · ${pendingTxs}` }]);
+  // Filterwechsel: Liste neu aufbauen
+  let builtFor = initialTab;
+  $effect(() => {
+    const f = filter;
+    if (f === builtFor) return;
+    builtFor = f;
+    untrack(() => { queue = build(f); pos = 0; });
+  });
 
-  const ids = $derived(queues[tab]);
-  const p = $derived(pos[tab]);
-  const total = $derived(ids.length);
-  const curId = $derived(ids[p]);
-  const cur = $derived(curId ? (tab === 'docs' ? app.data.documents.find(d => d.id === curId) : app.data.transactions.find(t => t.id === curId)) : null);
-  const done = $derived(p >= total);
-  const leftover = $derived(tab === 'docs' ? pendingDocs : pendingTxs);
-  const otherPending = $derived(tab === 'docs' ? pendingTxs : pendingDocs);
+  const counts = $derived.by(() => {
+    void app.dataVersion;
+    return untrack(() => ({ tx: app.data.transactions.filter(isPendingTx).length, docs: app.data.documents.filter(isPendingDoc).length }));
+  });
+  const tabs = $derived([
+    { value: 'all', label: `Alle · ${counts.tx + counts.docs}` },
+    { value: 'tx', label: `Buchungen · ${counts.tx}` },
+    { value: 'docs', label: `Dokumente · ${counts.docs}` },
+  ]);
+  const txById = $derived.by(() => { void app.dataVersion; return untrack(() => new Map(app.data.transactions.map(t => [t.id, t]))); });
+  const docById = $derived.by(() => { void app.dataVersion; return untrack(() => new Map(app.data.documents.map(d => [d.id, d]))); });
+
+  const total = $derived(queue.length);
+  const curKey = $derived(queue[pos]);
+  const isDoc = $derived(!!curKey && curKey.startsWith('d:'));
+  const cur = $derived.by(() => {
+    void app.dataVersion;
+    if (!curKey) return null;
+    const id = curKey.slice(2);
+    return (isDoc ? app.data.documents : app.data.transactions).find(x => x.id === id) || null;
+  });
+  const done = $derived(pos >= total);
+  const leftover = $derived(filter === 'docs' ? counts.docs : filter === 'tx' ? counts.tx : counts.tx + counts.docs);
+  const pendingNow = (o) => (isDoc ? isPendingDoc(o) : isPendingTx(o));
 
   // Fehlende und inzwischen erledigte Einträge überspringen (z. B. durch eine neue Regel mitgeklärt)
   $effect(() => {
-    if (p >= total) return;
-    const stale = !cur || (!busy && !(tab === 'docs' ? pendingDoc(cur) : pendingTx(cur)));
-    if (stale) untrack(() => { pos[tab] = p + 1; });
+    if (pos >= total) return;
+    const stale = !cur || (!busy && !pendingNow(cur));
+    if (stale) untrack(() => { pos = pos + 1; });
   });
 
-  function advance() { pos[tab] = pos[tab] + 1; makeRule = false; }
-  function restart(kind) { queues[kind] = buildQueue(kind); pos[kind] = 0; }
+  function advance() { pos = pos + 1; }
+  function restart() { queue = build(filter); pos = 0; }
   function skip() { if (cur && !busy) advance(); }
 
   // ---- Buchungen ----
+  const aspects = $derived(cur && !isDoc ? txAspects(cur) : []);
+  const hasCat = $derived(aspects.some(a => a.kind === 'category'));
+  const primary = $derived(aspects[0] || null);
+
   const topCats = $derived.by(() => {
-    const t = tab === 'tx' ? cur : null;
+    const t = !isDoc && hasCat ? cur : null;
     if (!t) return [];
     void app.dataVersion;
     return untrack(() => {
       const overall = new Map(), same = new Map();
       for (const x of app.data.transactions) {
-        if (!x.category || pendingTx(x)) continue;
+        if (!x.category || (x.needsReview && !x.reviewed)) continue;
         overall.set(x.category, (overall.get(x.category) || 0) + 1);
         if (t.counterparty && x.counterparty === t.counterparty) same.set(x.category, (same.get(x.category) || 0) + 1);
       }
       const rank = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
       const out = [];
-      for (const c of [t.category, ...rank(same), ...rank(overall)]) if (c && CAT.has(c) && !out.includes(c)) out.push(c);
+      for (const c of [t.category, ...rank(same), ...rank(overall)]) if (c && CAT.has(c) && !out.includes(c) && c !== 'umbuchung') out.push(c);
       return out.slice(0, 9);
     });
   });
+
+  // Ähnliche offene Fälle (gleiche Gegenpartei + gleiche Art) für Sammelaktion und Regel-Vorgabe
   const similar = $derived.by(() => {
-    const t = tab === 'tx' ? cur : null;
-    if (!t?.counterparty) return 0;
+    const t = !isDoc ? cur : null;
+    if (!t || !primary) return [];
     void app.dataVersion;
-    return untrack(() => app.data.transactions.reduce((n, x) => n + (x.id !== t.id && x.counterparty === t.counterparty ? 1 : 0), 0));
+    return untrack(() => similarOpen($state.snapshot(t), primary.kind, app.data.transactions));
+  });
+  const similarCat = $derived.by(() => {
+    const t = !isDoc && hasCat ? cur : null;
+    if (!t) return 0;
+    void app.dataVersion;
+    return untrack(() => similarOpen($state.snapshot(t), 'category', app.data.transactions).length);
+  });
+  const catStr = (c) => (c?.subcategory ? `${c.category}.${c.subcategory}` : c?.category);
+  // Trefferzahl der Regel, die aus der aktuellen Wahl entstünde
+  const ruleCount = $derived.by(() => {
+    const t = !isDoc && hasCat ? cur : null;
+    if (!t || !choice?.category) return 0;
+    void app.dataVersion;
+    return untrack(() => {
+      const r = suggestRuleFromCorrection({ ...$state.snapshot(t), ...choice }, catStr(choice));
+      return r ? ruleHits(r, app.data.transactions).filter(x => x.id !== t.id).length : 0;
+    });
   });
 
   $effect(() => {
-    const t = tab === 'tx' ? cur : null;
+    const t = !isDoc ? cur : null;
+    void curKey;
     if (!t) return;
-    untrack(() => { choice = { category: t.category || null, subcategory: t.subcategory || null }; });
+    untrack(() => {
+      choice = { category: t.category || null, subcategory: t.subcategory || null };
+      makeRule = similarCat >= 2;
+    });
   });
 
+  /** Patches speichern, Rückgängig vormerken; bei gelösten Paaren neu auswerten (Kategorie der Seiten neu bestimmen) */
+  async function commit(list, { rePost = false } = {}) {
+    if (!list.length) return;
+    const items = list.map(({ id, patch }) => ({ id, prev: prevFor($state.snapshot(txById.get(id)), patch) }));
+    await applyTxPatches(list);
+    lastUndo = { kind: 'tx', items, at: pos };
+    if (rePost) { await postProcess(); await reload(); }
+  }
+  const ctx = () => ({ txById, choice: $state.snapshot(choice) });
+  const changedFrom = (t) => !!choice?.category && (choice.category !== t.category || (choice.subcategory || null) !== (t.subcategory || null));
+
+  /** Nach einer Kategorie-Entscheidung: Regel anlegen (Checkbox) oder automatisch lernen */
+  async function learn(snap, changed) {
+    if (makeRule && choice?.category) {
+      const rule = suggestRuleFromCorrection({ ...snap, ...choice }, catStr(choice));
+      if (!rule) { toast('Keine Regel ableitbar'); return; }
+      const n = await applyRule(rule);
+      lastUndo = null;
+      toast(`Regel angewendet auf ${n + 1} Buchungen`, { tone: 'good', ms: 9000, action: { label: 'Rückgängig', fn: () => removeRule(rule.id) } });
+    } else if (changed) await autoLearn(snap, choice.category, choice.subcategory);
+  }
+
+  /** „Übernehmen“: alle offenen Prüfungen der Buchung bestätigen */
   async function acceptTx(category, subcategory) {
     const t = cur;
-    if (busy || !t || tab !== 'tx') return;
-    category = category ?? choice?.category;
-    subcategory = category === choice?.category && subcategory === undefined ? choice?.subcategory : subcategory;
-    if (!category) { toast('Bitte zuerst eine Kategorie wählen'); return; }
-    const changed = category !== t.category || (subcategory || null) !== (t.subcategory || null);
-    const prev = { category: t.category ?? null, subcategory: t.subcategory ?? null, categorySource: t.categorySource ?? null, confidence: t.confidence ?? null, needsReview: !!t.needsReview, reviewed: !!t.reviewed };
+    if (busy || !t || isDoc) return;
+    if (category) choice = { category, subcategory: subcategory ?? null };
+    if (hasCat && !choice?.category) { toast('Bitte zuerst eine Kategorie wählen'); return; }
     const snap = $state.snapshot(t);
+    const changed = hasCat && changedFrom(t);
     busy = true;
     try {
-      await updateTransaction(t.id, { needsReview: false, reviewed: true, ...(changed ? { category, subcategory: subcategory || null, categorySource: 'user', confidence: 1 } : {}) });
-      lastUndo = { kind: 'tx', id: t.id, prev, at: p };
-      if (makeRule) {
-        const rule = suggestRuleFromCorrection({ ...snap, category }, category);
-        if (rule) {
-          if (!rule.id) rule.id = uid('rule_');
-          const before = new Map(app.data.transactions.map(x => [x.id, x.category]));
-          await putRecord('rules', rule);
-          await postProcess();
-          await reload();
-          let n = 0;
-          for (const x of app.data.transactions) if (x.category === category && before.get(x.id) !== category) n++;
-          lastUndo = null;
-          toast(`Regel angewendet auf ${n + 1} Buchungen`, { tone: 'good' });
-        } else toast('Keine Regel ableitbar');
-      }
+      await commit(confirmAllPatches(snap, ctx()));
+      if (hasCat) await learn(snap, changed);
       advance();
+    } catch (e) {
+      console.error(e);
+      toast('Speichern fehlgeschlagen', { tone: 'bad' });
+    } finally { busy = false; }
+  }
+
+  /** Einzelne Prüfung bestätigen oder ablehnen (Karte bleibt, solange noch etwas offen ist) */
+  async function actAspect(a, ok) {
+    const t = cur;
+    if (busy || !t) return;
+    busy = true;
+    try {
+      const snap = $state.snapshot(t);
+      const sugg = a.kind === 'receipt' && isReceiptSuggestion(snap, a);
+      const list = ok ? confirmPatches(snap, a, ctx()) : rejectPatches(snap, a, ctx());
+      await commit(list, { rePost: !ok && a.kind !== 'split' && a.kind !== 'receipt' });
+      const msg = sugg ? (ok ? 'Beleg verknüpft' : 'Beleg-Vorschlag abgelehnt') : ok ? `${KIND_LABEL[a.kind]} bestätigt` : `${KIND_LABEL[a.kind]}: ${REJECT[a.kind] || 'abgelehnt'}`;
+      toast(msg, { tone: 'good' });
+    } catch (e) {
+      console.error(e);
+      toast('Speichern fehlgeschlagen', { tone: 'bad' });
+    } finally { busy = false; }
+  }
+
+  /** Sammelaktion: dieselbe Art bei allen offenen Buchungen derselben Gegenpartei bestätigen */
+  async function acceptSimilar() {
+    const t = cur;
+    if (busy || !t || !primary || !similar.length) return;
+    if (primary.kind === 'category' && !choice?.category) { toast('Bitte zuerst eine Kategorie wählen'); return; }
+    const snap = $state.snapshot(t);
+    const c = ctx();
+    const all = [{ tx: snap, aspect: primary }, ...similar.map(s => ({ tx: $state.snapshot(s.tx), aspect: s.aspect }))];
+    const changed = primary.kind === 'category' && changedFrom(t);
+    busy = true;
+    try {
+      await commit(mergePatches(all.flatMap(({ tx, aspect }) => confirmPatches(tx, aspect, c))));
+      toast(`${all.length} × ${KIND_LABEL[primary.kind]} bestätigt`, { tone: 'good' });
+      if (changed) await autoLearn(snap, choice.category, choice.subcategory);
+      if (!isPendingTx(t)) advance();
     } catch (e) {
       console.error(e);
       toast('Speichern fehlgeschlagen', { tone: 'bad' });
@@ -134,12 +228,13 @@
   // ---- Dokumente ----
   const centsStr = (c) => (c / 100).toFixed(2).replace('.', ',');
   $effect(() => {
-    const d = tab === 'docs' ? cur : null;
+    const d = isDoc ? cur : null;
+    void curKey;
     if (!d) return;
     untrack(() => { form = { type: d.type || '', issuer: d.issuer || '', date: d.date || '', amount: d.amount == null ? '' : centsStr(d.amount), title: d.title || '' }; });
   });
   $effect(() => {
-    const fid = tab === 'docs' ? cur?.fileId : null;
+    const fid = isDoc ? cur?.fileId : null;
     const urls = [];
     let dead = false;
     preview = { url: null, full: false };
@@ -166,7 +261,7 @@
   }
   async function acceptDoc() {
     const d = cur;
-    if (busy || !d || tab !== 'docs') return;
+    if (busy || !d || !isDoc) return;
     const amount = form.amount.trim() ? parseGermanAmount(form.amount) : null;
     const next = { type: form.type || d.type, issuer: form.issuer.trim() || null, date: form.date || null, amount, title: form.title.trim() || d.title || null };
     const prev = { type: d.type ?? null, issuer: d.issuer ?? null, date: d.date ?? null, amount: d.amount ?? null, title: d.title ?? null, needsReview: !!d.needsReview, reviewed: !!d.reviewed, userEdited: d.userEdited ?? null };
@@ -174,19 +269,19 @@
     busy = true;
     try {
       await updateDocument(d.id, { ...next, needsReview: false, reviewed: true, ...(edited ? { userEdited: true } : {}) });
-      lastUndo = { kind: 'docs', id: d.id, prev, at: p };
+      lastUndo = { kind: 'doc', id: d.id, prev, at: pos };
       advance();
     } catch (e) { console.error(e); toast('Speichern fehlgeschlagen', { tone: 'bad' }); }
     finally { busy = false; }
   }
   async function markIrrelevant() {
     const d = cur;
-    if (busy || !d) return;
+    if (busy || !d || !isDoc) return;
     const prev = { type: d.type ?? null, needsReview: !!d.needsReview, reviewed: !!d.reviewed };
     busy = true;
     try {
       await updateDocument(d.id, { type: 'irrelevant', needsReview: false, reviewed: true });
-      lastUndo = { kind: 'docs', id: d.id, prev, at: p };
+      lastUndo = { kind: 'doc', id: d.id, prev, at: pos };
       advance();
     } finally { busy = false; }
   }
@@ -196,9 +291,9 @@
     if (!u || busy) return;
     busy = true;
     try {
-      if (u.kind === 'tx') await updateTransaction(u.id, u.prev); else await updateDocument(u.id, u.prev);
-      tab = u.kind;
-      pos[u.kind] = u.at;
+      if (u.kind === 'tx') await applyTxPatches(u.items.map(i => ({ id: i.id, patch: i.prev })));
+      else await updateDocument(u.id, u.prev);
+      pos = u.at;
       lastUndo = null;
     } finally { busy = false; }
   }
@@ -218,10 +313,10 @@
     if (k === 'u' && lastUndo) { e.preventDefault(); undo(); return; }
     if (!cur) return;
     if (k === 'enter' && /^(BUTTON|A)$/.test(tg?.tagName || '')) return;
-    if (k === 'j' || k === 'enter') { e.preventDefault(); tab === 'docs' ? acceptDoc() : acceptTx(); }
+    if (k === 'j' || k === 'enter') { e.preventDefault(); isDoc ? acceptDoc() : acceptTx(); }
     else if (k === 'k') { e.preventDefault(); skip(); }
-    else if (k === 'e') { e.preventDefault(); tab === 'docs' ? typeEl?.focus() : openPicker(); }
-    else if (tab === 'tx' && /^[1-9]$/.test(k) && topCats[Number(k) - 1]) { e.preventDefault(); acceptTx(topCats[Number(k) - 1], null); }
+    else if (k === 'e') { e.preventDefault(); isDoc ? typeEl?.focus() : openPicker(); }
+    else if (!isDoc && hasCat && /^[1-9]$/.test(k) && topCats[Number(k) - 1]) { e.preventDefault(); acceptTx(topCats[Number(k) - 1], null); }
   }
   function onPick(pk) {
     if (!pk?.category) return;
@@ -236,29 +331,47 @@
     const s = sub && c.subs?.find(x => x.id === sub);
     return s ? `${c.label} › ${s.label}` : c.label;
   };
-  const origin = $derived(tab === 'docs' && cur ? sourceOf(cur.fileId) : null);
+  const pct = (s) => (s == null ? null : Math.round(s <= 1 ? s * 100 : s));
+  const origin = $derived(isDoc && cur ? sourceOf(cur.fileId) : null);
+  const receiptOf = (a) => docById.get(a.refId || cur?.receiptDocId || (cur?.receiptDocIds || [])[0]) || null;
 </script>
 
 <svelte:window onkeydown={onKey} />
 
+{#snippet why(text)}
+  <div class="why small"><Icon name="info" size={13} /><span>{text}</span></div>
+{/snippet}
+
+{#snippet pairRow(p)}
+  {#if p}
+    <button class="lrow" onclick={() => setView('transactions', { focus: p.id })} title="Gegenbuchung öffnen">
+      <Icon name="split" size={14} />
+      <span class="ellipsis grow">{accountName(p.accountId)} · {p.counterparty || p.counterpartyRaw || '–'}</span>
+      <span class="small muted num">{fmtDate(p.bookingDate)}</span>
+      <Money value={p.amount} sign color />
+    </button>
+  {/if}
+{/snippet}
+
 <div class="wrap stack">
   <div class="head row wrap">
-    <Seg bind:value={tab} options={tabs} />
+    <Seg bind:value={filter} options={tabs} />
     <span class="grow"></span>
     {#if lastUndo}<button class="btn btn-ghost btn-sm" onclick={undo} disabled={busy}><Icon name="refresh" size={14} />Rückgängig <kbd>U</kbd></button>{/if}
-    {#if total > 0 && !done}<span class="num muted prog" aria-live="polite">{p + 1} / {total}</span>{/if}
+    {#if total > 0 && !done}<span class="num muted prog" aria-live="polite">{pos + 1} / {total}</span>{/if}
+    <Tip text="Sortiert nach Betrag: was am meisten Geld bewegt, kommt zuerst. J übernimmt alles auf der Karte, K überspringt, 1–9 wählt eine Kategorie." side="bottom" />
   </div>
-  {#if total > 0}<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={total} aria-valuenow={Math.min(p, total)}><i style="width:{Math.min(100, (p / total) * 100)}%"></i></div>{/if}
+  {#if total > 0}<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={total} aria-valuenow={Math.min(pos, total)}><i style="width:{Math.min(100, (pos / total) * 100)}%"></i></div>{/if}
 
   {#if done || !cur}
     <div class="card fade-up">
       {#if leftover > 0}
-        <Empty icon="inbox" title={`${leftover} ${tab === 'docs' ? 'Dokumente' : 'Buchungen'} übersprungen`}>
-          {#snippet action()}<button class="btn btn-primary" onclick={() => restart(tab)}>Nochmal ansehen</button>{/snippet}
+        <Empty icon="inbox" title={`${leftover} offen`}>
+          {#snippet action()}<button class="btn btn-primary" onclick={restart}>Nochmal ansehen</button>{/snippet}
         </Empty>
-      {:else if otherPending > 0}
-        <Empty icon="check" title={tab === 'docs' ? 'Alle Dokumente geprüft' : 'Alle Buchungen geprüft'}>
-          {#snippet action()}<button class="btn btn-primary" onclick={() => { const o = tab === 'docs' ? 'tx' : 'docs'; restart(o); tab = o; }}>{tab === 'docs' ? 'Zu den Buchungen' : 'Zu den Dokumenten'}</button>{/snippet}
+      {:else if counts.tx + counts.docs > 0}
+        <Empty icon="check" title={filter === 'docs' ? 'Alle Dokumente geprüft' : 'Alle Buchungen geprüft'}>
+          {#snippet action()}<button class="btn btn-primary" onclick={() => (filter = 'all')}>Alle anzeigen</button>{/snippet}
         </Empty>
       {:else}
         <Empty icon="check" title="Alles geprüft">
@@ -266,11 +379,11 @@
         </Empty>
       {/if}
     </div>
-  {:else if tab === 'tx'}
+  {:else if !isDoc}
     {#key cur.id}
       <div class="card fade-up tx" class:busy>
         <div class="row wrap meta">
-          <span class="badge warn"><Icon name="alert" size={12} />Prüfen</span>
+          {#each aspects as a (a.kind + (a.refId || ''))}<span class="badge warn"><Icon name="alert" size={12} />{KIND_LABEL[a.kind] || a.kind}</span>{/each}
           <span class="small muted num">{fmtDate(cur.bookingDate)}</span>
           <span class="badge ellipsis" style="max-width:180px">{accountName(cur.accountId)}</span>
         </div>
@@ -280,44 +393,111 @@
         </div>
         <div class="amount num" class:in={cur.amount > 0}><Money value={cur.amount} sign /></div>
 
-        <div class="sugg">
-          <div class="row" style="gap:8px">
-            <span class="lbl">Vorschlag</span>
-            <Tip text="So sicher ist die automatische Zuordnung. Mit Übernehmen wird sie bestätigt, mit Ändern korrigierst du sie." />
-            <span class="grow"></span>
-            {#if cur.categorySource}<span class="badge">{SRC[cur.categorySource] || cur.categorySource}</span>{/if}
-          </div>
-          <div class="row" style="gap:10px">
-            <span class="dot big" style="background:{CAT.get(choice?.category)?.color || 'var(--text-3)'}"></span>
-            <strong class="grow ellipsis">{catLabel(choice?.category, choice?.subcategory)}</strong>
-            <span class="num small muted">{Math.round((cur.confidence ?? 0) * 100)} %</span>
-          </div>
-          <div class="conf"><i style="width:{Math.round((cur.confidence ?? 0) * 100)}%; background:{confColor(cur.confidence ?? 0)}"></i></div>
-        </div>
+        {#each aspects as a (a.kind + (a.refId || ''))}
+          {#if a.kind === 'category'}
+            <div class="sugg">
+              <div class="row" style="gap:8px">
+                <span class="lbl">Kategorie</span>
+                <span class="grow"></span>
+                {#if cur.categorySource}<span class="badge">{SRC[cur.categorySource] || cur.categorySource}</span>{/if}
+              </div>
+              <div class="row" style="gap:10px">
+                <span class="dot big" style="background:{CAT.get(choice?.category)?.color || 'var(--text-3)'}"></span>
+                <strong class="grow ellipsis">{catLabel(choice?.category, choice?.subcategory)}</strong>
+                <span class="num small muted">{Math.round((cur.confidence ?? 0) * 100)} %</span>
+              </div>
+              <div class="conf"><i style="width:{Math.round((cur.confidence ?? 0) * 100)}%; background:{confColor(cur.confidence ?? 0)}"></i></div>
+              {@render why(a.reason)}
+              {#if cur.aiSuggestion?.category && CAT.has(cur.aiSuggestion.category) && cur.aiSuggestion.category !== cur.category}
+                <div class="row wrap small" style="gap:8px">
+                  <Icon name="sparkles" size={13} />
+                  <span class="grow">KI: <b>{catLabel(cur.aiSuggestion.category, cur.aiSuggestion.subcategory)}</b>{#if cur.aiSuggestion.confidence != null} · {Math.round(cur.aiSuggestion.confidence * 100)} %{/if}{#if cur.aiSuggestion.reason} – {cur.aiSuggestion.reason}{/if}</span>
+                  <button class="btn btn-sm" onclick={() => acceptTx(cur.aiSuggestion.category, cur.aiSuggestion.subcategory || null)} disabled={busy}>Übernehmen</button>
+                </div>
+              {/if}
+            </div>
 
-        <div class="quick" role="group" aria-label="Kategorie wählen">
-          {#each topCats as id, i (id)}
-            <button class="chip" class:on={choice?.category === id && !choice?.subcategory} onclick={() => acceptTx(id, null)} disabled={busy}>
-              <kbd>{i + 1}</kbd><span class="dot" style="background:{CAT.get(id)?.color}"></span>{CAT.get(id)?.label}
-            </button>
-          {/each}
-        </div>
+            <div class="quick" role="group" aria-label="Kategorie wählen">
+              {#each topCats as id, i (id)}
+                <button class="chip" class:on={choice?.category === id && !choice?.subcategory} onclick={() => acceptTx(id, null)} disabled={busy}>
+                  <kbd>{i + 1}</kbd><span class="dot" style="background:{CAT.get(id)?.color}"></span>{CAT.get(id)?.label}
+                </button>
+              {/each}
+            </div>
 
-        <div class="row wrap" style="gap:12px">
-          <span class="lbl">Ändern</span>
-          <span bind:this={pickerEl}><CategoryPicker category={choice?.category} subcategory={choice?.subcategory} onpick={onPick} /></span>
-          <span class="grow"></span>
-          <label class="chk small">
-            <input type="checkbox" bind:checked={makeRule} /> Regel daraus machen
-            {#if similar > 0}<span class="badge accent">+{similar} ähnliche</span>{/if}
-          </label>
-        </div>
+            <div class="row wrap" style="gap:12px">
+              <span class="lbl">Ändern</span>
+              <span bind:this={pickerEl}><CategoryPicker category={choice?.category} subcategory={choice?.subcategory} onpick={onPick} /></span>
+              <span class="grow"></span>
+              <label class="chk small">
+                <input type="checkbox" bind:checked={makeRule} /> Regel daraus machen
+                {#if ruleCount > 0}<span class="badge accent" title="So viele weitere Buchungen würde die Regel treffen">+{ruleCount} Treffer</span>{/if}
+              </label>
+            </div>
+          {:else if a.kind === 'receipt'}
+            {@const d = receiptOf(a)}
+            <div class="asp">
+              <div class="row" style="gap:8px"><span class="lbl">Beleg</span>{#if pct(cur.receiptScore) != null}<span class="badge">{pct(cur.receiptScore)} % Treffer</span>{/if}</div>
+              {#if d}
+                <button class="lrow" onclick={() => setView('documents', { open: d.id })} title="Beleg öffnen">
+                  <Icon name="receipt" size={14} />
+                  <span class="ellipsis grow">{d.title || d.issuer || 'Beleg'}</span>
+                  <span class="small muted num">{fmtDate(d.date)}</span>
+                  {#if d.amount != null}<Money value={d.amount} />{/if}
+                </button>
+              {/if}
+              {@render why(a.reason)}
+              {#if cur.aiHint?.reason}{@render why(`KI-Hinweis: ${cur.aiHint.reason}${cur.aiHint.confidence != null ? ` (${pct(cur.aiHint.confidence)} %)` : ''}`)}{/if}
+              <div class="row" style="gap:8px">
+                {#if isReceiptSuggestion(cur, a)}
+                  <button class="btn btn-sm" onclick={() => actAspect(a, true)} disabled={busy}><Icon name="link" size={14} />Verknüpfen</button>
+                  <button class="btn btn-sm btn-ghost" onclick={() => actAspect(a, false)} disabled={busy}><Icon name="x" size={14} />Ablehnen</button>
+                {:else}
+                  <button class="btn btn-sm" onclick={() => actAspect(a, true)} disabled={busy}><Icon name="check" size={14} />Passt</button>
+                  <button class="btn btn-sm btn-ghost" onclick={() => actAspect(a, false)} disabled={busy}><Icon name="x" size={14} />{REJECT.receipt}</button>
+                {/if}
+              </div>
+            </div>
+          {:else if a.kind === 'split'}
+            {@const parts = splitsFromSuggestion(cur)}
+            <div class="asp">
+              <span class="lbl">Aufteilung</span>
+              {#each parts as s, i (i)}
+                <div class="row small" style="gap:8px"><span class="dot" style="background:{CAT.get(s.category)?.color}"></span><span class="grow ellipsis">{catLabel(s.category, s.subcategory)}</span><Money value={s.amount} /></div>
+              {/each}
+              {@render why(a.reason)}
+              <div class="row" style="gap:8px">
+                <button class="btn btn-sm" onclick={() => actAspect(a, true)} disabled={busy || parts.length < 2}><Icon name="split" size={14} />{CONFIRM.split}</button>
+                <button class="btn btn-sm btn-ghost" onclick={() => actAspect(a, false)} disabled={busy}><Icon name="x" size={14} />{REJECT.split}</button>
+              </div>
+            </div>
+          {:else}
+            {@const p = pairOf(cur, a, txById)}
+            <div class="asp">
+              <div class="row" style="gap:8px">
+                <span class="lbl">{KIND_LABEL[a.kind] || a.kind}</span>
+                {#if CONFIDENCE_TEXT[cur.transferConfidence] && a.kind !== 'storno'}<span class="badge">Sicherheit {CONFIDENCE_TEXT[cur.transferConfidence]}</span>{/if}
+              </div>
+              {@render pairRow(p)}
+              {@render why(a.reason)}
+              <div class="row" style="gap:8px">
+                <button class="btn btn-sm" onclick={() => actAspect(a, true)} disabled={busy}><Icon name="check" size={14} />Passt</button>
+                <button class="btn btn-sm btn-ghost" onclick={() => actAspect(a, false)} disabled={busy}><Icon name="x" size={14} />{REJECT[a.kind] || 'Stimmt nicht'}</button>
+              </div>
+            </div>
+          {/if}
+        {/each}
 
         <div class="actions">
           <button class="btn" onclick={skip} disabled={busy}>Überspringen <kbd>K</kbd></button>
-          <button class="btn" onclick={openPicker} disabled={busy}><Icon name="edit" size={15} />Ändern <kbd>E</kbd></button>
+          {#if hasCat}<button class="btn" onclick={openPicker} disabled={busy}><Icon name="edit" size={15} />Ändern <kbd>E</kbd></button>{/if}
+          {#if similar.length}
+            <button class="btn btn-ghost" onclick={acceptSimilar} disabled={busy} title="Gleiche Gegenpartei, gleiche Prüfung">
+              <Icon name="check" size={15} />Alle ähnlichen bestätigen <span class="badge accent">{similar.length + 1}</span>
+            </button>
+          {/if}
           <span class="grow"></span>
-          <button class="btn btn-primary btn-lg" onclick={() => acceptTx()} disabled={busy || !choice?.category}><Icon name="check" size={17} />Übernehmen <kbd class="k">J</kbd></button>
+          <button class="btn btn-primary btn-lg" onclick={() => acceptTx()} disabled={busy || (hasCat && !choice?.category)}><Icon name="check" size={17} />{aspects.length > 1 ? 'Alles passt' : 'Übernehmen'} <kbd class="k">J</kbd></button>
         </div>
       </div>
     {/key}
@@ -334,9 +514,13 @@
         </div>
         <div class="fm stack">
           <div class="row wrap" style="gap:8px">
-            <span class="badge warn"><Icon name="alert" size={12} />{cur.reviewReason || 'Prüfen'}</span>
+            <span class="badge warn"><Icon name="alert" size={12} />{isUnreadable(cur) ? KIND_LABEL.unreadable : KIND_LABEL.doc}</span>
             {#if cur.confidence != null}<span class="small muted num">{Math.round(cur.confidence * 100)} % sicher</span>{/if}
+            {#if cur.amount != null}<span class="grow"></span><Money value={cur.amount} />{/if}
           </div>
+          {@render why(docReason(cur))}
+          {#if cur.typeSource === 'ai' && cur.aiReason}{@render why(`KI: ${cur.aiReason}`)}{/if}
+          {#if isUnreadable(cur) || cur.alternatives?.length}<DocFix doc={cur} />{/if}
           <div class="grid g2" style="gap:12px">
             <label class="field"><span>Typ</span>
               <select class="input" bind:value={form.type} bind:this={typeEl}>
@@ -372,12 +556,17 @@
   .card { padding: 24px; transition: opacity .15s; }
   .card.busy { opacity: .65; pointer-events: none; }
   .tx { display: flex; flex-direction: column; gap: 18px; max-width: 680px; width: 100%; margin: 0 auto; }
+  .meta { gap: 8px; }
   .who { display: flex; flex-direction: column; gap: 6px; }
   .cpn { font-size: 22px; font-weight: 700; letter-spacing: -.015em; overflow-wrap: anywhere; }
   .purpose { font-size: 13px; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
   .amount { font-size: 30px; font-weight: 750; letter-spacing: -.02em; }
   .amount.in { color: var(--good); }
-  .sugg { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--surface-2); }
+  .sugg, .asp { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--surface-2); }
+  .why { display: flex; gap: 6px; align-items: flex-start; color: var(--text-2); }
+  .why :global(svg) { flex: none; margin-top: 2px; }
+  .lrow { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: inherit; cursor: pointer; text-align: left; min-width: 0; }
+  .lrow:hover { border-color: var(--accent); }
   .lbl { font-size: 12px; font-weight: 600; color: var(--text-2); }
   .dot.big { width: 12px; height: 12px; }
   .conf { height: 5px; border-radius: 5px; background: var(--surface-3); overflow: hidden; }

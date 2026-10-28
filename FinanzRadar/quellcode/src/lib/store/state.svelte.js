@@ -1,7 +1,11 @@
 // Zentraler, reaktiver App-State (Svelte 5 Runes)
+import { untrack } from 'svelte';
 import { db, loadAll, getSetting, setSetting, wipeAll } from './db.js';
 import { computeInsights } from '../analyze/insights.js';
 import { buildIndex } from './search.js';
+import { postProcess } from './postprocess.js';
+import { reviewCount as countReview } from '../views/reviewModel.js';
+import { learnRuleFromCorrection } from '../classify/rules.js';
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -38,8 +42,14 @@ let _insights = $derived.by(() => {
     return null;
   }
 });
+// Offene Prüffälle (Kriterium siehe views/reviewModel.js) – für Navigation, Überblick, Quellen
+let _reviewCount = $derived.by(() => {
+  void app.dataVersion; void app.data.transactions; void app.data.documents;
+  return untrack(() => countReview(app.data.transactions, app.data.documents));
+});
 export const live = {
   get insights() { return _insights; },
+  get reviewCount() { return _reviewCount; },
 };
 
 /** Zeitraum aus Preset oder freiem Bereich */
@@ -114,6 +124,10 @@ export async function updateDocument(id, patch) {
   if (d) Object.assign(d, patch);
   app.dataVersion++;
 }
+/** Mehrere Buchungs-Patches ([{ id, patch }]) nacheinander speichern */
+export async function applyTxPatches(list) {
+  for (const { id, patch } of list) if (id && patch && Object.keys(patch).length) await updateTransaction(id, patch);
+}
 export async function putRecord(table, rec) {
   await db[table].put($state.snapshot(rec));
   const arr = app.data[table];
@@ -125,6 +139,58 @@ export async function deleteRecord(table, id) {
   await db[table].delete(id);
   app.data[table] = app.data[table].filter(x => x.id !== id);
   app.dataVersion++;
+}
+
+// ---- Regeln anwenden & lernen ----
+/** Regel speichern, neu auswerten; gibt die Zahl der dadurch neu zugeordneten Buchungen zurück */
+export async function applyRule(rule) {
+  const before = new Map(app.data.transactions.map(t => [t.id, `${t.category}|${t.subcategory || ''}`]));
+  await putRecord('rules', rule);
+  await postProcess();
+  await reload();
+  let n = 0;
+  for (const t of app.data.transactions) if (t.ruleId === rule.id || (t.category === rule.set?.category && before.get(t.id) !== `${t.category}|${t.subcategory || ''}`)) n++;
+  return n;
+}
+/** Regel wieder entfernen und Zuordnungen neu berechnen */
+export async function removeRule(id) {
+  await deleteRecord('rules', id);
+  await postProcess();
+  await reload();
+}
+/**
+ * Nach einer Korrektur: zweite gleiche Korrektur derselben Gegenpartei → Regel automatisch anlegen (mit Rückgängig).
+ * @returns {Promise<boolean>} true, wenn eine Regel entstanden ist
+ */
+export async function autoLearn(tx, category, subcategory) {
+  const rule = learnRuleFromCorrection($state.snapshot(tx), category, subcategory, app.data.transactions, app.data.rules);
+  if (!rule) return false;
+  try {
+    const n = Math.max(1, await applyRule(rule));
+    toast(`Regel gelernt: „${rule.match.value}“ · ${n} ${n === 1 ? 'Buchung' : 'Buchungen'}`, { tone: 'good', ms: 9000, action: { label: 'Rückgängig', fn: () => removeRule(rule.id).then(() => toast('Regel entfernt')) } });
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+}
+
+/** Dokument neu einlesen (zweiter OCR-Lauf bzw. erzwungener Typ). Importer-Funktion ist optional. */
+export async function reprocessDoc(doc, opts = {}) {
+  const fileId = doc?.fileId;
+  if (!fileId) return false;
+  let fn = null;
+  try { fn = (await import('./importer.js'))?.reprocessFile; } catch (e) { console.warn(e); }
+  if (typeof fn !== 'function') { toast('Neu prüfen ist noch nicht verfügbar'); return false; }
+  try {
+    await fn(fileId, opts);
+    await reload();
+    return true;
+  } catch (e) {
+    console.error(e);
+    toast('Neu prüfen fehlgeschlagen', { tone: 'bad' });
+    return false;
+  }
 }
 
 let toastId = 0;
