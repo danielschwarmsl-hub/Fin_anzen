@@ -2,7 +2,7 @@
 import { parseGermanAmount, parseGermanDate, normalizeIban } from '../../util/format.js';
 import {
   lc, cleanText, makeTx, buildResult, detection, findIban, detectInstitution, institutionFromIban, normalizeBookingText,
-  kindFromName, KIND_LABEL, accountName, findDateRange, parseSepaTokens,
+  kindFromName, KIND_LABEL, accountName, findDateRange, parseSepaTokens, fixSignByBalance,
 } from './common.js';
 
 const AMT = String.raw`[+\-−–]?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}[+\-−–]?`;
@@ -215,6 +215,9 @@ export function parsePdfStatement(det, ctx) {
   }
 
   const reasons = [];
+  // Genau eine Buchung mit halber Saldo-Differenz: Vorzeichen falsch gelesen → drehen und zur Prüfung markieren
+  const flip = fixSignByBalance(transactions, bal.opening, bal.closing);
+  if (flip) { signals.push(flip.signal); reasons.push(flip.reason); }
   if (bal.opening == null || bal.closing == null) reasons.push('Salden nicht gefunden');
   if (!transactions.length) reasons.push('Keine Buchungen erkannt');
   const periodFrom = period?.from || bal.openingDate || null;
@@ -226,7 +229,7 @@ export function parsePdfStatement(det, ctx) {
     type: det?.type || (kind === 'kreditkarte' ? 'kreditkarte' : kind === 'paypal' ? 'paypal' : 'kontoauszug'),
     format: 'pdf_statement', institution, account, transactions,
     opening: bal.opening, closing: bal.closing, openingDate: bal.openingDate || periodFrom, closingDate: bal.closingDate || periodTo,
-    periodFrom, periodTo, style: 'auszug', confidence: ok ? 0.85 : 0.5, reviewReasons: reasons,
+    periodFrom, periodTo, style: 'auszug', confidence: ok ? (flip ? 0.7 : 0.85) : 0.5, reviewReasons: reasons,
     fields: { signals },
   });
 }
