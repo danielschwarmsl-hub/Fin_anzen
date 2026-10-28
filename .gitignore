@@ -2,3 +2,6 @@ node_modules
 dist/
 release/
 .claude/worktrees/
+FinanzRadar/quellcode/public/samples/
+FinanzRadar/quellcode/public/vendor/
+__pycache__/
