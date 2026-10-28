@@ -8,6 +8,7 @@ const RATES = {
   'lebensmittel.supermarkt': 0.07, 'lebensmittel.baeckerei': 0.07, 'lebensmittel.restaurant': 0.07, 'lebensmittel.lieferdienst': 0.07,
   'lebensmittel.drogerie': 0.19, 'lebensmittel.kiosk': 0.19,
   shopping: 0.19, abos_medien: 0.19,
+  'wohnen.wasser': 0.07, 'freizeit_reisen.fluege': 0.19, 'freizeit_reisen.kreuzfahrt': 0.19, 'mobilitaet.e_laden': 0.19, 'mobilitaet.autowaesche': 0.19,
   'mobilitaet.tanken': 0.19, 'mobilitaet.auto': 0.19, 'mobilitaet.oepnv': 0.07, 'mobilitaet.bahn_fernverkehr': 0.07, 'mobilitaet.taxi_sharing': 0.19, 'mobilitaet.fahrrad': 0.19,
   'wohnen.strom_gas': 0.19, 'wohnen.internet_telefon': 0.19, 'wohnen.handwerker': 0.19, 'wohnen.einrichtung': 0.19, 'wohnen.garten': 0.19,
   'gesundheit.apotheke': 0.19, 'gesundheit.brille': 0.19, 'gesundheit.wellness': 0.19,

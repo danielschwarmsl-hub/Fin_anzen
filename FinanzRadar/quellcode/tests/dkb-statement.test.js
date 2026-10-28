@@ -205,3 +205,43 @@ describe('Diagnose, wenn das Einlesen hakt', () => {
     expect(res.document.reviewReason).toMatch(/^Keine Buchungen erkannt: 40 Zeilen mit Datum gefunden/);
   });
 });
+
+describe('DKB-Erläuterung: Empfänger – IBAN – Verwendungszweck (echte Beispiele des Nutzers)', () => {
+  const build = () => {
+    const lines = [];
+    let y = 800;
+    const L = (parts) => { lines.push(mkLine(y, parts)); y -= 12; };
+    L([[140, 'DKB']]); L([[140, 'Auszug'], [910, 'Anzahl der Transaktionen: 2']]); L([[910, 'Zeitraum: 01.01.2025 - 31.12.2025']]);
+    L([[160, 'Datum'], [340, 'Erläuterung'], [1050, 'Betrag EUR']]);
+    L([[160, '29.12.2025'], [340, 'PayPal Europe S.a.r.l. et Cie S.C.A 22-24'], [1110, '-68.76']]);
+    L([[340, 'Boulevard Royal, 2449 Luxembourg']]);
+    L([[340, 'IBAN LU89 3243 2423 2344 200E']]);
+    L([[340, '234087234/PP.1171.PP/. , Ihr Einkauf bei ABC Shop']]);
+    L([[160, '27.12.2025'], [340, 'STAR..Hamburg/Hamburg'], [1115, '-8.48']]);
+    L([[340, 'IBAN DE96 2332 0000 3034 3423 04']]);
+    L([[340, 'VISA Debitkartenumsatz vom 25.12.2025']]);
+    const text = lines.map((l) => l.text).join('\n');
+    return { kind: 'pdf', text, pages: [{ n: 1, text, lines }], meta: { pageCount: 1 } };
+  };
+  it('Empfänger, IBAN, Zweck und Buchungsart werden richtig getrennt', async () => {
+    const ex = build();
+    const res = await parseStatement({ type: 'kontoauszug', format: 'pdf_statement', institution: 'DKB' }, ex, { name: 'x.pdf', ext: 'pdf' });
+    const [pp, star] = [res.transactions.find((t) => t.amount === -6876), res.transactions.find((t) => t.amount === -848)];
+    expect(pp).toMatchObject({ counterpartyRaw: 'PayPal Europe S.a.r.l. et Cie S.C.A 22-24', bookingText: 'Lastschrift' });
+    expect(pp.purpose).toMatch(/Ihr Einkauf bei ABC Shop/);
+    expect(pp.counterpartyIban).toMatch(/^LU89/);
+    expect(star).toMatchObject({ counterpartyRaw: 'STAR..Hamburg/Hamburg', bookingText: 'Kartenzahlung', purpose: 'VISA Debitkartenumsatz vom 25.12.2025' });
+    expect(res.document.needsReview).toBe(false);
+  });
+  it('Kategorien: STAR Hamburg → Tanken, PayPal-Einkauf → Händler aus „Ihr Einkauf bei“', async () => {
+    const { normalizeCounterparty } = await import('../src/lib/classify/normalize.js');
+    const { classifyTransactions } = await import('../src/lib/classify/rules.js');
+    const ex = build();
+    const res = await parseStatement({ type: 'kontoauszug', format: 'pdf_statement', institution: 'DKB' }, ex, { name: 'x.pdf', ext: 'pdf' });
+    const txs = res.transactions.map((t, i) => ({ ...t, id: 't' + i, accountId: 'a', counterparty: normalizeCounterparty(t) || t.counterpartyRaw }));
+    const out = classifyTransactions(txs, { rules: [], accounts: [] });
+    const star = out.find((t) => t.amount === -848);
+    expect(star.category).toBe('mobilitaet');
+    expect(out.find((t) => t.amount === -6876).counterparty).toBe('ABC Shop');
+  });
+});

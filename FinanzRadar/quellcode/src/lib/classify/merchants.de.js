@@ -101,7 +101,7 @@ G('lebensmittel', 'restaurant', {}, [['Too Good To Go', 'too good to go|toogoodt
 // ---------------------------------------------------------------- Mobilität
 G('mobilitaet', 'tanken', {}, [
   ['Aral', 'aral(?: tankstelle| station)?'], ['Shell', 'shell(?: tankstelle| station| deutschland)?'], ['Esso', 'esso(?: tankstelle| station)?'],
-  ['TotalEnergies', 'total ?energies|total (?:service station|service|tankstelle|station|deutschland)'], ['JET', 'jet (?:tankstelle|tank[a-z]*|station)'], ['STAR', 'star (?:tankstelle|station|tankstellen)'],
+  ['TotalEnergies', 'total ?energies|total (?:service station|service|tankstelle|station|deutschland)'], ['JET', 'jet (?:tankstelle|tank[a-z]*|station)'], ['STAR', 'star (?:tankstelle|station|tankstellen)'], ['STAR', 'star(?= (?:hamburg|berlin|bremen|kiel|luebeck|hannover|muenchen|koeln|frankfurt|stuttgart|duesseldorf|leipzig|dresden|nuernberg|[a-z]+ [a-z]+$))', { cpOnly: true, conf: 0.7 }],
   ['HEM', 'hem (?:tankstelle|station|tank)'], ['Agip/Eni', 'agip|eni (?:station|tankstelle)'], ['OMV', 'omv'], ['Avia', 'avia(?: tankstelle| station)?'], ['bft', 'bft(?: tankstelle| station)?'],
   ['Orlen', 'orlen'], ['Tamoil', 'tamoil'],
   ['Q1', 'q1 (?:energie|tankstelle|station)'], ['Westfalen', 'westfalen (?:tankstelle|station)'], ['Raiffeisen Tankstelle', 'raiffeisen (?:tankstelle|station)'], ['Score', 'score (?:tankstelle|station)'],

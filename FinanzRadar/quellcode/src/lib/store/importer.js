@@ -132,6 +132,26 @@ export async function runImport(items, source, { concurrency = 2 } = {}) {
 }
 
 /** Daten einer früher abgebrochenen/fehlgeschlagenen Verarbeitung entfernen (Dokumente, Buchungen …) */
+// Nutzerentscheidungen an Buchungen, die ein Neu-Einlesen überstehen (Zuordnung über dedupeKey bzw. Datum+Betrag+Text)
+const USER_TX_FIELDS = {
+  category: (t) => t.categorySource === 'user', subcategory: (t) => t.categorySource === 'user', categorySource: (t) => t.categorySource === 'user',
+  confidence: (t) => t.categorySource === 'user', ruleId: (t) => t.categorySource === 'user',
+  taxRelevant: (t) => t.taxSource === 'user', taxReason: (t) => t.taxSource === 'user', taxSource: (t) => t.taxSource === 'user',
+  isTransfer: (t) => t.transferSource === 'user', transferPairId: (t) => t.transferSource === 'user', transferAccountId: (t) => t.transferSource === 'user',
+  transferSource: (t) => t.transferSource === 'user',
+  receiptDocId: (t) => t.receiptSource === 'user', receiptDocIds: (t) => t.receiptSource === 'user', receiptSource: (t) => t.receiptSource === 'user',
+  receiptRejected: () => true, stornoSource: (t) => t.stornoSource === 'user', stornoPairId: (t) => t.stornoSource === 'user',
+  counterparty: (t) => !!t.counterpartyUser, counterpartyUser: (t) => !!t.counterpartyUser,
+  reviewed: () => true, needsReview: (t) => !!t.reviewed, splits: () => true, note: () => true, tags: () => true, checksAck: () => true,
+  aiHint: () => true, aiReason: () => true, aiAt: () => true, aiSuggestion: () => true,
+};
+const txMatchKey = (t) => `${t.bookingDate}|${t.amount}|${String(t.counterpartyRaw || '').toLowerCase().replace(/\s+/g, ' ').trim()}`;
+function userDecisions(t) {
+  const out = {};
+  for (const [k, keep] of Object.entries(USER_TX_FIELDS)) if (t[k] != null && keep(t)) out[k] = t[k];
+  return Object.keys(out).length ? out : null;
+}
+
 async function purgeFileData(fileId, existingKeys) {
   const docIds = await db.documents.where('fileId').equals(fileId).primaryKeys();
   if (!docIds.length) return;
@@ -218,12 +238,18 @@ export async function reprocessFile(fileId, { forceType = null, ocrBoost = false
   for (const d of await db.documents.where('fileId').equals(fileId).toArray()) {
     for (const k of AI_KEEP) if (d[k] != null && keep[k] == null && !(forceType && (k === 'aiSuggestion' || k === 'aiReason'))) keep[k] = d[k];
   }
+  // Nutzerentscheidungen der Buchungen dieser Datei merken (Kategorie, Steuer, Umbuchung, Beleg, Notizen …)
+  const oldDocIds = await db.documents.where('fileId').equals(fileId).primaryKeys();
+  const oldTxs = oldDocIds.length ? await db.transactions.where('documentId').anyOf(oldDocIds).toArray() : [];
+  const decided = [];
+  for (const t of oldTxs) { const d = userDecisions(t); if (d) decided.push({ id: t.id, dedupeKey: t.dedupeKey, mk: txMatchKey(t), d }); }
   await purgeFileData(fileId, existingKeys);
   const meta = { name: rec.name, path: rec.path, ext: rec.ext || extOf(rec.name), mime: rec.mime || stored.blob.type || MIME[rec.ext] || 'application/octet-stream', size: rec.size };
   const signal = new AbortController().signal;
   await db.files.update(fileId, { status: 'processing', error: null });
   try {
     await readAndSave(meta, stored.blob, fileId, { signal, existingKeys, forceType, ocrBoost });
+    if (decided.length) await restoreDecisions(fileId, decided);
     if (Object.keys(keep).length) {
       for (const d of await db.documents.where('fileId').equals(fileId).toArray()) {
         const patch = {};
@@ -243,11 +269,39 @@ export async function reprocessFile(fileId, { forceType = null, ocrBoost = false
   return db.files.get(fileId);
 }
 
+/** Gemerkte Nutzerentscheidungen auf die neu gelesenen Buchungen übertragen; Verweise anderer Buchungen umhängen. */
+async function restoreDecisions(fileId, decided) {
+  const docIds = await db.documents.where('fileId').equals(fileId).primaryKeys();
+  const fresh = docIds.length ? await db.transactions.where('documentId').anyOf(docIds).toArray() : [];
+  const byKey = new Map(), byMk = new Map();
+  for (const t of fresh) { if (t.dedupeKey) byKey.set(t.dedupeKey, t); if (!byMk.has(txMatchKey(t))) byMk.set(txMatchKey(t), t); }
+  const idMap = new Map();
+  const updates = [];
+  for (const o of decided) {
+    const t = (o.dedupeKey && byKey.get(o.dedupeKey)) || byMk.get(o.mk);
+    if (!t || idMap.has(o.id)) continue;
+    idMap.set(o.id, t.id);
+    updates.push({ key: t.id, changes: o.d });
+  }
+  if (updates.length) await db.transactions.bulkUpdate(updates);
+  // Andere Buchungen, die auf alte IDs zeigten (Umbuchungs-/Storno-Partner), auf die neuen IDs umstellen
+  if (idMap.size) {
+    const refs = [];
+    await db.transactions.each(t => {
+      const ch = {};
+      if (t.transferPairId && idMap.has(t.transferPairId)) ch.transferPairId = idMap.get(t.transferPairId);
+      if (t.stornoPairId && idMap.has(t.stornoPairId)) ch.stornoPairId = idMap.get(t.stornoPairId);
+      if (Object.keys(ch).length) refs.push({ key: t.id, changes: ch });
+    });
+    if (refs.length) await db.transactions.bulkUpdate(refs);
+  }
+}
+
 /**
  * Stand der Lese-Logik. Erhöhen, wenn Erkennung/Parser sich so ändern, dass alte Importe falsch sein können;
  * beim nächsten Start werden verdächtige Dateien dann automatisch neu gelesen (reprocessStale).
  */
-export const PARSER_VERSION = 2;
+export const PARSER_VERSION = 3;
 const STATEMENT_DOC_TYPES = new Set(['kontoauszug', 'kreditkarte', 'paypal', 'depot']);
 
 /** Dateien neu lesen (Nutzerwahl des Typs bleibt erhalten); Fortschritt in app.progress. → { done, failed } */
@@ -279,7 +333,8 @@ export async function reprocessAll() {
 
 /**
  * Nach einem Update: nur verdächtige Altimporte neu lesen – Kontoumsatz-Dokumente ohne Buchungen und lange Dokumente
- * (mehr als 3 Seiten), die nicht als Kontoumsatz erkannt wurden (z. B. 69-seitiger DKB-Auszug als „Lohnabrechnung“).
+ * (mehr als 3 Seiten), die nicht als Kontoumsatz erkannt wurden (z. B. 69-seitiger DKB-Auszug als „Lohnabrechnung“),
+ * ab Version 3 außerdem alle PDF-Kontoauszüge.
  * Läuft einmal je PARSER_VERSION.
  */
 export async function reprocessStale({ getSetting, setSetting }) {
@@ -292,6 +347,8 @@ export async function reprocessStale({ getSetting, setSetting }) {
     if (!d.fileId) continue;
     if (STATEMENT_DOC_TYPES.has(d.type) && !withTx.has(d.fileId)) ids.add(d.fileId);
     else if (!STATEMENT_DOC_TYPES.has(d.type) && (d.pages || 0) > 3) ids.add(d.fileId);
+    // Version 3: PDF-Kontoauszüge (Empfänger/IBAN/Zweck bei DKB & Co.) – Nutzerentscheidungen bleiben erhalten
+    else if (seen < 3 && STATEMENT_DOC_TYPES.has(d.type) && (d.fields?.format === 'pdf_statement' || d.format === 'pdf_statement')) ids.add(d.fileId);
   }
   const res = ids.size ? await reprocessMany([...ids], 'Nach Update neu einlesen') : { done: 0, failed: 0 };
   await setSetting('parserVersion', PARSER_VERSION);

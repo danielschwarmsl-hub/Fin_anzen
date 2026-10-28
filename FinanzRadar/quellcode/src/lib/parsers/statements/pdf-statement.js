@@ -303,15 +303,24 @@ export function parsePdfStatement(det, ctx) {
   const transactions = bookings.map(b => {
     let cont = [...b.cont];
     let counterpartyIban = null;
+    const IBAN_LINE = /^IBAN:?\s*([A-Z]{2}\d{2}[A-Z0-9 ]{10,})$/;
+    const ibanIdx = cont.findIndex(c => IBAN_LINE.test(c));
     cont = cont.filter(c => {
-      const im = /^IBAN:?\s*([A-Z]{2}\d{2}[A-Z0-9 ]{10,})$/.exec(c);
-      if (im) { counterpartyIban = findIban(im[1]); return false; }
+      const im = IBAN_LINE.exec(c);
+      if (im) { counterpartyIban = findIban(im[1]) || im[1].replace(/\s+/g, ''); return false; }
       return true;
     });
     const known = normalizeBookingText(b.head);
     let bookingText = known || b.head || null;
     let counterparty, purpose;
-    if (known === 'Zinsen' || known === 'Gebühr') {
+    if (!known && ibanIdx >= 0) {
+      // DKB & Co.: Empfänger (ggf. mit Adresszeile) – „IBAN …“ – Verwendungszweck; keine eigene Buchungsart-Zeile
+      counterparty = b.head.replace(OWN_PERSON_PREFIX, '');
+      purpose = b.cont.slice(ibanIdx + 1).join(' ') || b.cont.slice(0, ibanIdx).join(' ');
+      bookingText = normalizeBookingText(purpose)
+        || (/(?:debit|kredit)kartenumsatz|kartenzahlung|girocard|apple pay|google pay/i.test(purpose) ? 'Kartenzahlung'
+          : /\bPP\.\d+\.PP\b|ihr einkauf bei|lastschrift/i.test(purpose) ? 'Lastschrift' : null);
+    } else if (known === 'Zinsen' || known === 'Gebühr') {
       counterparty = institution || cont[0] || b.head;
       purpose = cont.join(' ') || b.head;
     } else if (known || (b.head && b.head.length < 40 && cont.length)) {

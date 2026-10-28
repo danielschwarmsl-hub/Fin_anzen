@@ -329,6 +329,20 @@ describe('Importer', () => {
     expect(all).toEqual({ done: 2, failed: 0 });
   });
 
+  it('Neu einlesen behält Nutzerentscheidungen an Buchungen (Kategorie, Notiz, geprüft)', async () => {
+    const s = await src();
+    const img = 'IMG:Gehaltsabrechnung Lohnsteuer Brutto Netto\\nDatum Erläuterung Betrag EUR\\n02.01.2025 Gutschrift Arbeitgeber GmbH 2.850,00\\n03.01.2025 Lastschrift Stadtwerke -85,00\\nKontostand am 31.01.2025 2.765,00';
+    await runImport([item('Banken/dkb2.png', img)], s);
+    const [file] = await fakeDb.files.toArray();
+    await reprocessFile(file.id, { forceType: 'kontoauszug' });
+    const t = (await fakeDb.transactions.toArray()).find(x => x.amount === -8500);
+    await fakeDb.transactions.update(t.id, { category: 'wohnen', subcategory: 'wasser', categorySource: 'user', confidence: 1, note: 'Wasser Abschlag', reviewed: true, needsReview: false });
+    await reprocessFile(file.id, { forceType: 'kontoauszug' });
+    const after = (await fakeDb.transactions.toArray()).find(x => x.amount === -8500);
+    expect(after.id).not.toBe(t.id);
+    expect(after).toMatchObject({ category: 'wohnen', subcategory: 'wasser', categorySource: 'user', note: 'Wasser Abschlag', reviewed: true });
+  });
+
   it('KI-Typerkennung: typeSource/aiReason/alternatives ins Dokument, Prüfhinweis; typeSource in files.detection', async () => {
     const { aiHooks } = await import('../src/lib/ai/hooks.js');
     const prev = aiHooks.detect;

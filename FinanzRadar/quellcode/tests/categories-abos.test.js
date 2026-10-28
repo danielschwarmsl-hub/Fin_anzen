@@ -196,3 +196,11 @@ describe('Händlerlisten', () => {
     expect(M('SQ *Kaffeebar')).toMatchObject({ intermediary: true });
   });
 });
+
+describe('Gegenpartei bei Debitkarten-Umsätzen', async () => {
+  const { normalizeCounterparty } = await import('../src/lib/classify/normalize.js');
+  it('„VISA Debitkartenumsatz“ wird nicht zu „VISA artenumsatz“, der Händler bleibt', () => {
+    expect(normalizeCounterparty({ counterpartyRaw: 'VISA Debitkartenumsatz vom 27.12.2025 WOLT HAMBURG', purpose: '' })).toBe('Wolt Hamburg');
+    expect(normalizeCounterparty({ counterpartyRaw: 'REWE Markt GmbH Debitk. 12', purpose: '' })).toBe('REWE Markt');
+  });
+});
