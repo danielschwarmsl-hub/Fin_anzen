@@ -1,0 +1,38 @@
+{
+  "platform": "mac",
+  "folders": [
+    { "id": "11", "name": "Posteingang", "path": "Posteingang", "count": 3, "inbox": true },
+    { "id": "12", "name": "Rechnungen", "path": "Posteingang/Rechnungen", "count": 1 }
+  ],
+  "messages": [
+    {
+      "id": "101", "folder": "11", "subject": "Ihre Bestellung 302-1234567", "from": "Shop <bestellung@shop.example>",
+      "date": "2026-09-14T10:20:00",
+      "body": "Vielen Dank für Ihre Bestellung.\nGesamtsumme: 49,99 €\nZahlungsart: PayPal"
+    },
+    {
+      "id": "102", "folder": "11", "subject": "Rechnung September", "from": "Stadtwerke <rechnung@stadtwerke.example>",
+      "date": "2026-09-30T08:00:00",
+      "body": "Anbei Ihre Rechnung.",
+      "attachments": [
+        { "name": "Rechnung_2026-09.pdf", "base64": "JVBERi0xLjQKJcOkw7zDtsOfCg==" },
+        { "name": "logo.gif", "text": "GIF89a" }
+      ]
+    },
+    {
+      "id": "103", "folder": "11", "subject": "Wochenende?", "from": "Anna <anna@privat.example>",
+      "date": "2026-10-02T19:00:00",
+      "html": "<html><head><style>p{}</style></head><body><p>Hast du Zeit?</p></body></html>"
+    },
+    {
+      "id": "104", "folder": "11", "subject": "Alt", "from": "x@y.example", "date": "2024-01-05T09:00:00",
+      "body": "Rechnung 10,00 €"
+    },
+    {
+      "id": "201", "folder": "12", "subject": "Beitragsrechnung 2026", "from": "Versicherung <info@vers.example>",
+      "date": "2026-02-01T07:30:00",
+      "body": "Beitrag",
+      "attachments": [{ "name": "Beitrag 2026.pdf", "text": "%PDF-1.4 Beitrag" }]
+    }
+  ]
+}

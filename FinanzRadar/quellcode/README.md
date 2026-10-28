@@ -38,6 +38,14 @@ Die KI klärt nur unsichere Fälle, eine kleine Aufgabe pro Aufruf. Dauert ein L
 
 Unter Quellen → Dropbox bzw. Google Drive den eigenen App-Key / die Client-ID eintragen. Die Schritt-für-Schritt-Anleitung steht aufklappbar im Dialog.
 
+## Outlook (klassisch)
+
+Unter Quellen → **Outlook** liest FinanzRadar Mails direkt aus dem lokal installierten Outlook: Anhänge (PDF, Bilder, CSV …) und Mailtexte mit Finanzbezug (z. B. Bestellbestätigungen). Standard: Posteingang, letzte 12 Monate; weitere Ordner und Zeitraum wählbar. „Scannen“ holt später nur Neues.
+
+- Funktioniert nur mit dem **klassischen Outlook**: Mac = „Legacy Outlook“ (im Menü „Outlook“ das „Neue Outlook“ ausschalten), Windows = Outlook-Desktop (Office). „Neues Outlook“ und Outlook im Web bieten keine lokale Schnittstelle.
+- Die App muss über das Start-Skript laufen – der lokale Start-Server (`server.py`/`server.mjs` auf dem Mac, `server.ps1` unter Windows) ist die Brücke zu Outlook. Er antwortet nur auf diesem Rechner (`localhost`); Mails verlassen das Gerät nicht.
+- Mac: Beim ersten Zugriff fragt macOS, ob das Terminal Outlook steuern darf → erlauben (später änderbar unter Systemeinstellungen → Datenschutz & Sicherheit → Automation).
+
 ## Datenschutz
 
 Keine Server, kein Konto. Daten liegen in der Browser-Datenbank dieses Profils. Backup/Wiederherstellen und „Alle Daten löschen“ unter Einstellungen. Die Steuer-Markierung ist keine Steuerberatung.

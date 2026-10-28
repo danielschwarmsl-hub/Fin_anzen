@@ -61,7 +61,7 @@ describe('allowedFile / isSkippedName', () => {
   });
 
   it('exportiert SOURCE_KINDS', () => {
-    expect(SOURCE_KINDS.map((s) => s.kind)).toEqual(['local', 'dropbox', 'gdrive']);
+    expect(SOURCE_KINDS.map((s) => s.kind)).toEqual(['local', 'dropbox', 'gdrive', 'outlook']);
   });
 });
 
