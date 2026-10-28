@@ -1,6 +1,7 @@
 // Schlanke Steuer-Markierung: nur Flag + Grund, keine Steuerberechnung.
 // taxReason ∈ lohn | beruf | versicherung_vorsorge | kapitalertraege | haushalt_handwerker | spenden | gesundheit | kinder_bildung | sonstiges
 import { fold } from './merchants.de.js';
+import { isFirmTransfer } from '../analyze/transfers.js';
 
 export const TAX_REASONS = [
   { id: 'lohn', label: 'Lohn' },
@@ -74,7 +75,9 @@ const BY_SUB = {
 export function flagTaxTransaction(tx) {
   if (!tx) return NO;
   if (isLocked(tx)) return keep(tx);
-  if (tx.isTransfer || tx.category === 'umbuchung') return NO;
+  // Unbestätigte Paare ohne Hinweis (medium) behalten ihren Steuerbezug, bis der Nutzer entscheidet
+  const unsurePair = tx.isTransfer && !isFirmTransfer(tx);
+  if (isFirmTransfer(tx) || (tx.category === 'umbuchung' && !unsurePair)) return NO;
   if (tx.category === 'spenden') return yes('spenden');
   const sub = BY_SUB[`${tx.category}.${tx.subcategory}`];
   if (sub) return yes(sub);
