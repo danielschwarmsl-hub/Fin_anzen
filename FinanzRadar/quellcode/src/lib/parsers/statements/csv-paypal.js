@@ -70,17 +70,45 @@ export function parsePaypalCsv(det, ctx) {
   all = chronological(all, x => x.date + ' ' + x.time);
   const byId = new Map(all.map(x => [get(x.r, 'txid'), x.r]));
 
-  let skippedPending = 0, skippedMemo = 0, skippedForeign = 0;
+  let skippedPending = 0, skippedMemo = 0, skippedForeign = 0, skippedConversion = 0;
+  const skipOf = (r) => {
+    const status = cleanText(get(r, 'status')), type = cleanText(get(r, 'type'));
+    if (status && COMPLETED_NOT.test(status)) return 'pending';
+    if (MEMO.test(type)) return 'memo';
+    // Neuere Exporte: "Auswirkung auf Guthaben" = Memo → keine Kontobewegung (Einzugsverfahren-Zeilen bleiben für die Zuordnung zur Bankbuchung)
+    if (/^memo$/i.test(cleanText(get(r, 'impact'))) && !/einzugsverfahren|direct debit/i.test(type)) return 'memo';
+    return null;
+  };
+  const curOf = (r) => cleanText(get(r, 'currency')) || 'EUR';
+  // Fremdwährung: Zahlung bleibt (mit Händler), Betrag kommt aus der EUR-Umrechnungszeile, die auf sie verweist.
+  // Diese Umrechnungszeile (und die Gegenzeile in Fremdwährung) zählen dann nicht noch einmal.
+  const eurConv = new Map(); // Transaktionscode der Zahlung → EUR-Umrechnungszeile
+  for (const x of all) {
+    const ref = cleanText(get(x.r, 'ref'));
+    if (ref && CONVERSION.test(cleanText(get(x.r, 'type'))) && curOf(x.r) === 'EUR' && !skipOf(x.r) && !eurConv.has(ref)) eurConv.set(ref, x.r);
+  }
+  const consumed = new Set();
+  for (const x of all) {
+    const id = cleanText(get(x.r, 'txid'));
+    if (curOf(x.r) !== 'EUR' && !CONVERSION.test(cleanText(get(x.r, 'type'))) && !skipOf(x.r) && eurConv.has(id)) consumed.add(eurConv.get(id));
+  }
+
   const kept = [];
   for (const x of all) {
     const r = x.r;
     const status = cleanText(get(r, 'status')), type = cleanText(get(r, 'type'));
-    if (status && COMPLETED_NOT.test(status)) { skippedPending++; continue; }
-    if (MEMO.test(type)) { skippedMemo++; continue; }
-    // Neuere Exporte: "Auswirkung auf Guthaben" = Memo → keine Kontobewegung (Einzugsverfahren-Zeilen bleiben für die Zuordnung zur Bankbuchung)
-    if (/^memo$/i.test(cleanText(get(r, 'impact'))) && !/einzugsverfahren|direct debit/i.test(type)) { skippedMemo++; continue; }
-    const cur = cleanText(get(r, 'currency')) || 'EUR';
-    if (cur !== 'EUR') { skippedForeign++; continue; }
+    const skip = skipOf(r);
+    if (skip === 'pending') { skippedPending++; continue; }
+    if (skip === 'memo') { skippedMemo++; continue; }
+    const cur = curOf(r);
+    if (CONVERSION.test(type) && (cur !== 'EUR' || consumed.has(r))) { skippedConversion++; continue; }
+    if (cur !== 'EUR') {
+      const conv = eurConv.get(cleanText(get(r, 'txid')));
+      const net = conv && toCents(get(conv, 'net'));
+      if (net == null) { skippedForeign++; continue; }
+      kept.push({ ...x, net, gross: net, fee: null, type, status, balance: toCents(get(conv, 'balance')), foreign: { amount: toCents(get(r, 'gross')), currency: cur } });
+      continue;
+    }
     const net = toCents(get(r, 'net'));
     if (net == null) continue;
     kept.push({ ...x, net, gross: toCents(get(r, 'gross')), fee: toCents(get(r, 'fee')), type, status, balance: toCents(get(r, 'balance')) });
@@ -107,7 +135,10 @@ export function parsePaypalCsv(det, ctx) {
       if (!name && orig) name = cleanText(idx.name >= 0 ? orig[idx.name] : '');
       return makeTx({ ...base, counterpartyRaw: name || 'PayPal', purpose: `${k.type}${purpose !== k.type ? ' – ' + purpose : ''}`, bookingText: 'Währungsumrechnung' });
     }
-    return makeTx({ ...base, counterpartyRaw: name || subject || 'PayPal', purpose, bookingText: k.type || null });
+    const tx = makeTx({ ...base, counterpartyRaw: name || subject || 'PayPal', purpose, bookingText: k.type || null });
+    // Ursprünglicher Betrag in Fremdwährung (Cent der Fremdwährung), Betrag selbst in EUR
+    if (k.foreign) { tx.originalAmount = k.foreign.amount; tx.originalCurrency = k.foreign.currency; }
+    return tx;
   });
 
   const account = { kind: 'paypal', institution: 'PayPal', name: 'PayPal', iban: null, currency: 'EUR', number: email };
@@ -121,7 +152,7 @@ export function parsePaypalCsv(det, ctx) {
   const res = buildResult({
     type: 'paypal', format: 'paypal_csv', institution: 'PayPal', account, transactions, opening, closing,
     openingDate: kept[0]?.date, closingDate: kept[kept.length - 1]?.date, style: 'umsaetze', confidence: 0.92,
-    fields: { skippedPending, skippedMemo, skippedForeign, totalFees: transactions.reduce((a, t) => a + (t.fee || 0), 0) },
+    fields: { skippedPending, skippedMemo, skippedForeign, skippedConversion, totalFees: transactions.reduce((a, t) => a + (t.fee || 0), 0) },
   });
   return res;
 }

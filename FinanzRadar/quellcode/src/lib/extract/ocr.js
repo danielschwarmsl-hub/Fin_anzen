@@ -32,7 +32,7 @@ const unionBox = (boxes) => ({
 });
 
 /**
- * tesseract-Blöcke → Zeilen im pdf.js-Stil: { y, text, items: [{x,w,str}] }.
+ * tesseract-Blöcke → Zeilen im pdf.js-Stil: { y, h, text, items: [{x,w,str}] } (h = Zeilenhöhe).
  * unit = Bildpixel je Ausgabeeinheit (PDF: Skalierung, Bild: 1 bzw. Hochskalierung).
  * y ist von unten gezählt (größer = oben), Zeilen sind top-to-bottom sortiert.
  */
@@ -55,7 +55,7 @@ export function blocksToLines(blocks, { unit = 1, height = 0 } = {}) {
         text += it.str;
         lastEnd = it.x + it.w;
       }
-      lines.push({ y: height - box.y1 / unit, text, items });
+      lines.push({ y: height - box.y1 / unit, h, text, items });
     }
   }
   return lines.sort((a, b) => b.y - a.y);

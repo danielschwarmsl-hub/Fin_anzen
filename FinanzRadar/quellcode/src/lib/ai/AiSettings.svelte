@@ -3,6 +3,7 @@
   import { app, saveSettings, toast } from '../store/state.svelte.js';
   import { ai, connect, benchmark, runOpenCases, cancelAi, installHooks } from './engine.svelte.js';
   import { ACCEL_LABEL } from './hardware.js';
+  import { isLocalUrl, NOT_LOCAL_MSG } from './ollama.js';
   import Icon from '../ui/Icon.svelte';
   import Tip from '../ui/Tip.svelte';
   import Toggle from '../ui/Toggle.svelte';
@@ -16,6 +17,7 @@
   const rec = $derived(ai.recommendation);
   const missingRec = $derived(rec && !ai.models.some(m => m.name === rec.text));
   const platformLabel = $derived(ai.platform ? (ai.platform.os === 'mac' ? (ai.platform.appleSilicon ? 'Mac mit Apple Silicon' : 'Mac') : ai.platform.os === 'windows' ? 'Windows-PC' : ai.platform.os === 'linux' ? 'Linux' : 'Unbekannt') : '…');
+  const urlOk = $derived(isLocalUrl(s.url || 'http://localhost:11434'));
   const gb = (b) => b ? (b / 1e9).toFixed(1).replace('.', ',') + ' GB' : '';
 
   onMount(() => { if (s.enabled || ai.status === 'unknown') connect(); });
@@ -51,7 +53,8 @@
       <div class="row"><Icon name="alert" size={16} /><span>Ollama starten und „Prüfen“ klicken.</span><a class="btn btn-sm btn-ghost" href="https://ollama.com/download" target="_blank" rel="noreferrer"><Icon name="external" size={14} />Download</a></div>
       <Collapsible title="Verbindung klappt nicht?">
         <label class="field urlf"><span>Ollama-Adresse</span>
-          <div class="row"><input class="input grow" bind:value={s.url} placeholder="http://localhost:11434" /><button class="btn btn-sm" onclick={async () => { await save(); connect(); }}>Übernehmen</button></div>
+          <div class="row"><input class="input grow" bind:value={s.url} placeholder="http://localhost:11434" aria-invalid={!urlOk} /><button class="btn btn-sm" disabled={!urlOk} onclick={async () => { await save(); connect(); }}>Übernehmen</button></div>
+          {#if !urlOk}<span class="small negc">{NOT_LOCAL_MSG}</span>{/if}
         </label>
         <ol class="small">
           <li>Ollama-App läuft (Menüleiste bzw. Taskleiste).</li>

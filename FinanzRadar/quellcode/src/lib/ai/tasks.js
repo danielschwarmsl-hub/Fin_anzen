@@ -7,7 +7,9 @@ export const TAX_REASONS = ['lohn', 'beruf', 'versicherung_vorsorge', 'kapitaler
 const BASE = 'Du bist ein präziser Assistent für deutsche Privatfinanzen. Antworte ausschließlich mit JSON nach Schema. Erfinde nichts; unbekannt = null.';
 
 function clip(s, n) { s = String(s || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim(); return s.length > n ? s.slice(0, n) + ' …' : s; }
-const catKeys = () => CATEGORIES.flatMap(c => [c.id, ...(c.subs || []).map(s => `${c.id}.${s.id}`)]);
+// Umbuchungen erkennt nur die Paar-Logik (beide Konten), nie die KI
+const catKeys = () => CATEGORIES.filter(c => c.id !== 'umbuchung').flatMap(c => [c.id, ...(c.subs || []).map(s => `${c.id}.${s.id}`)]);
+const REASON = { type: 'string', description: 'kurze Begründung, höchstens 12 Wörter' };
 
 export const TASKS = {
   /** 1. Dokumenttyp bestimmen */
@@ -16,7 +18,7 @@ export const TASKS = {
     build: ({ text, name }) => ({
       system: `${BASE} Bestimme den Dokumenttyp eines privaten Finanzdokuments.`,
       user: `Dateiname: ${name}\nText (Anfang):\n${clip(text, 1500)}`,
-      format: { type: 'object', properties: { typ: { type: 'string', enum: DOC_TYPES }, aussteller: { type: ['string', 'null'] }, sicherheit: { type: 'number' } }, required: ['typ', 'sicherheit'] },
+      format: { type: 'object', properties: { typ: { type: 'string', enum: DOC_TYPES }, aussteller: { type: ['string', 'null'] }, sicherheit: { type: 'number' }, begruendung: REASON }, required: ['typ', 'sicherheit'] },
     }),
   },
 
@@ -43,9 +45,9 @@ export const TASKS = {
   categorize: {
     label: 'Kategorien',
     build: ({ txs }) => ({
-      system: `${BASE} Ordne jede Banktransaktion genau einer Kategorie zu. Erlaubt: ${catKeys().join(', ')}. Negativer Betrag = Ausgabe.`,
+      system: `${BASE} Ordne jede Banktransaktion genau einer Kategorie zu. Erlaubt: ${catKeys().join(', ')}. Negativer Betrag = Ausgabe, positiver = Einnahme oder Erstattung. sicherheit 0–1 ehrlich schätzen.`,
       user: txs.map(t => `${t.id} | ${clip(t.counterparty || t.counterpartyRaw, 60)} | ${clip(t.purpose, 120)} | ${clip(t.bookingText, 30)} | ${(t.amount / 100).toFixed(2)}`).join('\n'),
-      format: { type: 'object', properties: { ergebnisse: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, kategorie: { type: 'string', enum: catKeys() }, sicherheit: { type: 'number' } }, required: ['id', 'kategorie', 'sicherheit'] } } }, required: ['ergebnisse'] },
+      format: { type: 'object', properties: { ergebnisse: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, kategorie: { type: 'string', enum: catKeys() }, sicherheit: { type: 'number' }, begruendung: REASON }, required: ['id', 'kategorie', 'sicherheit'] } } }, required: ['ergebnisse'] },
     }),
   },
 
@@ -55,7 +57,7 @@ export const TASKS = {
     build: ({ doc }) => ({
       system: `${BASE} Entscheide nur grob, ob ein Beleg für die deutsche Einkommensteuererklärung eines Arbeitnehmers relevant sein KÖNNTE (Werbungskosten, Vorsorge, Spenden, Handwerker/Haushalt, Gesundheit, Kinder, Kapitalerträge, Lohn).`,
       user: `Typ: ${doc.type}\nAussteller: ${doc.issuer || '-'}\nTitel: ${doc.title || '-'}\nText:\n${clip(doc.text, 1200)}`,
-      format: { type: 'object', properties: { relevant: { type: 'boolean' }, grund: { type: 'string', enum: TAX_REASONS }, begruendung: { type: 'string' } }, required: ['relevant', 'grund'] },
+      format: { type: 'object', properties: { relevant: { type: 'boolean' }, grund: { type: 'string', enum: TAX_REASONS }, sicherheit: { type: 'number' }, begruendung: REASON }, required: ['relevant', 'grund', 'sicherheit'] },
     }),
   },
 
@@ -68,6 +70,17 @@ export const TASKS = {
       user: 'Lies Händler, Datum, alle Positionen und die Summe.',
       images: [image],
       format: { type: 'object', properties: { haendler: { type: ['string', 'null'] }, datum: { type: ['string', 'null'] }, summe: { type: ['number', 'null'] }, positionen: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' }, preis: { type: 'number' }, mwst_satz: { type: ['number', 'null'] } }, required: ['text', 'preis'] } } }, required: ['summe', 'positionen'] },
+    }),
+  },
+
+  /** 6. Gehören Beleg und Buchung zusammen? (nur Hinweis, bestätigt wird nie automatisch) */
+  receiptMatch: {
+    label: 'Beleg ↔ Buchung',
+    build: ({ tx, doc }) => ({
+      system: `${BASE} Entscheide, ob ein Beleg zu einer Kontobuchung gehört (gleicher Kauf). Achte auf Händler, Datum (Buchung meist 0–5 Tage nach Beleg) und Betrag.`,
+      user: `Buchung: ${tx.bookingDate} | ${(tx.amount / 100).toFixed(2)} EUR | ${clip(tx.counterparty || tx.counterpartyRaw, 60)} | ${clip(tx.purpose, 140)}\n`
+        + `Beleg: ${doc.date || '-'} | ${doc.amount != null ? (doc.amount / 100).toFixed(2) + ' EUR' : '-'} | ${clip(doc.issuer || doc.title, 60)} | ${doc.type}\nText (Anfang):\n${clip(doc.text, 800)}`,
+      format: { type: 'object', properties: { passt: { type: 'boolean' }, sicherheit: { type: 'number' }, begruendung: REASON }, required: ['passt', 'sicherheit'] },
     }),
   },
 };

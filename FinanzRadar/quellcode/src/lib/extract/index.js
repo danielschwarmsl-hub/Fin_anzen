@@ -10,6 +10,9 @@ export { terminateOcr } from './ocr.js';
 
 const isBrowser = typeof window !== 'undefined';
 const OCR_SCALE = 2;          // Render-Skalierung für Scan-Seiten (Pixel je pt)
+const OCR_BOOST_SCALE = 3;    // zweiter Versuch bei unlesbaren Scans: höhere Auflösung
+const BOOST_MIN_WIDTH = 2000; // Bilder: Mindestbreite im zweiten Versuch (statt 1000)
+const BOOST_MAX_SIDE = 4800;  // Bilder: Obergrenze lange Kante im zweiten Versuch (statt 3200)
 const MAX_PLAIN_TEXT = 1_000_000; // Zeichen
 const SCAN_MIN_ITEMS = 5;     // weniger Textitems je Seite → Scan
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'heic', 'heif']);
@@ -119,14 +122,14 @@ async function safely(fn) {
 }
 
 /** OCR einer Scan-Seite: rendern (Skalierung OCR_SCALE), aufhellen, erkennen. */
-async function ocrPdfPage(doc, n, progressFor) {
+async function ocrPdfPage(doc, n, progressFor, scale = OCR_SCALE) {
   const page = await doc.getPage(n);
-  const viewport = page.getViewport({ scale: OCR_SCALE });
+  const viewport = page.getViewport({ scale });
   const canvas = makeCanvas(viewport.width, viewport.height);
   await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
   page.cleanup?.();
   enhanceCanvas(canvas);
-  try { return await recognizeCanvas(canvas, { unit: OCR_SCALE, onProgress: progressFor }); } finally { releaseCanvas(canvas); }
+  try { return await recognizeCanvas(canvas, { unit: scale, onProgress: progressFor }); } finally { releaseCanvas(canvas); }
 }
 
 async function pdfThumbnail(doc) {
@@ -154,7 +157,7 @@ async function extractPdf(bytes, opts, progress) {
       const itemCount = lines.reduce((n, l) => n + l.items.length, 0);
       if (canOcr && itemCount < SCAN_MIN_ITEMS) {
         const progressFor = (f, label) => progress(0.05 + 0.9 * ((idx + f) / pages.length), `OCR Seite ${p.n}: ${label || ''}`);
-        const r = await ocrPdfPage(doc, p.n, progressFor);
+        const r = await ocrPdfPage(doc, p.n, progressFor, opts.ocrBoost ? OCR_BOOST_SCALE : OCR_SCALE);
         if (r.text.trim()) {
           text = r.text;
           lines = r.lines;
@@ -213,7 +216,7 @@ async function extractImage(blob, fileMeta, opts, progress) {
     if (opts.ocr !== false) {
       checkAbort(opts.signal);
       progress(0.1, 'Bild aufbereiten');
-      const { canvas, unit } = imageToOcrCanvas(bmp);
+      const { canvas, unit } = opts.ocrBoost ? imageToOcrCanvas(bmp, BOOST_MIN_WIDTH, BOOST_MAX_SIDE) : imageToOcrCanvas(bmp);
       let r;
       try { r = await recognizeCanvas(canvas, { unit, onProgress: (f, label) => progress(0.1 + 0.85 * f, label) }); } finally { releaseCanvas(canvas); }
       out.text = r.text;
@@ -250,7 +253,7 @@ function extractText(bytes, kind, ext) {
  * Extrahiert Inhalt einer Datei.
  * @param fileMeta { name, path, ext, mime, size }
  * @param blob Blob/File mit dem Dateiinhalt
- * @param opts { onProgress?(p0to1, label), signal?, ocr? }
+ * @param opts { onProgress?(p0to1, label), signal?, ocr?, ocrBoost? } – ocrBoost: zweiter OCR-Versuch mit höherer Auflösung
  * @returns Extracted (SPEC.md)
  */
 export async function extract(fileMeta = {}, blob, opts = {}) {
