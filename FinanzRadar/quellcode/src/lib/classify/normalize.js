@@ -100,8 +100,8 @@ function paypalMerchant(purpose) {
   const i = p.search(RX_PP_REF);
   if (i >= 0) {
     let rest = p.slice(i).replace(RX_PP_REF, '');
-    rest = rest.split(/,\s*(?:Ihr|Your)\b/i)[0].split(',')[0];
-    if (rest && !/^paypal\b/i.test(rest)) return rest;
+    rest = rest.split(/,\s*(?:Ihr|Your)\b/i)[0].split(/\s*(?:Ihr Einkauf bei|Your purchase at)\b/i)[0].split(',')[0].replace(/^[\s./,]+|[\s./,]+$/g, '');
+    if (rest && /[a-z]{2}/i.test(rest) && !/^paypal\b/i.test(rest)) return rest;
   }
   return null;
 }
@@ -147,6 +147,20 @@ export function resolveCounterparty(tx) {
   if (name) return { name, intermediary: null };
   // Kein Name vorhanden (z. B. Gutschrift ohne Auftraggeber): Rohtext kürzen
   return { name: cleanName(purpose).slice(0, 40) || raw, intermediary: null };
+}
+
+// Namen, die keinen Händler bezeichnen (Zahlungsdienste, Kartenarten, Buchungsarten): taugen weder für „ähnliche Buchungen“
+// noch als Regel-Muster – „PayPal“ steht vor hunderten verschiedenen Händlern.
+const GENERIC_NAMES = new Set(['paypal', 'paypal europe', 'klarna', 'sofort', 'amazon', 'amazon payments', 'amazon pay', 'amzn', 'sumup', 'zettle',
+  'square', 'payone', 'stripe', 'adyen', 'mollie', 'unzer', 'computop', 'wirecard', 'ratepay', 'riverty', 'afterpay', 'google', 'google pay',
+  'apple', 'apple pay', 'visa', 'mastercard', 'maestro', 'girocard', 'debitkarte', 'kreditkarte', 'kartenzahlung', 'lastschrift', 'ueberweisung',
+  'gutschrift', 'dauerauftrag', 'eigenes konto', 'bargeld', 'geldautomat', 'bargeldauszahlung', 'auszahlung', 'einzahlung', 'unbekannt']);
+export function isGenericCounterparty(name) {
+  const f = String(name || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+  if (f.length < 3) return true;
+  if (GENERIC_NAMES.has(f)) return true;
+  return /^(?:paypal|klarna|eigenes konto|visa|mastercard)\b/.test(f) && f.split(' ').length <= 3;
 }
 
 export function normalizeCounterparty(tx) {

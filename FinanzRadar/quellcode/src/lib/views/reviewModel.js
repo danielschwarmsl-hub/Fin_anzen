@@ -1,6 +1,7 @@
 // Prüfliste: reine Logik ohne DOM (Kriterium, Sortierung nach Geldwirkung, Bestätigungs-Patches, „Warum?“-Texte).
 // Alle Felder werden defensiv gelesen: fehlt eins (z. B. checks), gibt es einfach nichts zu prüfen.
 import { fold } from '../classify/merchants.de.js';
+import { isGenericCounterparty } from '../classify/normalize.js';
 
 export const CHECK_KINDS = ['receipt', 'transfer', 'paypal', 'depot', 'storno', 'split'];
 export const KIND_LABEL = {
@@ -235,7 +236,8 @@ export function prevFor(obj, patch) {
  */
 export function similarOpen(t, kind, transactions = []) {
   const key = cpKey(t);
-  if (!key || !kind) return [];
+  // Zahlungsdienst statt Händler (z. B. „PayPal“ ohne erkannten Shop): keine Sammelaktion – das wären lauter verschiedene Händler
+  if (!key || !kind || isGenericCounterparty(t?.counterparty || t?.counterpartyRaw)) return [];
   const out = [];
   for (const x of transactions) {
     if (!x || x.id === t.id || cpKey(x) !== key) continue;

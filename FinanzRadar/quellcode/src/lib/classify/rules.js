@@ -3,7 +3,7 @@
 // Nutzerentscheidungen (categorySource 'user') werden nie überschrieben.
 import { fold, findMerchant, findSubscription } from './merchants.de.js';
 import { getCategory, getSub } from './categories.js';
-import { resolveCounterparty } from './normalize.js';
+import { resolveCounterparty, isGenericCounterparty } from './normalize.js';
 import { normalizeIban, uid } from '../util/format.js';
 
 // ---------------------------------------------------------------- Stichwortregeln
@@ -99,6 +99,10 @@ const KEYWORDS = [
 // (Länderkürzel/Fremdwährung) – sonst wäre jedes „Restaurant Mykonos“ in Hamburg Urlaub. Händlertreffer haben Vorrang.
 const DESTINATION = /(?<![a-z])(?:teneriffa|tenerife|gran canaria|lanzarote|fuerteventura|mallorca|majorca|ibiza|eivissa|menorca|minorca|costa del sol|costa brava|costa blanca|algarve|madeira|kreta|crete|heraklion|iraklio|chania|rhodos|rhodes|rodos|korfu|corfu|kerkyra|santorini?|thira|mykonos|zakynthos|zante|kos island|insel kos|chalkidiki|halkidiki|antalya|alanya|belek|bodrum|marmaris|kusadasi|hurghada|hurgada|sharm el sh[a-z]*|marsa alam|marrakesc?h|marrakech|agadir|djerba|jerba|hammamet|kapverden|kap verden|sal island|boa vista|bangkok|krung thep|phuket|krabi|pattaya|ko(?:h)? samui|chiang ?mai|bali|denpasar|dubai|malediven|maldives|sri lanka|tokio|tokyo|hanoi|ho chi minh|las vegas|punta cana|dominikanische republik|dominican republic|varadero|cancun|playa del carmen|venedig|venice|venezia|sizilien|sicily|sicilia|sardinien|sardinia|sardegna|amalfi|positano|gardasee|lake garda|dubrovnik|zypern|cyprus|paphos|limassol|larnaka|malta)(?![a-z])/;
 const ABROAD = /(?<![a-z])(?:es|pt|gr|it|hr|cy|mt|tr|eg|ma|tn|cv|th|id|ae|mv|lk|jp|vn|us|usa|do|cu|mx|esp|prt|grc|ita|hrv|cyp|mlt|tur|egy|mar|tha|idn|are|jpn|usd|thb|try|aed|egp|mad|jpy|vnd|idr|kurs|wechselkurs|fremdwaehrung[a-z]*|waehrungsumrechnung)(?![a-z])/;
+// Reiseziel + Reise-Stichwort im Text („Teneriffa April 2024 Wohnung booking“): eindeutig Reise – auch ohne Auslandshinweis
+const TRIP_STAY = /(?<![a-z])(?:booking|airbnb|fewo|ferienwohnung|ferienhaus|ferienapartment|apartment|appartement|wohnung|unterkunft|hotel|hostel|finca|villa|resort|pension)(?![a-z])/;
+const TRIP_FLIGHT = /(?<![a-z])(?:flug|fluege|flight|flugticket|boarding)(?![a-z])/;
+const TRIP_ANY = /(?<![a-z])(?:urlaub|reise|reisen|trip|mietwagen|transfer|ausflug|tour)(?![a-z])/;
 const CARD = /kartenzahlung|kartenumsatz|debitkartenumsatz|kreditkartenumsatz|girocard|(?<![a-z])(?:visa|mastercard|maestro)(?![a-z])|apple pay|google pay|kaufumsatz/;
 
 // ---------------------------------------------------------------- Miete & Wasser (vor Händlerliste, Bargeld und Stichworten)
@@ -248,6 +252,12 @@ function decide(tx, ctx, userRules, cache) {
   let cpMerchant = cache.cp.get(mkey);
   if (cpMerchant === undefined) { cpMerchant = findMerchant(cpFold, '') || (rawFold && rawFold !== cpFold ? findMerchant(rawFold, '') : null); cache.cp.set(mkey, cpMerchant); }
 
+  // 2a'. Reiseziel + Unterkunft/Flug/Urlaub im Text: Reise (vor Miete/Wasser – „Miete Ferienwohnung Teneriffa“ ist Urlaub)
+  if (!pos && !tx.ownTransfer && DESTINATION.test(text)) {
+    const sub = TRIP_FLIGHT.test(text) ? 'fluege' : TRIP_STAY.test(text) ? 'hotel' : TRIP_ANY.test(text) ? 'urlaub' : null;
+    if (sub) return { category: 'freizeit_reisen', subcategory: sub, categorySource: 'keyword', confidence: 0.85 };
+  }
+
   // 2b'. Miete und Wasser: direkt nach den Nutzerregeln – vor Bargeld, Händlern und Stichworten
   //      (eigene Überweisungen ausgenommen, sonst zählte das Umbuchen fürs Mietkonto als Ausgabe)
   if (!tx.ownTransfer) {
@@ -390,9 +400,12 @@ export function suggestRuleFromCorrection(tx, newCategory) {
   if (!getCategory(cat)) return null;
   const sub = subIn || (tx.category === cat ? tx.subcategory : null) || null;
   const name = resolveCounterparty(tx).name || tx.counterparty || tx.counterpartyRaw || '';
+  // Nur Zahlungsdienst bekannt (PayPal ohne Shop, Klarna, „VISA“ …): keine Regel – Gläubiger-ID/IBAN/Zweck gehören
+  // dann dem Zahlungsdienst und würden alle seine Buchungen treffen
+  if (name && isGenericCounterparty(name)) return null;
   let match;
   const iban = normalizeIban(tx.counterpartyIban);
-  if (name && name.length >= 3 && fold(name).length >= 3) match = { field: 'counterparty', op: 'contains', value: name };
+  if (name && name.length >= 3 && fold(name).length >= 3 && !isGenericCounterparty(name)) match = { field: 'counterparty', op: 'contains', value: name };
   else if (tx.creditorId) match = { field: 'creditorId', op: 'equals', value: tx.creditorId };
   else if (iban) match = { field: 'iban', op: 'equals', value: iban };
   else {

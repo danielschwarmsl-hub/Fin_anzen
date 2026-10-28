@@ -4,7 +4,7 @@
   import { untrack } from 'svelte';
   import { app, setView, updateDocument, applyTxPatches, applyRule, removeRule, autoLearn, toast, reload, getThumb, getBlob, sourceOf, accountName } from '../store/state.svelte.js';
   import { postProcess } from '../store/postprocess.js';
-  import { CATEGORIES } from '../classify/categories.js';
+  import { CATEGORIES, categoryLabel } from '../classify/categories.js';
   import { TYPE_LABELS } from '../parsers/naming.js';
   import { suggestRuleFromCorrection, ruleHits } from '../classify/rules.js';
   import {
@@ -16,6 +16,7 @@
   import Empty from '../ui/Empty.svelte';
   import Money from '../ui/Money.svelte';
   import Tip from '../ui/Tip.svelte';
+  import Modal from '../ui/Modal.svelte';
   import CategoryPicker from '../ui/CategoryPicker.svelte';
   import DocFix from '../ui/DocFix.svelte';
   import { fmtDate, parseGermanAmount } from '../util/format.js';
@@ -124,16 +125,20 @@
     return untrack(() => similarOpen($state.snapshot(t), 'category', app.data.transactions).length);
   });
   const catStr = (c) => (c?.subcategory ? `${c.category}.${c.subcategory}` : c?.category);
-  // Trefferzahl der Regel, die aus der aktuellen Wahl entstünde
-  const ruleCount = $derived.by(() => {
+  // Regel, die aus der aktuellen Wahl entstünde: Muster, Treffer (alle Buchungen, nicht nur offene) und davon offene
+  const rulePreview = $derived.by(() => {
     const t = !isDoc && hasCat ? cur : null;
-    if (!t || !choice?.category) return 0;
+    if (!t || !choice?.category) return null;
     void app.dataVersion;
     return untrack(() => {
       const r = suggestRuleFromCorrection({ ...$state.snapshot(t), ...choice }, catStr(choice));
-      return r ? ruleHits(r, app.data.transactions).filter(x => x.id !== t.id).length : 0;
+      if (!r) return { rule: null, hits: [], open: 0 };
+      const hits = ruleHits(r, app.data.transactions).filter(x => x.id !== t.id);
+      return { rule: r, hits, open: hits.filter(isPendingTx).length };
     });
   });
+  const ruleCount = $derived(rulePreview?.hits.length || 0);
+  let ruleOpen = $state(false);
 
   $effect(() => {
     const t = !isDoc ? cur : null;
@@ -204,14 +209,29 @@
     } finally { busy = false; }
   }
 
-  /** Sammelaktion: dieselbe Art bei allen offenen Buchungen derselben Gegenpartei bestätigen */
+  // „Alle ähnlichen bestätigen“: erst ansehen und auswählen, dann bestätigen
+  let simOpen = $state(false);
+  let simSel = $state({});
+  const simCount = $derived(1 + similar.filter(s => simSel[s.tx.id]).length);
+  function openSimilar() {
+    if (busy || !cur || !primary || !similar.length) return;
+    if (primary.kind === 'category' && !choice?.category) { toast('Bitte zuerst eine Kategorie wählen'); return; }
+    simSel = Object.fromEntries(similar.map(s => [s.tx.id, true]));
+    simOpen = true;
+  }
+  const simAll = (on) => { simSel = Object.fromEntries(similar.map(s => [s.tx.id, on])); };
+  const catText = (category, sub) => (category ? categoryLabel(category, sub) || category : 'ohne Kategorie');
+
+  /** Sammelaktion: dieselbe Art bei den ausgewählten offenen Buchungen derselben Gegenpartei bestätigen */
   async function acceptSimilar() {
     const t = cur;
     if (busy || !t || !primary || !similar.length) return;
     if (primary.kind === 'category' && !choice?.category) { toast('Bitte zuerst eine Kategorie wählen'); return; }
+    simOpen = false;
     const snap = $state.snapshot(t);
     const c = ctx();
-    const all = [{ tx: snap, aspect: primary }, ...similar.map(s => ({ tx: $state.snapshot(s.tx), aspect: s.aspect }))];
+    const picked = similar.filter(s => simSel[s.tx.id]);
+    const all = [{ tx: snap, aspect: primary }, ...picked.map(s => ({ tx: $state.snapshot(s.tx), aspect: s.aspect }))];
     const changed = primary.kind === 'category' && changedFrom(t);
     busy = true;
     try {
@@ -306,6 +326,7 @@
     try { s.showPicker?.(); } catch { /* ignore */ }
   }
   function onKey(e) {
+    if (simOpen || ruleOpen) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const tg = e.target;
     if (tg?.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName)) return;
@@ -429,10 +450,17 @@
               <span class="lbl">Ändern</span>
               <span bind:this={pickerEl}><CategoryPicker category={choice?.category} subcategory={choice?.subcategory} onpick={onPick} /></span>
               <span class="grow"></span>
-              <label class="chk small">
-                <input type="checkbox" bind:checked={makeRule} /> Regel daraus machen
-                {#if ruleCount > 0}<span class="badge accent" title="So viele weitere Buchungen würde die Regel treffen">+{ruleCount} Treffer</span>{/if}
-              </label>
+              {#if rulePreview?.rule}
+                <label class="chk small">
+                  <input type="checkbox" bind:checked={makeRule} /> Regel: alle mit „{rulePreview.rule.match.value}“ → {catText(choice?.category, choice?.subcategory)}
+                  <Tip text="Dauerhaft: gilt für alle vorhandenen Buchungen mit diesem Text (auch bereits zugeordnete, außer von dir festgelegte) und für alle künftigen Importe." />
+                </label>
+                {#if ruleCount > 0}
+                  <button class="btn btn-sm btn-ghost" onclick={() => (ruleOpen = true)} title="Treffer ansehen">trifft {ruleCount} weitere{rulePreview.open ? `, davon ${rulePreview.open} offen` : ''} – ansehen</button>
+                {/if}
+              {:else if rulePreview}
+                <span class="small faint">Keine Regel möglich – nur der Zahlungsdienst ist bekannt, nicht der Händler<Tip text="Bei „PayPal“, „Klarna“ oder „VISA“ ohne erkennbaren Shop würde eine Regel alle Buchungen dieses Zahlungsdienstes treffen." /></span>
+              {/if}
             </div>
           {:else if a.kind === 'receipt'}
             {@const d = receiptOf(a)}
@@ -492,8 +520,8 @@
           <button class="btn" onclick={skip} disabled={busy}>Überspringen <kbd>K</kbd></button>
           {#if hasCat}<button class="btn" onclick={openPicker} disabled={busy}><Icon name="edit" size={15} />Ändern <kbd>E</kbd></button>{/if}
           {#if similar.length}
-            <button class="btn btn-ghost" onclick={acceptSimilar} disabled={busy} title="Gleiche Gegenpartei, gleiche Prüfung">
-              <Icon name="check" size={15} />Alle ähnlichen bestätigen <span class="badge accent">{similar.length + 1}</span>
+            <button class="btn btn-ghost" onclick={openSimilar} disabled={busy} title="Einmalig: nur offene Prüffälle derselben Gegenpartei – vorher ansehen und auswählen">
+              <Icon name="check" size={15} />{similar.length + 1} offene von „{cur.counterparty || cur.counterpartyRaw}“ ansehen &amp; bestätigen
             </button>
           {/if}
           <span class="grow"></span>
@@ -546,6 +574,63 @@
   {/if}
 </div>
 
+<Modal bind:open={ruleOpen} title="Treffer der Regel" width={760}>
+  {#if rulePreview?.rule}
+    <div class="stack tight">
+      <p class="small muted">Alle Buchungen, deren Text „<b>{rulePreview.rule.match.value}</b>“ enthält, würden <b>{catText(choice?.category, choice?.subcategory)}</b> – jetzt und bei künftigen Importen. Von dir festgelegte Kategorien bleiben.</p>
+      <ul class="plain simlist">
+        {#each rulePreview.hits.slice(0, 300) as h (h.id)}
+          <li class="simrow norule">
+            <span class="num muted">{fmtDate(h.bookingDate)}</span>
+            <span class="simtxt">
+              <span class="ellipsis">{h.counterparty || h.counterpartyRaw || '–'} · {h.purpose || h.bookingText || ''}</span>
+              <span class="faint small">bisher {catText(h.category, h.subcategory)}{isPendingTx(h) ? ' · offen' : ''}</span>
+            </span>
+            <Money value={h.amount} class="small" />
+          </li>
+        {/each}
+      </ul>
+      {#if rulePreview.hits.length > 300}<div class="small faint">+{rulePreview.hits.length - 300} weitere</div>{/if}
+    </div>
+  {/if}
+  {#snippet footer()}<button class="btn" onclick={() => (ruleOpen = false)}>Schließen</button>{/snippet}
+</Modal>
+
+<Modal bind:open={simOpen} title="Offene Buchungen derselben Gegenpartei bestätigen" width={760}>
+  {#if cur && primary}
+    <div class="stack tight">
+      <p class="small muted">
+        {KIND_LABEL[primary.kind]} bestätigen für alle offenen Buchungen von <b>{cur.counterparty || cur.counterpartyRaw || '–'}</b>{#if primary.kind === 'category'} → <b>{catText(choice?.category, choice?.subcategory)}</b>{/if}.
+        Abwählen, was nicht dazugehört.
+      </p>
+      <div class="row small"><button class="btn btn-sm btn-ghost" onclick={() => simAll(true)}>Alle</button><button class="btn btn-sm btn-ghost" onclick={() => simAll(false)}>Keine</button></div>
+      <ul class="plain simlist">
+        <li class="simrow cur">
+          <input type="checkbox" checked disabled aria-label="Aktuelle Buchung" />
+          <span class="num muted">{fmtDate(cur.bookingDate)}</span>
+          <span class="simtxt"><span class="ellipsis">{cur.purpose || cur.bookingText || '–'}</span><span class="faint small">diese Buchung{#if primary.kind === 'category'} · bisher {catText(cur.category, cur.subcategory)}{/if}</span></span>
+          <Money value={cur.amount} class="small" />
+        </li>
+        {#each similar as s (s.tx.id)}
+          <li class="simrow">
+            <input type="checkbox" bind:checked={simSel[s.tx.id]} aria-label="Auswählen" />
+            <span class="num muted">{fmtDate(s.tx.bookingDate)}</span>
+            <span class="simtxt">
+              <span class="ellipsis">{s.tx.purpose || s.tx.bookingText || '–'}</span>
+              <span class="faint small">{#if primary.kind === 'category'}bisher {catText(s.tx.category, s.tx.subcategory)}{:else}{s.aspect.reason || KIND_LABEL[primary.kind]}{/if}{s.tx.accountId ? ' · ' + accountName(s.tx.accountId) : ''}</span>
+            </span>
+            <Money value={s.tx.amount} class="small" />
+          </li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
+  {#snippet footer()}
+    <button class="btn" onclick={() => (simOpen = false)}>Abbrechen</button>
+    <button class="btn btn-primary" onclick={acceptSimilar} disabled={busy}><Icon name="check" size={15} />{simCount} bestätigen</button>
+  {/snippet}
+</Modal>
+
 <style>
   .wrap { max-width: 880px; margin: 0 auto; gap: 14px; }
   .head { gap: 10px; }
@@ -596,4 +681,9 @@
     .actions .btn-lg { flex: 1; }
   }
   @media (prefers-reduced-motion: reduce) { .bar i, .conf i { transition: none; } }
+  .simlist { display: grid; gap: 2px; max-height: 52vh; overflow: auto; }
+  .simrow { display: grid; grid-template-columns: auto 86px 1fr auto; gap: 10px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+  .simrow.cur { background: var(--surface-2); border-radius: 8px; }
+  .simtxt { display: grid; min-width: 0; }
+  .simrow.norule { grid-template-columns: 86px 1fr auto; }
 </style>
