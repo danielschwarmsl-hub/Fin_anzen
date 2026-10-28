@@ -4,8 +4,8 @@ import { normalizeCounterparty } from '../classify/normalize.js';
 import { classifyTransactions } from '../classify/rules.js';
 import { flagTaxDocument, flagTaxTransaction } from '../classify/taxFlags.js';
 import { detectTransfers } from '../analyze/transfers.js';
-import { detectRecurring, linkContracts } from '../analyze/recurring.js';
-import { matchReceipts } from '../analyze/receipts.js';
+import { detectRecurring, linkContracts, linkContractDocs } from '../analyze/recurring.js';
+import { applyReceipts } from '../analyze/receipts.js';
 
 /** Unterscheidet sich der Datensatz? Primitive per ===, verschachtelte Werte per JSON (große Texte werden nicht serialisiert). */
 export function differs(a, b) {
@@ -23,11 +23,13 @@ export function differs(a, b) {
 
 /**
  * Neu erkannte Verträge mit den bisherigen verheiraten (ID, Notiz, „ausgeblendet“, Art bleiben erhalten).
- * Jeder alte Vertrag wird höchstens einmal vergeben: erst gleiche ID, dann gleicher Anbieter + Konto + Rhythmus.
+ * Jeder alte Vertrag wird höchstens einmal vergeben: erst gleiche ID, dann gleicher Anbieter + Konto + Rhythmus mit dem
+ * nächstliegenden Betrag (Paare global nach Betragsabstand, nicht der erste Treffer).
  * (Mehrere Betragsgruppen desselben Anbieters sonst bekämen alle dieselbe ID und fielen beim Speichern zusammen.)
+ * Dokument-Verträge (source 'doc') entstehen in linkContractDocs neu und bleiben hier außen vor.
  */
 export function mergeContracts(detected, contractsOld = []) {
-  const oldAuto = contractsOld.filter(c => c.source !== 'user');
+  const oldAuto = contractsOld.filter(c => c.source !== 'user' && c.source !== 'doc');
   const byId = new Map(oldAuto.map(o => [o.id, o]));
   const claimed = new Set();
   const pairs = detected.map(c => {
@@ -35,11 +37,20 @@ export function mergeContracts(detected, contractsOld = []) {
     if (o && !claimed.has(o.id)) { claimed.add(o.id); return [c, o]; }
     return [c, null];
   });
-  for (const pair of pairs) {
-    if (pair[1]) continue;
+  const options = [];
+  pairs.forEach((pair, i) => {
+    if (pair[1]) return;
     const c = pair[0];
-    const o = oldAuto.find(x => !claimed.has(x.id) && x.provider === c.provider && x.accountId === c.accountId && x.interval === c.interval);
-    if (o) { claimed.add(o.id); pair[1] = o; }
+    oldAuto.forEach((x, j) => {
+      if (claimed.has(x.id) || x.provider !== c.provider || x.accountId !== c.accountId || x.interval !== c.interval) return;
+      options.push({ i, j, dist: Math.abs((x.amount || 0) - (c.amount || 0)) });
+    });
+  });
+  options.sort((a, b) => a.dist - b.dist || a.i - b.i || a.j - b.j);
+  for (const { i, j } of options) {
+    const o = oldAuto[j];
+    if (pairs[i][1] || claimed.has(o.id)) continue;
+    claimed.add(o.id); pairs[i][1] = o;
   }
   return pairs.map(([c, old]) => (old ? { ...c, id: old.id, note: old.note, hidden: old.hidden, kind: old.kindUser ? old.kind : c.kind, kindUser: old.kindUser } : c));
 }
@@ -49,11 +60,11 @@ export function mergeContracts(detected, contractsOld = []) {
  * gehen so nicht verloren. Geschrieben werden nur tatsächlich geänderte Datensätze (IndexedDB-Schreiben ist der Engpass).
  */
 export function postProcess() {
-  return db.transaction('rw', [db.accounts, db.rules, db.documents, db.contracts, db.transactions], runPostProcess);
+  return db.transaction('rw', [db.accounts, db.rules, db.documents, db.contracts, db.transactions, db.lineItems], runPostProcess);
 }
 
 async function runPostProcess() {
-  const [accounts, rules, documents, contractsOld] = await Promise.all([db.accounts.toArray(), db.rules.toArray(), db.documents.toArray(), db.contracts.toArray()]);
+  const [accounts, rules, documents, contractsOld, lineItems] = await Promise.all([db.accounts.toArray(), db.rules.toArray(), db.documents.toArray(), db.contracts.toArray(), db.lineItems.toArray()]);
   let txs = await db.transactions.toArray();
   const txBefore = new Map(txs.map(t => [t.id, JSON.stringify(t)]));
   const docBefore = new Map(documents.map(d => [d.id, { ...d }]));
@@ -87,12 +98,11 @@ async function runPostProcess() {
   // 4. Wiederkehrende Zahlungen → Verträge/Abos
   const userContracts = contractsOld.filter(c => c.source === 'user');
   const auto = mergeContracts(detectRecurring(txs, userContracts), contractsOld);
-  const contracts = [...userContracts, ...auto];
+  // Vertragsdokumente anhängen; Verträge ohne Zahlung als noPayments
+  const contracts = linkContractDocs([...userContracts, ...auto], documents, txs, contractsOld);
   txs = linkContracts(txs, contracts);
-  // 5. Belege ↔ Buchungen
-  const matches = matchReceipts(documents, txs);
-  const byTx = new Map(matches.map(m => [m.txId, m.docId]));
-  txs = txs.map(t => (byTx.has(t.id) ? { ...t, receiptDocId: byTx.get(t.id) } : t));
+  // 5. Belege ↔ Buchungen (Nutzer-Links bleiben, verwaiste Auto-Links fallen weg; checks receipt/split, splitSuggestion)
+  txs = applyReceipts(txs, documents, lineItems);
   // 6. Steuer-Flags (Nutzerentscheidung bleibt)
   const docs = documents.map(d => (d.taxSource === 'user' ? d : { ...d, ...flagTaxDocument(d) }));
   txs = txs.map(t => (t.taxSource === 'user' ? t : { ...t, ...flagTaxTransaction(t) }));
