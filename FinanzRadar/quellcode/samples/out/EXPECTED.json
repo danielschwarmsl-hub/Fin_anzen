@@ -12,7 +12,1269 @@
       "opening_eur": "4250.00",
       "closing_eur": "6116.20",
       "salary_eur_monthly": "3290.98",
-      "salary_bookings": 6
+      "salary_bookings": 6,
+      "appType": "kontoauszug",
+      "appFormat": "ing_csv",
+      "institution": "ING",
+      "accountKey": "ING",
+      "expect": {
+        "transactions": 125,
+        "openingCents": 425000,
+        "closingCents": 611620,
+        "sumCents": 186620
+      },
+      "bookingsExpected": [
+        {
+          "id": "ING:2026-01-02:-15000:privatrente",
+          "date": "2026-01-02",
+          "amount": -15000,
+          "payee": "Allianz Lebensversicherungs-AG",
+          "kind": "privatrente",
+          "category": "vorsorge_sparen",
+          "subcategory": "privatrente",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-02:-115000:rent",
+          "date": "2026-01-02",
+          "amount": -115000,
+          "payee": "Hausverwaltung Elbblick",
+          "kind": "rent",
+          "category": "wohnen",
+          "subcategory": "miete",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-02:-30000:sparplan",
+          "date": "2026-01-02",
+          "amount": -30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-01-02:-5800:ticket",
+          "date": "2026-01-02",
+          "amount": -5800,
+          "payee": "Verkehrsgesellschaft Musterstadt GmbH",
+          "kind": "ticket",
+          "category": "mobilitaet",
+          "subcategory": "oepnv",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-02:-2025:card",
+          "date": "2026-01-02",
+          "amount": -2025,
+          "payee": "dm drogerie markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-05:-3850:union",
+          "date": "2026-01-05",
+          "amount": -3850,
+          "payee": "Gewerkschaft ver.di",
+          "kind": "union",
+          "category": "beruf",
+          "subcategory": "gewerkschaft",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-05:-50000:tagesgeld",
+          "date": "2026-01-05",
+          "amount": -50000,
+          "payee": "Max Mustermann",
+          "kind": "tagesgeld",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-01-06:-1099:streaming",
+          "date": "2026-01-06",
+          "amount": -1099,
+          "payee": "Spotify AB",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "musik",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-06:-4900:fitness",
+          "date": "2026-01-06",
+          "amount": -4900,
+          "payee": "Urban Sports Club GmbH",
+          "kind": "fitness",
+          "category": "abos_medien",
+          "subcategory": "fitness",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-09:-6230:bu",
+          "date": "2026-01-09",
+          "amount": -6230,
+          "payee": "Alte Leipziger Versicherung AG",
+          "kind": "bu",
+          "category": "versicherungen",
+          "subcategory": "bu",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-09:-1399:streaming",
+          "date": "2026-01-09",
+          "amount": -1399,
+          "payee": "Netflix International B.V.",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "streaming",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-09:-1284:card",
+          "date": "2026-01-09",
+          "amount": -1284,
+          "payee": "Rossmann Filiale",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-12:-8450:utility",
+          "date": "2026-01-12",
+          "amount": -8450,
+          "payee": "Vattenfall Europe Sales GmbH",
+          "kind": "utility",
+          "category": "wohnen",
+          "subcategory": "strom_gas",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-14:-10000:cash",
+          "date": "2026-01-14",
+          "amount": -10000,
+          "payee": "Geldautomat Hamburg-Eimsbüttel",
+          "kind": "cash",
+          "category": "bargeld",
+          "subcategory": "auszahlung",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-14:-8990:paypal_debit",
+          "date": "2026-01-14",
+          "amount": -8990,
+          "payee": "PayPal Europe S.a.r.l. et Cie S.C.A",
+          "kind": "paypal_debit",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-01-15:-4995:telecom",
+          "date": "2026-01-15",
+          "amount": -4995,
+          "payee": "Telekom Deutschland GmbH",
+          "kind": "telecom",
+          "category": "wohnen",
+          "subcategory": "internet_telefon",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-16:-2000:subscription",
+          "date": "2026-01-16",
+          "amount": -2000,
+          "payee": "OpenAI Ireland Ltd.",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-20:-2439:subscription",
+          "date": "2026-01-20",
+          "amount": -2439,
+          "payee": "Adobe Systems Software Ireland Ltd",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-21:-3495:paypal_debit",
+          "date": "2026-01-21",
+          "amount": -3495,
+          "payee": "PayPal Europe S.a.r.l. et Cie S.C.A",
+          "kind": "paypal_debit",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-01-22:-5508:rundfunk",
+          "date": "2026-01-22",
+          "amount": -5508,
+          "payee": "ARD ZDF Deutschlandradio Beitragsservice",
+          "kind": "rundfunk",
+          "category": "wohnen",
+          "subcategory": "rundfunk",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-23:-3132:card",
+          "date": "2026-01-23",
+          "amount": -3132,
+          "payee": "dm drogerie markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-01-27:329098:salary",
+          "date": "2026-01-27",
+          "amount": 329098,
+          "payee": "Frigotechnik GmbH",
+          "kind": "salary",
+          "category": "einkommen",
+          "subcategory": "gehalt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-02:-15000:privatrente",
+          "date": "2026-02-02",
+          "amount": -15000,
+          "payee": "Allianz Lebensversicherungs-AG",
+          "kind": "privatrente",
+          "category": "vorsorge_sparen",
+          "subcategory": "privatrente",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-02:-10000:paypal_debit",
+          "date": "2026-02-02",
+          "amount": -10000,
+          "payee": "PayPal Europe S.a.r.l. et Cie S.C.A",
+          "kind": "paypal_debit",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-02-02:-5800:ticket",
+          "date": "2026-02-02",
+          "amount": -5800,
+          "payee": "Verkehrsgesellschaft Musterstadt GmbH",
+          "kind": "ticket",
+          "category": "mobilitaet",
+          "subcategory": "oepnv",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-02:-1282:card",
+          "date": "2026-02-02",
+          "amount": -1282,
+          "payee": "dm drogerie markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-03:-115000:rent",
+          "date": "2026-02-03",
+          "amount": -115000,
+          "payee": "Hausverwaltung Elbblick",
+          "kind": "rent",
+          "category": "wohnen",
+          "subcategory": "miete",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-04:-30000:sparplan",
+          "date": "2026-02-04",
+          "amount": -30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-02-05:-50000:tagesgeld",
+          "date": "2026-02-05",
+          "amount": -50000,
+          "payee": "Max Mustermann",
+          "kind": "tagesgeld",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-02-06:-1099:streaming",
+          "date": "2026-02-06",
+          "amount": -1099,
+          "payee": "Spotify AB",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "musik",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-06:-4900:fitness",
+          "date": "2026-02-06",
+          "amount": -4900,
+          "payee": "Urban Sports Club GmbH",
+          "kind": "fitness",
+          "category": "abos_medien",
+          "subcategory": "fitness",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-09:-1399:streaming",
+          "date": "2026-02-09",
+          "amount": -1399,
+          "payee": "Netflix International B.V.",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "streaming",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-09:-2033:card",
+          "date": "2026-02-09",
+          "amount": -2033,
+          "payee": "Rossmann Filiale",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-10:-6230:bu",
+          "date": "2026-02-10",
+          "amount": -6230,
+          "payee": "Alte Leipziger Versicherung AG",
+          "kind": "bu",
+          "category": "versicherungen",
+          "subcategory": "bu",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-11:-12900:paypal_debit",
+          "date": "2026-02-11",
+          "amount": -12900,
+          "payee": "PayPal Europe S.a.r.l. et Cie S.C.A",
+          "kind": "paypal_debit",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-02-12:-8450:utility",
+          "date": "2026-02-12",
+          "amount": -8450,
+          "payee": "Vattenfall Europe Sales GmbH",
+          "kind": "utility",
+          "category": "wohnen",
+          "subcategory": "strom_gas",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-13:-10000:cash",
+          "date": "2026-02-13",
+          "amount": -10000,
+          "payee": "Geldautomat Hamburg-Eimsbüttel",
+          "kind": "cash",
+          "category": "bargeld",
+          "subcategory": "auszahlung",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-13:-4995:telecom",
+          "date": "2026-02-13",
+          "amount": -4995,
+          "payee": "Telekom Deutschland GmbH",
+          "kind": "telecom",
+          "category": "wohnen",
+          "subcategory": "internet_telefon",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-16:-12690:haftpflicht",
+          "date": "2026-02-16",
+          "amount": -12690,
+          "payee": "Haftpflicht Musterversicherung AG",
+          "kind": "haftpflicht",
+          "category": "versicherungen",
+          "subcategory": "haftpflicht",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-18:-2000:subscription",
+          "date": "2026-02-18",
+          "amount": -2000,
+          "payee": "OpenAI Ireland Ltd.",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-20:-2439:subscription",
+          "date": "2026-02-20",
+          "amount": -2439,
+          "payee": "Adobe Systems Software Ireland Ltd",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-20:-2627:card",
+          "date": "2026-02-20",
+          "amount": -2627,
+          "payee": "dm drogerie markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-02-27:329098:salary",
+          "date": "2026-02-27",
+          "amount": 329098,
+          "payee": "Frigotechnik GmbH",
+          "kind": "salary",
+          "category": "einkommen",
+          "subcategory": "gehalt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-02:-15000:privatrente",
+          "date": "2026-03-02",
+          "amount": -15000,
+          "payee": "Allianz Lebensversicherungs-AG",
+          "kind": "privatrente",
+          "category": "vorsorge_sparen",
+          "subcategory": "privatrente",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-02:-6798:card",
+          "date": "2026-03-02",
+          "amount": -6798,
+          "payee": "Tankstelle Shell",
+          "kind": "card",
+          "category": "mobilitaet",
+          "subcategory": "tanken",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-02:-5800:ticket",
+          "date": "2026-03-02",
+          "amount": -5800,
+          "payee": "Verkehrsgesellschaft Musterstadt GmbH",
+          "kind": "ticket",
+          "category": "mobilitaet",
+          "subcategory": "oepnv",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-03:-115000:rent",
+          "date": "2026-03-03",
+          "amount": -115000,
+          "payee": "Hausverwaltung Elbblick",
+          "kind": "rent",
+          "category": "wohnen",
+          "subcategory": "miete",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-04:-30000:sparplan",
+          "date": "2026-03-04",
+          "amount": -30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-03-05:-50000:tagesgeld",
+          "date": "2026-03-05",
+          "amount": -50000,
+          "payee": "Max Mustermann",
+          "kind": "tagesgeld",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-03-06:-41230:handwerker",
+          "date": "2026-03-06",
+          "amount": -41230,
+          "payee": "Elektro Meyer GmbH",
+          "kind": "handwerker",
+          "category": "wohnen",
+          "subcategory": "handwerker",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-06:-1099:streaming",
+          "date": "2026-03-06",
+          "amount": -1099,
+          "payee": "Spotify AB",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "musik",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-06:-4900:fitness",
+          "date": "2026-03-06",
+          "amount": -4900,
+          "payee": "Urban Sports Club GmbH",
+          "kind": "fitness",
+          "category": "abos_medien",
+          "subcategory": "fitness",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-09:-1399:streaming",
+          "date": "2026-03-09",
+          "amount": -1399,
+          "payee": "Netflix International B.V.",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "streaming",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-10:-6230:bu",
+          "date": "2026-03-10",
+          "amount": -6230,
+          "payee": "Alte Leipziger Versicherung AG",
+          "kind": "bu",
+          "category": "versicherungen",
+          "subcategory": "bu",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-12:-8450:utility",
+          "date": "2026-03-12",
+          "amount": -8450,
+          "payee": "Vattenfall Europe Sales GmbH",
+          "kind": "utility",
+          "category": "wohnen",
+          "subcategory": "strom_gas",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-13:-10000:cash",
+          "date": "2026-03-13",
+          "amount": -10000,
+          "payee": "Geldautomat Hamburg-Eimsbüttel",
+          "kind": "cash",
+          "category": "bargeld",
+          "subcategory": "auszahlung",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-13:-5402:card",
+          "date": "2026-03-13",
+          "amount": -5402,
+          "payee": "Tankstelle Shell",
+          "kind": "card",
+          "category": "mobilitaet",
+          "subcategory": "tanken",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-13:-4995:telecom",
+          "date": "2026-03-13",
+          "amount": -4995,
+          "payee": "Telekom Deutschland GmbH",
+          "kind": "telecom",
+          "category": "wohnen",
+          "subcategory": "internet_telefon",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-18:-2000:subscription",
+          "date": "2026-03-18",
+          "amount": -2000,
+          "payee": "OpenAI Ireland Ltd.",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-18:-2240:paypal_debit",
+          "date": "2026-03-18",
+          "amount": -2240,
+          "payee": "PayPal Europe S.a.r.l. et Cie S.C.A",
+          "kind": "paypal_debit",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-03-20:-2439:subscription",
+          "date": "2026-03-20",
+          "amount": -2439,
+          "payee": "Adobe Systems Software Ireland Ltd",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-24:-2329:card",
+          "date": "2026-03-24",
+          "amount": -2329,
+          "payee": "Rossmann Filiale",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-27:329098:salary",
+          "date": "2026-03-27",
+          "amount": 329098,
+          "payee": "Frigotechnik GmbH",
+          "kind": "salary",
+          "category": "einkommen",
+          "subcategory": "gehalt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-03-30:-38900:optiker",
+          "date": "2026-03-30",
+          "amount": -38900,
+          "payee": "Optik Muster GmbH",
+          "kind": "optiker",
+          "category": "gesundheit",
+          "subcategory": "brille",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-02:-15000:privatrente",
+          "date": "2026-04-02",
+          "amount": -15000,
+          "payee": "Allianz Lebensversicherungs-AG",
+          "kind": "privatrente",
+          "category": "vorsorge_sparen",
+          "subcategory": "privatrente",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-02:-5800:ticket",
+          "date": "2026-04-02",
+          "amount": -5800,
+          "payee": "Verkehrsgesellschaft Musterstadt GmbH",
+          "kind": "ticket",
+          "category": "mobilitaet",
+          "subcategory": "oepnv",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-03:-3850:union",
+          "date": "2026-04-03",
+          "amount": -3850,
+          "payee": "Gewerkschaft ver.di",
+          "kind": "union",
+          "category": "beruf",
+          "subcategory": "gewerkschaft",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-03:-115000:rent",
+          "date": "2026-04-03",
+          "amount": -115000,
+          "payee": "Hausverwaltung Elbblick",
+          "kind": "rent",
+          "category": "wohnen",
+          "subcategory": "miete",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-03:-30000:sparplan",
+          "date": "2026-04-03",
+          "amount": -30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-04-03:-50000:tagesgeld",
+          "date": "2026-04-03",
+          "amount": -50000,
+          "payee": "Max Mustermann",
+          "kind": "tagesgeld",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-04-06:-1099:streaming",
+          "date": "2026-04-06",
+          "amount": -1099,
+          "payee": "Spotify AB",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "musik",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-06:-4900:fitness",
+          "date": "2026-04-06",
+          "amount": -4900,
+          "payee": "Urban Sports Club GmbH",
+          "kind": "fitness",
+          "category": "abos_medien",
+          "subcategory": "fitness",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-09:-1399:streaming",
+          "date": "2026-04-09",
+          "amount": -1399,
+          "payee": "Netflix International B.V.",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "streaming",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-09:-7430:paypal_debit",
+          "date": "2026-04-09",
+          "amount": -7430,
+          "payee": "PayPal Europe S.a.r.l. et Cie S.C.A",
+          "kind": "paypal_debit",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-04-10:-6230:bu",
+          "date": "2026-04-10",
+          "amount": -6230,
+          "payee": "Alte Leipziger Versicherung AG",
+          "kind": "bu",
+          "category": "versicherungen",
+          "subcategory": "bu",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-10:-3826:card",
+          "date": "2026-04-10",
+          "amount": -3826,
+          "payee": "Penny Markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-10:-8450:utility",
+          "date": "2026-04-10",
+          "amount": -8450,
+          "payee": "Vattenfall Europe Sales GmbH",
+          "kind": "utility",
+          "category": "wohnen",
+          "subcategory": "strom_gas",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-14:-10000:cash",
+          "date": "2026-04-14",
+          "amount": -10000,
+          "payee": "Geldautomat Hamburg-Eimsbüttel",
+          "kind": "cash",
+          "category": "bargeld",
+          "subcategory": "auszahlung",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-15:-4995:telecom",
+          "date": "2026-04-15",
+          "amount": -4995,
+          "payee": "Telekom Deutschland GmbH",
+          "kind": "telecom",
+          "category": "wohnen",
+          "subcategory": "internet_telefon",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-17:-2000:subscription",
+          "date": "2026-04-17",
+          "amount": -2000,
+          "payee": "OpenAI Ireland Ltd.",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-20:-2439:subscription",
+          "date": "2026-04-20",
+          "amount": -2439,
+          "payee": "Adobe Systems Software Ireland Ltd",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-20:-3828:card",
+          "date": "2026-04-20",
+          "amount": -3828,
+          "payee": "Penny Markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-22:-5508:rundfunk",
+          "date": "2026-04-22",
+          "amount": -5508,
+          "payee": "ARD ZDF Deutschlandradio Beitragsservice",
+          "kind": "rundfunk",
+          "category": "wohnen",
+          "subcategory": "rundfunk",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-24:-1552:card",
+          "date": "2026-04-24",
+          "amount": -1552,
+          "payee": "dm drogerie markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-04-27:329098:salary",
+          "date": "2026-04-27",
+          "amount": 329098,
+          "payee": "Frigotechnik GmbH",
+          "kind": "salary",
+          "category": "einkommen",
+          "subcategory": "gehalt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-01:-15000:privatrente",
+          "date": "2026-05-01",
+          "amount": -15000,
+          "payee": "Allianz Lebensversicherungs-AG",
+          "kind": "privatrente",
+          "category": "vorsorge_sparen",
+          "subcategory": "privatrente",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-01:-115000:rent",
+          "date": "2026-05-01",
+          "amount": -115000,
+          "payee": "Hausverwaltung Elbblick",
+          "kind": "rent",
+          "category": "wohnen",
+          "subcategory": "miete",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-01:-5800:ticket",
+          "date": "2026-05-01",
+          "amount": -5800,
+          "payee": "Verkehrsgesellschaft Musterstadt GmbH",
+          "kind": "ticket",
+          "category": "mobilitaet",
+          "subcategory": "oepnv",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-04:-4738:card_edeka",
+          "date": "2026-05-04",
+          "amount": -4738,
+          "payee": "Edeka Eimsbüttel",
+          "kind": "card_edeka",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-04:-30000:sparplan",
+          "date": "2026-05-04",
+          "amount": -30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-05-04:-2455:card",
+          "date": "2026-05-04",
+          "amount": -2455,
+          "payee": "dm drogerie markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-05:-50000:tagesgeld",
+          "date": "2026-05-05",
+          "amount": -50000,
+          "payee": "Max Mustermann",
+          "kind": "tagesgeld",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-05-06:-1099:streaming",
+          "date": "2026-05-06",
+          "amount": -1099,
+          "payee": "Spotify AB",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "musik",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-06:-4900:fitness",
+          "date": "2026-05-06",
+          "amount": -4900,
+          "payee": "Urban Sports Club GmbH",
+          "kind": "fitness",
+          "category": "abos_medien",
+          "subcategory": "fitness",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-08:-6230:bu",
+          "date": "2026-05-08",
+          "amount": -6230,
+          "payee": "Alte Leipziger Versicherung AG",
+          "kind": "bu",
+          "category": "versicherungen",
+          "subcategory": "bu",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-08:-1399:streaming",
+          "date": "2026-05-08",
+          "amount": -1399,
+          "payee": "Netflix International B.V.",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "streaming",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-08:-1688:card",
+          "date": "2026-05-08",
+          "amount": -1688,
+          "payee": "Rossmann Filiale",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-12:-8450:utility",
+          "date": "2026-05-12",
+          "amount": -8450,
+          "payee": "Vattenfall Europe Sales GmbH",
+          "kind": "utility",
+          "category": "wohnen",
+          "subcategory": "strom_gas",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-13:-2307:card",
+          "date": "2026-05-13",
+          "amount": -2307,
+          "payee": "dm drogerie markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "drogerie",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-14:-10000:cash",
+          "date": "2026-05-14",
+          "amount": -10000,
+          "payee": "Geldautomat Hamburg-Eimsbüttel",
+          "kind": "cash",
+          "category": "bargeld",
+          "subcategory": "auszahlung",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-14:-5000:spende",
+          "date": "2026-05-14",
+          "amount": -5000,
+          "payee": "Ärzte ohne Grenzen e.V.",
+          "kind": "spende",
+          "category": "spenden",
+          "subcategory": "organisation",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-15:-4995:telecom",
+          "date": "2026-05-15",
+          "amount": -4995,
+          "payee": "Telekom Deutschland GmbH",
+          "kind": "telecom",
+          "category": "wohnen",
+          "subcategory": "internet_telefon",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-18:-2000:subscription",
+          "date": "2026-05-18",
+          "amount": -2000,
+          "payee": "OpenAI Ireland Ltd.",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-20:-2439:subscription",
+          "date": "2026-05-20",
+          "amount": -2439,
+          "payee": "Adobe Systems Software Ireland Ltd",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-05-20:-5999:paypal_debit",
+          "date": "2026-05-20",
+          "amount": -5999,
+          "payee": "PayPal Europe S.a.r.l. et Cie S.C.A",
+          "kind": "paypal_debit",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-05-27:329098:salary",
+          "date": "2026-05-27",
+          "amount": 329098,
+          "payee": "Frigotechnik GmbH",
+          "kind": "salary",
+          "category": "einkommen",
+          "subcategory": "gehalt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-02:-15000:privatrente",
+          "date": "2026-06-02",
+          "amount": -15000,
+          "payee": "Allianz Lebensversicherungs-AG",
+          "kind": "privatrente",
+          "category": "vorsorge_sparen",
+          "subcategory": "privatrente",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-02:-5800:ticket",
+          "date": "2026-06-02",
+          "amount": -5800,
+          "payee": "Verkehrsgesellschaft Musterstadt GmbH",
+          "kind": "ticket",
+          "category": "mobilitaet",
+          "subcategory": "oepnv",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-03:-115000:rent",
+          "date": "2026-06-03",
+          "amount": -115000,
+          "payee": "Hausverwaltung Elbblick",
+          "kind": "rent",
+          "category": "wohnen",
+          "subcategory": "miete",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-04:-30000:sparplan",
+          "date": "2026-06-04",
+          "amount": -30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-06-04:-3951:card",
+          "date": "2026-06-04",
+          "amount": -3951,
+          "payee": "Penny Markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-05:-50000:tagesgeld",
+          "date": "2026-06-05",
+          "amount": -50000,
+          "payee": "Max Mustermann",
+          "kind": "tagesgeld",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-06-05:-1099:streaming",
+          "date": "2026-06-05",
+          "amount": -1099,
+          "payee": "Spotify AB",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "musik",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-05:-4900:fitness",
+          "date": "2026-06-05",
+          "amount": -4900,
+          "payee": "Urban Sports Club GmbH",
+          "kind": "fitness",
+          "category": "abos_medien",
+          "subcategory": "fitness",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-09:-1399:streaming",
+          "date": "2026-06-09",
+          "amount": -1399,
+          "payee": "Netflix International B.V.",
+          "kind": "streaming",
+          "category": "abos_medien",
+          "subcategory": "streaming",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-10:-6230:bu",
+          "date": "2026-06-10",
+          "amount": -6230,
+          "payee": "Alte Leipziger Versicherung AG",
+          "kind": "bu",
+          "category": "versicherungen",
+          "subcategory": "bu",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-10:-4677:card",
+          "date": "2026-06-10",
+          "amount": -4677,
+          "payee": "Tankstelle Shell",
+          "kind": "card",
+          "category": "mobilitaet",
+          "subcategory": "tanken",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-12:-10000:cash",
+          "date": "2026-06-12",
+          "amount": -10000,
+          "payee": "Geldautomat Hamburg-Eimsbüttel",
+          "kind": "cash",
+          "category": "bargeld",
+          "subcategory": "auszahlung",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-12:-18000:paypal_debit",
+          "date": "2026-06-12",
+          "amount": -18000,
+          "payee": "PayPal Europe S.a.r.l. et Cie S.C.A",
+          "kind": "paypal_debit",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "ING:2026-06-12:-8450:utility",
+          "date": "2026-06-12",
+          "amount": -8450,
+          "payee": "Vattenfall Europe Sales GmbH",
+          "kind": "utility",
+          "category": "wohnen",
+          "subcategory": "strom_gas",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-15:-4995:telecom",
+          "date": "2026-06-15",
+          "amount": -4995,
+          "payee": "Telekom Deutschland GmbH",
+          "kind": "telecom",
+          "category": "wohnen",
+          "subcategory": "internet_telefon",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-18:-2000:subscription",
+          "date": "2026-06-18",
+          "amount": -2000,
+          "payee": "OpenAI Ireland Ltd.",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-19:-2439:subscription",
+          "date": "2026-06-19",
+          "amount": -2439,
+          "payee": "Adobe Systems Software Ireland Ltd",
+          "kind": "subscription",
+          "category": "abos_medien",
+          "subcategory": "software",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-19:-2572:card",
+          "date": "2026-06-19",
+          "amount": -2572,
+          "payee": "Penny Markt",
+          "kind": "card",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "ING:2026-06-26:329098:salary",
+          "date": "2026-06-26",
+          "amount": 329098,
+          "payee": "Frigotechnik GmbH",
+          "kind": "salary",
+          "category": "einkommen",
+          "subcategory": "gehalt",
+          "transfer": false
+        }
+      ]
     },
     "Banken/comdirect/comdirect_girokonto_2026H1.csv": {
       "type": "bank_csv",
@@ -22,7 +1284,287 @@
       "period": "2026-01-01/2026-06-30",
       "bookings": 25,
       "opening_eur": "1200.00",
-      "closing_eur": "409.92"
+      "closing_eur": "409.92",
+      "appType": "kontoauszug",
+      "appFormat": "comdirect_csv",
+      "institution": "comdirect",
+      "accountKey": "COMDIRECT",
+      "expect": {
+        "transactions": 25,
+        "openingCents": 120000,
+        "closingCents": 40992,
+        "sumCents": -79008
+      },
+      "bookingsExpected": [
+        {
+          "id": "CD:2026-01-02:30000:sparplan_in",
+          "date": "2026-01-02",
+          "amount": 30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan_in",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "CD:2026-01-02:-30000:sparplan_buy",
+          "date": "2026-01-02",
+          "amount": -30000,
+          "payee": "comdirect Depot",
+          "kind": "sparplan_buy",
+          "category": "vorsorge_sparen",
+          "subcategory": "sparplan_depot",
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
+        },
+        {
+          "id": "CD:2026-01-16:-2398:amazon",
+          "date": "2026-01-16",
+          "amount": -2398,
+          "payee": "Amazon Payments Europe S.C.A.",
+          "kind": "amazon",
+          "category": "shopping",
+          "subcategory": "online",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-01-20:-4127:card_rewe",
+          "date": "2026-01-20",
+          "amount": -4127,
+          "payee": "REWE Markt Hamburg-Eimsbüttel",
+          "kind": "card_rewe",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-02-03:-5840:fuel",
+          "date": "2026-02-03",
+          "amount": -5840,
+          "payee": "Aral Tankstelle Hamburg",
+          "kind": "fuel",
+          "category": "mobilitaet",
+          "subcategory": "tanken",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-02-04:30000:sparplan_in",
+          "date": "2026-02-04",
+          "amount": 30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan_in",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "CD:2026-02-04:-30000:sparplan_buy",
+          "date": "2026-02-04",
+          "amount": -30000,
+          "payee": "comdirect Depot",
+          "kind": "sparplan_buy",
+          "category": "vorsorge_sparen",
+          "subcategory": "sparplan_depot",
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
+        },
+        {
+          "id": "CD:2026-02-13:-2980:card_rewe",
+          "date": "2026-02-13",
+          "amount": -2980,
+          "payee": "REWE Markt Hamburg-Eimsbüttel",
+          "kind": "card_rewe",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-02-27:-3450:restaurant",
+          "date": "2026-02-27",
+          "amount": -3450,
+          "payee": "Restaurant Zum Alten Hafen",
+          "kind": "restaurant",
+          "category": "lebensmittel",
+          "subcategory": "restaurant",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-03-04:30000:sparplan_in",
+          "date": "2026-03-04",
+          "amount": 30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan_in",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "CD:2026-03-04:-30000:sparplan_buy",
+          "date": "2026-03-04",
+          "amount": -30000,
+          "payee": "comdirect Depot",
+          "kind": "sparplan_buy",
+          "category": "vorsorge_sparen",
+          "subcategory": "sparplan_depot",
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
+        },
+        {
+          "id": "CD:2026-03-10:-6215:fuel",
+          "date": "2026-03-10",
+          "amount": -6215,
+          "payee": "Aral Tankstelle Hamburg",
+          "kind": "fuel",
+          "category": "mobilitaet",
+          "subcategory": "tanken",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-03-20:-5210:card_rewe",
+          "date": "2026-03-20",
+          "amount": -5210,
+          "payee": "REWE Markt Hamburg-Eimsbüttel",
+          "kind": "card_rewe",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-04-03:30000:sparplan_in",
+          "date": "2026-04-03",
+          "amount": 30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan_in",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "CD:2026-04-03:-30000:sparplan_buy",
+          "date": "2026-04-03",
+          "amount": -30000,
+          "payee": "comdirect Depot",
+          "kind": "sparplan_buy",
+          "category": "vorsorge_sparen",
+          "subcategory": "sparplan_depot",
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
+        },
+        {
+          "id": "CD:2026-04-09:-24900:amazon_monitor",
+          "date": "2026-04-09",
+          "amount": -24900,
+          "payee": "Amazon Payments Europe S.C.A.",
+          "kind": "amazon_monitor",
+          "category": "shopping",
+          "subcategory": null,
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-04-13:-6784:card_rewe",
+          "date": "2026-04-13",
+          "amount": -6784,
+          "payee": "REWE Markt Hamburg-Eimsbüttel",
+          "kind": "card_rewe",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-05-01:-1249:amazon",
+          "date": "2026-05-01",
+          "amount": -1249,
+          "payee": "Amazon Payments Europe S.C.A.",
+          "kind": "amazon",
+          "category": "shopping",
+          "subcategory": "online",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-05-04:30000:sparplan_in",
+          "date": "2026-05-04",
+          "amount": 30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan_in",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "CD:2026-05-04:-30000:sparplan_buy",
+          "date": "2026-05-04",
+          "amount": -30000,
+          "payee": "comdirect Depot",
+          "kind": "sparplan_buy",
+          "category": "vorsorge_sparen",
+          "subcategory": "sparplan_depot",
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
+        },
+        {
+          "id": "CD:2026-05-18:-7190:fuel",
+          "date": "2026-05-18",
+          "amount": -7190,
+          "payee": "Aral Tankstelle Hamburg",
+          "kind": "fuel",
+          "category": "mobilitaet",
+          "subcategory": "tanken",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-06-04:30000:sparplan_in",
+          "date": "2026-06-04",
+          "amount": 30000,
+          "payee": "Max Mustermann",
+          "kind": "sparplan_in",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "CD:2026-06-04:-30000:sparplan_buy",
+          "date": "2026-06-04",
+          "amount": -30000,
+          "payee": "comdirect Depot",
+          "kind": "sparplan_buy",
+          "category": "vorsorge_sparen",
+          "subcategory": "sparplan_depot",
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
+        },
+        {
+          "id": "CD:2026-06-05:-3845:card_rewe",
+          "date": "2026-06-05",
+          "amount": -3845,
+          "payee": "REWE Markt Hamburg-Eimsbüttel",
+          "kind": "card_rewe",
+          "category": "lebensmittel",
+          "subcategory": "supermarkt",
+          "transfer": false
+        },
+        {
+          "id": "CD:2026-06-19:-4820:restaurant",
+          "date": "2026-06-19",
+          "amount": -4820,
+          "payee": "Restaurant Zum Alten Hafen",
+          "kind": "restaurant",
+          "category": "lebensmittel",
+          "subcategory": "restaurant",
+          "transfer": false
+        }
+      ]
     },
     "Banken/comdirect/comdirect_depot_2026-06-30.csv": {
       "type": "depot_csv",
@@ -30,7 +1572,16 @@
       "encoding": "iso-8859-1",
       "date": "2026-06-30",
       "positions": 3,
-      "total_eur": "7352.51"
+      "total_eur": "7352.51",
+      "appType": "depot",
+      "appFormat": "comdirect_depot_csv",
+      "institution": "comdirect",
+      "accountKey": "DEPOT",
+      "expect": {
+        "transactions": 0,
+        "holdings": 3,
+        "holdingsValueCents": 735251
+      }
     },
     "Banken/PayPal/paypal_aktivitaeten_2026H1.csv": {
       "type": "paypal_csv",
@@ -40,7 +1591,219 @@
       "rows": 20,
       "bank_funded_in_eur": "690.54",
       "final_balance_eur": "33.70",
-      "ing_paypal_debits": 8
+      "ing_paypal_debits": 8,
+      "appType": "paypal",
+      "appFormat": "paypal_csv",
+      "institution": "PayPal",
+      "accountKey": "PAYPAL",
+      "expect": {
+        "transactions": 20,
+        "openingCents": 0,
+        "closingCents": 3370,
+        "sumCents": 3370
+      },
+      "bookingsExpected": [
+        {
+          "id": "PP:2026-01-14:8990:bank_in",
+          "date": "2026-01-14",
+          "amount": 8990,
+          "payee": "ABC Shop",
+          "kind": "bank_in",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "PP:2026-01-14:-8990:pay",
+          "date": "2026-01-14",
+          "amount": -8990,
+          "payee": "ABC Shop",
+          "kind": "pay",
+          "category": "shopping",
+          "subcategory": "online",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-01-21:3495:bank_in",
+          "date": "2026-01-21",
+          "amount": 3495,
+          "payee": "Sportartikel Beispiel",
+          "kind": "bank_in",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "PP:2026-01-21:-3495:pay",
+          "date": "2026-01-21",
+          "amount": -3495,
+          "payee": "Sportartikel Beispiel",
+          "kind": "pay",
+          "category": null,
+          "subcategory": null,
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-02-02:10000:bank_in",
+          "date": "2026-02-02",
+          "amount": 10000,
+          "payee": "PayPal Aufladung",
+          "kind": "bank_in",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "PP:2026-02-11:12900:bank_in",
+          "date": "2026-02-11",
+          "amount": 12900,
+          "payee": "ABC Shop",
+          "kind": "bank_in",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "PP:2026-02-11:-12900:pay",
+          "date": "2026-02-11",
+          "amount": -12900,
+          "payee": "ABC Shop",
+          "kind": "pay",
+          "category": "shopping",
+          "subcategory": "online",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-02-19:-3990:pay",
+          "date": "2026-02-19",
+          "amount": -3990,
+          "payee": "eBay Sarl",
+          "kind": "pay",
+          "category": "shopping",
+          "subcategory": "online",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-02-25:-350:pay",
+          "date": "2026-02-25",
+          "amount": -350,
+          "payee": "Kiosk Ecke",
+          "kind": "pay",
+          "category": "lebensmittel",
+          "subcategory": "kiosk",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-03-18:2240:bank_in",
+          "date": "2026-03-18",
+          "amount": 2240,
+          "payee": "Buchhandlung Muster",
+          "kind": "bank_in",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "PP:2026-03-18:-2240:pay",
+          "date": "2026-03-18",
+          "amount": -2240,
+          "payee": "Buchhandlung Muster",
+          "kind": "pay",
+          "category": "shopping",
+          "subcategory": "buecher",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-03-27:1500:refund",
+          "date": "2026-03-27",
+          "amount": 1500,
+          "payee": "ABC Shop",
+          "kind": "refund",
+          "category": "shopping",
+          "subcategory": "online",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-04-02:-1290:pay",
+          "date": "2026-04-02",
+          "amount": -1290,
+          "payee": "Lieferdienst Probe",
+          "kind": "pay",
+          "category": "lebensmittel",
+          "subcategory": "lieferdienst",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-04-09:7430:bank_in",
+          "date": "2026-04-09",
+          "amount": 7430,
+          "payee": "Gartenmarkt Testhof",
+          "kind": "bank_in",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "PP:2026-04-09:-7430:pay",
+          "date": "2026-04-09",
+          "amount": -7430,
+          "payee": "Gartenmarkt Testhof",
+          "kind": "pay",
+          "category": null,
+          "subcategory": null,
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-04-20:-2500:send",
+          "date": "2026-04-20",
+          "amount": -2500,
+          "payee": "Anna Beispiel",
+          "kind": "send",
+          "category": "sonstiges",
+          "subcategory": "privat",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-05-20:5999:bank_in",
+          "date": "2026-05-20",
+          "amount": 5999,
+          "payee": "ABC Shop",
+          "kind": "bank_in",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "PP:2026-05-20:-5999:pay",
+          "date": "2026-05-20",
+          "amount": -5999,
+          "payee": "ABC Shop",
+          "kind": "pay",
+          "category": "shopping",
+          "subcategory": "online",
+          "transfer": false
+        },
+        {
+          "id": "PP:2026-06-12:18000:bank_in",
+          "date": "2026-06-12",
+          "amount": 18000,
+          "payee": "Reisebüro Probe",
+          "kind": "bank_in",
+          "category": "umbuchung",
+          "subcategory": "paypal",
+          "transfer": true
+        },
+        {
+          "id": "PP:2026-06-12:-18000:pay",
+          "date": "2026-06-12",
+          "amount": -18000,
+          "payee": "Reisebüro Probe",
+          "kind": "pay",
+          "category": "freizeit_reisen",
+          "subcategory": "urlaub",
+          "transfer": false
+        }
+      ]
     },
     "Banken/Renault/renaultbank_tagesgeld_2026-06.pdf": {
       "type": "savings_statement_pdf",
@@ -49,7 +1812,39 @@
       "opening_eur": "5820.00",
       "closing_eur": "6328.73",
       "entries": 2,
-      "credit_from_ing_eur": "500.00"
+      "credit_from_ing_eur": "500.00",
+      "appType": "kontoauszug",
+      "appFormat": "pdf_statement",
+      "institution": "Renault Bank",
+      "accountKey": "RENAULT",
+      "expect": {
+        "transactions": 2,
+        "openingCents": 582000,
+        "closingCents": 632873,
+        "sumCents": 50873
+      },
+      "bookingsExpected": [
+        {
+          "id": "RB:2026-06-05:50000:tagesgeld_in",
+          "date": "2026-06-05",
+          "amount": 50000,
+          "payee": "Max Mustermann",
+          "kind": "tagesgeld_in",
+          "category": "umbuchung",
+          "subcategory": "eigene_konten",
+          "transfer": true
+        },
+        {
+          "id": "RB:2026-06-30:873:interest",
+          "date": "2026-06-30",
+          "amount": 873,
+          "payee": "Renault Bank direkt",
+          "kind": "interest",
+          "category": "einkommen",
+          "subcategory": "zinsen",
+          "transfer": false
+        }
+      ]
     },
     "Banken/ING/ing_kontoauszug_2026-03.pdf": {
       "type": "bank_statement_pdf",
@@ -57,7 +1852,44 @@
       "period": "2026-03",
       "bookings": 21,
       "opening_eur": "4987.56",
-      "closing_eur": "4736.43"
+      "closing_eur": "4736.43",
+      "appType": "kontoauszug",
+      "appFormat": "pdf_statement",
+      "institution": "ING",
+      "accountKey": "ING",
+      "expect": {
+        "transactions": 21,
+        "openingCents": 498756,
+        "closingCents": 473643,
+        "sumCents": -25113
+      },
+      "duplicateOf": {
+        "file": "Banken/ING/ing_girokonto_2026H1.csv",
+        "count": 21,
+        "ids": [
+          "ING:2026-03-02:-15000:privatrente",
+          "ING:2026-03-02:-6798:card",
+          "ING:2026-03-02:-5800:ticket",
+          "ING:2026-03-03:-115000:rent",
+          "ING:2026-03-04:-30000:sparplan",
+          "ING:2026-03-05:-50000:tagesgeld",
+          "ING:2026-03-06:-41230:handwerker",
+          "ING:2026-03-06:-1099:streaming",
+          "ING:2026-03-06:-4900:fitness",
+          "ING:2026-03-09:-1399:streaming",
+          "ING:2026-03-10:-6230:bu",
+          "ING:2026-03-12:-8450:utility",
+          "ING:2026-03-13:-10000:cash",
+          "ING:2026-03-13:-5402:card",
+          "ING:2026-03-13:-4995:telecom",
+          "ING:2026-03-18:-2000:subscription",
+          "ING:2026-03-18:-2240:paypal_debit",
+          "ING:2026-03-20:-2439:subscription",
+          "ING:2026-03-24:-2329:card",
+          "ING:2026-03-27:329098:salary",
+          "ING:2026-03-30:-38900:optiker"
+        ]
+      }
     },
     "Banken/ING/camt053_ing_2026-05.xml": {
       "type": "camt053",
@@ -66,7 +1898,44 @@
       "period": "2026-05",
       "bookings": 21,
       "opening_eur": "5194.35",
-      "closing_eur": "5690.34"
+      "closing_eur": "5690.34",
+      "appType": "kontoauszug",
+      "appFormat": "camt053",
+      "institution": "ING",
+      "accountKey": "ING",
+      "expect": {
+        "transactions": 21,
+        "openingCents": 519435,
+        "closingCents": 569034,
+        "sumCents": 49599
+      },
+      "duplicateOf": {
+        "file": "Banken/ING/ing_girokonto_2026H1.csv",
+        "count": 21,
+        "ids": [
+          "ING:2026-05-01:-15000:privatrente",
+          "ING:2026-05-01:-115000:rent",
+          "ING:2026-05-01:-5800:ticket",
+          "ING:2026-05-04:-4738:card_edeka",
+          "ING:2026-05-04:-30000:sparplan",
+          "ING:2026-05-04:-2455:card",
+          "ING:2026-05-05:-50000:tagesgeld",
+          "ING:2026-05-06:-1099:streaming",
+          "ING:2026-05-06:-4900:fitness",
+          "ING:2026-05-08:-6230:bu",
+          "ING:2026-05-08:-1399:streaming",
+          "ING:2026-05-08:-1688:card",
+          "ING:2026-05-12:-8450:utility",
+          "ING:2026-05-13:-2307:card",
+          "ING:2026-05-14:-10000:cash",
+          "ING:2026-05-14:-5000:spende",
+          "ING:2026-05-15:-4995:telecom",
+          "ING:2026-05-18:-2000:subscription",
+          "ING:2026-05-20:-2439:subscription",
+          "ING:2026-05-20:-5999:paypal_debit",
+          "ING:2026-05-27:329098:salary"
+        ]
+      }
     },
     "Belege/lohnabrechnung_2026-03.pdf": {
       "type": "payslip_pdf",
@@ -75,7 +1944,13 @@
       "gross_eur": "5200.00",
       "net_eur": "3290.98",
       "deductions_eur": "1909.02",
-      "credited_on_ing": "2026-03-27"
+      "credited_on_ing": "2026-03-27",
+      "appType": "lohn",
+      "expect": {
+        "amountCents": 329098,
+        "grossCents": 520000,
+        "date": "2026-03-27"
+      }
     },
     "Belege/rechnung_elektro_meyer_2026-02.pdf": {
       "type": "invoice_pdf",
@@ -87,7 +1962,16 @@
       "total_eur": "412.30",
       "labour_net_eur": "230.00",
       "paid_by": "transfer",
-      "paid_on": "2026-03-06"
+      "paid_on": "2026-03-06",
+      "appType": "rechnung",
+      "expect": {
+        "amountCents": 41230,
+        "vatCents": 6583,
+        "date": "2026-02-20",
+        "lineItems": 2,
+        "lineItemsSumCents": 34647,
+        "lineItemsBasis": "netto"
+      }
     },
     "Belege/rechnung_amazon_monitor_2026-04.pdf": {
       "type": "invoice_pdf",
@@ -98,7 +1982,16 @@
       "vat_19_eur": "39.76",
       "total_eur": "249.00",
       "paid_by": "card (comdirect)",
-      "paid_on": "2026-04-09"
+      "paid_on": "2026-04-09",
+      "appType": "rechnung",
+      "expect": {
+        "amountCents": 24900,
+        "vatCents": 3976,
+        "date": "2026-04-07",
+        "lineItems": 1,
+        "lineItemsSumCents": 24900,
+        "lineItemsBasis": "brutto"
+      }
     },
     "Belege/kassenbon_rewe_2026-04-12.png": {
       "type": "receipt_image",
@@ -107,7 +2000,16 @@
       "total_eur": "67.84",
       "paid_by": "card (comdirect)",
       "booked_on": "2026-04-13",
-      "scan_effect": false
+      "scan_effect": false,
+      "appType": "kassenbon",
+      "ocrFixture": "rewe.ocr.txt",
+      "expect": {
+        "amountCents": 6784,
+        "date": "2026-04-12",
+        "lineItems": 13,
+        "lineItemsSumCents": 6784,
+        "lineItemsBasis": "brutto"
+      }
     },
     "Belege/kassenbon_edeka_2026-05-03.jpg": {
       "type": "receipt_image",
@@ -116,13 +2018,26 @@
       "total_eur": "47.38",
       "paid_by": "card (ING)",
       "booked_on": "2026-05-04",
-      "scan_effect": true
+      "scan_effect": true,
+      "appType": "kassenbon",
+      "ocrFixture": "edeka.ocr.txt",
+      "expect": {
+        "amountCents": 4738,
+        "date": "2026-05-03",
+        "lineItems": 12,
+        "lineItemsSumCents": 4738,
+        "lineItemsBasis": "brutto"
+      }
     },
     "Belege/vertrag_netflix_bestaetigung.pdf": {
       "type": "subscription_confirmation_pdf",
       "issuer": "Netflix International B.V.",
       "date": "2026-06-09",
-      "price_monthly_eur": "13.99"
+      "price_monthly_eur": "13.99",
+      "appType": "vertrag",
+      "expect": {
+        "amountCents": 1399
+      }
     },
     "Belege/scan_rechnung_optiker.png": {
       "type": "invoice_image_only",
@@ -133,7 +2048,17 @@
       "vat_19_eur": "62.11",
       "total_eur": "389.00",
       "text_layer": false,
-      "paid_on": "2026-03-30"
+      "paid_on": "2026-03-30",
+      "appType": "rechnung",
+      "ocrFixture": "optiker.ocr.txt",
+      "expect": {
+        "amountCents": 38900,
+        "vatCents": 6211,
+        "date": "2026-03-27",
+        "lineItems": 3,
+        "lineItemsSumCents": 32689,
+        "lineItemsBasis": "netto"
+      }
     },
     "Versicherungen/allianz_privatrente_standmitteilung_2025.pdf": {
       "type": "insurance_statement_pdf",
@@ -142,14 +2067,22 @@
       "stichtag": "2025-12-31",
       "paid_2025_eur": "1800.00",
       "fund_value_eur": "16482.37",
-      "surrender_value_eur": "14910.00"
+      "surrender_value_eur": "14910.00",
+      "appType": "rente",
+      "expect": {
+        "amountCents": 1648237
+      }
     },
     "Versicherungen/bu_beitragsbescheinigung_2025.pdf": {
       "type": "tax_certificate_pdf",
       "issuer": "Alte Leipziger Versicherung AG",
       "contract_no": "55-778899",
       "year": 2025,
-      "yearly_premium_eur": "747.60"
+      "yearly_premium_eur": "747.60",
+      "appType": "versicherung",
+      "expect": {
+        "amountCents": 74760
+      }
     },
     "Steuer/lohnsteuerbescheinigung_2025.pdf": {
       "type": "tax_certificate_pdf",
@@ -159,7 +2092,11 @@
       "lohnsteuer_eur": "8346.00",
       "kirchensteuer_eur": "751.14",
       "soli_eur": "0.00",
-      "sv_total_eur": "12930.00"
+      "sv_total_eur": "12930.00",
+      "appType": "lohnsteuerbescheinigung",
+      "expect": {
+        "grossCents": 6000000
+      }
     },
     "Steuer/comdirect_jahressteuerbescheinigung_2025.pdf": {
       "type": "tax_certificate_pdf",
@@ -169,7 +2106,9 @@
       "freistellung_used_eur": "1000.00",
       "kapest_eur": "60.14",
       "soli_eur": "3.31",
-      "kist_eur": "5.41"
+      "kist_eur": "5.41",
+      "appType": "steuerbescheinigung",
+      "expect": {}
     },
     "Steuer/spendenquittung_aerzte_ohne_grenzen_2026.pdf": {
       "type": "donation_receipt_pdf",
@@ -177,19 +2116,157 @@
       "year": 2026,
       "amount_eur": "50.00",
       "date": "14.05.2026",
-      "paid_on": "2026-05-14"
+      "paid_on": "2026-05-14",
+      "appType": "spende",
+      "expect": {
+        "amountCents": 5000
+      }
     },
     "einkaufszettel_handschrift.txt": {
       "type": "note_text",
-      "is_finance": false
+      "is_finance": false,
+      "appType": "einkaufszettel",
+      "expect": {
+        "lineItems": 6
+      }
     },
     "Privat/irrelevant_urlaubsfoto.jpg": {
       "type": "photo",
-      "is_finance": false
+      "is_finance": false,
+      "appType": "irrelevant",
+      "ocrFixture": "urlaubsfoto.ocr.txt",
+      "expect": {}
     },
     "Privat/irrelevant_rezept.txt": {
       "type": "note_text",
-      "is_finance": false
+      "is_finance": false,
+      "appType": "irrelevant",
+      "expect": {}
     }
+  },
+  "crossChecks": {
+    "_hinweis": "Soll-Wirkung über alle Dateien in samples/out (abgeleitet aus samples/gen_model.py). IDs verweisen auf files[*].bookingsExpected[].id.",
+    "accounts": [
+      "ING",
+      "COMDIRECT",
+      "DEPOT",
+      "PAYPAL",
+      "RENAULT",
+      "RENTE (Allianz 4711-0815)",
+      "BU (Alte Leipziger 55-778899)"
+    ],
+    "uniqueTransactions": {
+      "ING": 125,
+      "COMDIRECT": 25,
+      "PAYPAL": 20,
+      "RENAULT": 2
+    },
+    "transferPairs": [
+      {
+        "a": "ING:2026-01-14:-8990:paypal_debit",
+        "b": "PP:2026-01-14:8990:bank_in",
+        "kind": "paypal"
+      },
+      {
+        "a": "ING:2026-01-21:-3495:paypal_debit",
+        "b": "PP:2026-01-21:3495:bank_in",
+        "kind": "paypal"
+      },
+      {
+        "a": "ING:2026-02-02:-10000:paypal_debit",
+        "b": "PP:2026-02-02:10000:bank_in",
+        "kind": "paypal"
+      },
+      {
+        "a": "ING:2026-02-11:-12900:paypal_debit",
+        "b": "PP:2026-02-11:12900:bank_in",
+        "kind": "paypal"
+      },
+      {
+        "a": "ING:2026-03-18:-2240:paypal_debit",
+        "b": "PP:2026-03-18:2240:bank_in",
+        "kind": "paypal"
+      },
+      {
+        "a": "ING:2026-04-09:-7430:paypal_debit",
+        "b": "PP:2026-04-09:7430:bank_in",
+        "kind": "paypal"
+      },
+      {
+        "a": "ING:2026-05-20:-5999:paypal_debit",
+        "b": "PP:2026-05-20:5999:bank_in",
+        "kind": "paypal"
+      },
+      {
+        "a": "ING:2026-06-12:-18000:paypal_debit",
+        "b": "PP:2026-06-12:18000:bank_in",
+        "kind": "paypal"
+      },
+      {
+        "a": "ING:2026-01-02:-30000:sparplan",
+        "b": "CD:2026-01-02:30000:sparplan_in",
+        "kind": "eigene_konten"
+      },
+      {
+        "a": "ING:2026-02-04:-30000:sparplan",
+        "b": "CD:2026-02-04:30000:sparplan_in",
+        "kind": "eigene_konten"
+      },
+      {
+        "a": "ING:2026-03-04:-30000:sparplan",
+        "b": "CD:2026-03-04:30000:sparplan_in",
+        "kind": "eigene_konten"
+      },
+      {
+        "a": "ING:2026-04-03:-30000:sparplan",
+        "b": "CD:2026-04-03:30000:sparplan_in",
+        "kind": "eigene_konten"
+      },
+      {
+        "a": "ING:2026-05-04:-30000:sparplan",
+        "b": "CD:2026-05-04:30000:sparplan_in",
+        "kind": "eigene_konten"
+      },
+      {
+        "a": "ING:2026-06-04:-30000:sparplan",
+        "b": "CD:2026-06-04:30000:sparplan_in",
+        "kind": "eigene_konten"
+      },
+      {
+        "a": "ING:2026-06-05:-50000:tagesgeld",
+        "b": "RB:2026-06-05:50000:tagesgeld_in",
+        "kind": "eigene_konten"
+      }
+    ],
+    "oneSidedTransfers": [
+      "ING:2026-01-05:-50000:tagesgeld",
+      "ING:2026-02-05:-50000:tagesgeld",
+      "ING:2026-03-05:-50000:tagesgeld",
+      "ING:2026-04-03:-50000:tagesgeld",
+      "ING:2026-05-05:-50000:tagesgeld"
+    ],
+    "receiptLinks": [
+      {
+        "doc": "Belege/kassenbon_rewe_2026-04-12.png",
+        "tx": "CD:2026-04-13:-6784:card_rewe"
+      },
+      {
+        "doc": "Belege/kassenbon_edeka_2026-05-03.jpg",
+        "tx": "ING:2026-05-04:-4738:card_edeka"
+      },
+      {
+        "doc": "Belege/rechnung_amazon_monitor_2026-04.pdf",
+        "tx": "CD:2026-04-09:-24900:amazon_monitor"
+      },
+      {
+        "doc": "Belege/rechnung_elektro_meyer_2026-02.pdf",
+        "tx": "ING:2026-03-06:-41230:handwerker"
+      },
+      {
+        "doc": "Belege/scan_rechnung_optiker.png",
+        "tx": "ING:2026-03-30:-38900:optiker"
+      }
+    ],
+    "_hinweis_depot": "Wertpapierkauf auf dem Giro (sparplan_buy): Sparen entweder als Kategorie vorsorge_sparen oder als Umbuchung auf das eigene Depotkonto (zählt in computeInsights ebenfalls als Sparen); transfer=null heißt: nicht bewertet."
   }
 }

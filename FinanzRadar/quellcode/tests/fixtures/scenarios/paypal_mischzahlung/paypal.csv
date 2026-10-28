@@ -1,0 +1,3 @@
+"Datum","Uhrzeit","Zeitzone","Name","Typ","Status","Währung","Brutto","Gebühr","Netto","Absender E-Mail-Adresse","Empfänger E-Mail-Adresse","Transaktionscode","Zugehöriger Transaktionscode","Guthaben"
+"15.03.2026","12:00:00","CET","","Bankgutschrift auf PayPal-Konto","Abgeschlossen","EUR","30,00","0,00","30,00","","erika@example.com","S2BANK0000000001","S2PAY00000000001","40,00"
+"15.03.2026","12:00:02","CET","Elektronik Beispiel","Allgemeine Zahlung","Abgeschlossen","EUR","-40,00","0,00","-40,00","erika@example.com","verkauf@elektronik.example","S2PAY00000000001","","0,00"

@@ -1,0 +1,11 @@
+Umsatzanzeige;Datei erstellt am: 31.03.2026 10:00
+
+IBAN;DE02 5001 0517 0000 0471 10
+Kontoname;Girokonto
+Bank;ING
+Kunde;Erika Beispiel
+Zeitraum;01.03.2026 - 31.03.2026
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung
+10.03.2026;10.03.2026;Supermarkt Beispiel;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 10.03;480,00;EUR;-20,00;EUR
+02.03.2026;02.03.2026;Hausverwaltung Beispiel;Dauerauftrag;Mietanteil 03/2026 Wohnung 3 OG;500,00;EUR;-500,00;EUR

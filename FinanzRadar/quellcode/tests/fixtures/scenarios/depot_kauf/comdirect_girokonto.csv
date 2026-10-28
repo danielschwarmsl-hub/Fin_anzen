@@ -1,0 +1,8 @@
+"Umsätze Girokonto";
+"Zeitraum: 01.03.2026 - 31.03.2026";
+"Alter Kontostand";"2.000,00 EUR";
+"Neuer Kontostand";"955,00 EUR";
+
+"Buchungstag";"Wertstellung (Valuta)";"Vorgang";"Buchungstext";"Umsatz in EUR";
+"16.03.2026";"16.03.2026";"Wertpapierkauf";"WPKAUF Muster MSCI World UCITS ETF WKN MUST01 Depot 987654321 Ref. 4711";"-1.000,00";
+"10.03.2026";"10.03.2026";"Kartenzahlung";"Supermarkt Beispiel VISA Debitkarte";"-45,00";

@@ -1,0 +1,2 @@
+"Datum","Uhrzeit","Zeitzone","Name","Typ","Status","Währung","Brutto","Gebühr","Netto","Absender E-Mail-Adresse","Empfänger E-Mail-Adresse","Transaktionscode","Zugehöriger Transaktionscode","Guthaben"
+"15.03.2026","12:00:02","CET","Elektronik Beispiel","Allgemeine Zahlung","Abgeschlossen","EUR","-40,00","0,00","-40,00","erika@example.com","verkauf@elektronik.example","S2BPAY0000000001","","0,00"
