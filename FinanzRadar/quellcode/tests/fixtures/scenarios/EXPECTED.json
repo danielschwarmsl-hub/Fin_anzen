@@ -5,8 +5,8 @@
       "title": "PayPal-Einkauf mit Bankgutschrift-Zeile und Einkauf im Einzugsverfahren, jeweils mit Lastschrift auf dem Girokonto",
       "files": ["paypal_einzug/ing_girokonto.csv", "paypal_einzug/paypal.csv"],
       "range": { "from": "2026-03-01", "to": "2026-03-31" },
-      "expect": { "expense": 9589, "income": 0, "transactions": 6, "accounts": 2, "transferPairs": 2 },
-      "why": "Supermarkt 30,00 + Sportshop 45,90 + Musikdienst 19,99. Die PayPal-Lastschriften auf dem Girokonto sind Gegenbuchungen und zählen nicht zusätzlich."
+      "expect": { "expense": 9589, "income": 0, "transactions": 6, "accounts": 2, "transferPairs": 1 },
+      "why": "Supermarkt 30,00 + Sportshop 45,90 + Musikdienst 19,99. Die PayPal-Lastschriften auf dem Girokonto sind Gegenbuchungen und zählen nicht zusätzlich. Umbuchungspaar nur Lastschrift ↔ Bankgutschrift; beim Einzugsverfahren ist die Bankseite Umbuchung, die PayPal-Zeile die Ausgabe (kein transferPairId-Paar)."
     },
     "paypal_mischzahlung": {
       "title": "PayPal-Mischzahlung: 10,00 aus Guthaben + 30,00 per Bankeinzug (Bankgutschrift-Zeile über den Teilbetrag)",

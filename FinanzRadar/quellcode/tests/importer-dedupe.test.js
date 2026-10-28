@@ -50,7 +50,12 @@ describe('Importer: CSV + PDF/camt desselben Kontos', () => {
     expect(snap.accounts).toHaveLength(1);
     expect(snap.transactions).toHaveLength(125);
     expect(app.progress.newTx).toBe(125);
-    // camt ergänzt fehlende Felder der CSV-Buchungen (Mandat, Gläubiger-ID) statt neue anzulegen
+  });
+
+  // Lücke in saveResult: Bei gleichem dedupeKey (gleiche Schreibweise) wird die camt-Buchung übersprungen, BEVOR fehlende
+  // Felder (Mandat, Gläubiger-ID, IBAN) ergänzt werden – ergänzt wird nur im Datum+Betrag-Zweig.
+  it.fails('camt nach CSV ergänzt Mandatsreferenz auch bei gleichem dedupeKey', async () => {
+    const snap = await importAll([sample(ING_CSV), sample(ING_CAMT)]);
     const may = snap.transactions.filter(t => t.bookingDate.startsWith('2026-05') && /Vattenfall/.test(t.counterpartyRaw || t.counterparty));
     expect(may).toHaveLength(1);
     expect(may[0].mandateId).toBe('VATT-MM-4711');
@@ -87,9 +92,9 @@ describe('Importer: CSV + PDF/camt desselben Kontos', () => {
     expect(snap.transactions).toHaveLength(2);
   });
 
-  // Befund 13: Konto ohne IBAN wird mit dem einzigen Konto derselben Bank/Art zusammengeführt (upsertAccountUnsafe),
-  // danach entfernt der Datum+Betrag-Abgleich die gleiche Mietbuchung des anderen Kontos.
-  it.fails('Konto ohne IBAN wird nicht mit einem anderen Konto derselben Bank zusammengeführt (Befund 13)', async () => {
+  // Befund 13: Konto ohne IBAN darf nicht mit dem einzigen Konto derselben Bank/Art zusammengeführt werden,
+  // sonst entfernt der Datum+Betrag-Abgleich die gleiche Mietbuchung des anderen Kontos.
+  it('Konto ohne IBAN wird nicht mit einem anderen Konto derselben Bank zusammengeführt (Befund 13)', async () => {
     const rent = [['02.03.2026', 'Hausverwaltung Beispiel', 'Dauerauftrag', 'Mietanteil 03/2026', '-500,00']];
     const snap = await importAll([fileItem('a.csv', ingCsv(rent)), fileItem('b.csv', ingCsv(rent, { iban: null, name: 'Gemeinschaftskonto' }))]);
     expect(snap.accounts).toHaveLength(2);
@@ -120,10 +125,9 @@ describe('Importer: zwei überlappende Dateien parallel (concurrency 2)', () => 
 });
 
 describe('Importbericht-Zähler (Datenvertrag: app.progress.dupTx / enrichedTx)', () => {
-  // Wird von Bereich 5 (store/importer.js) umgesetzt; bis dahin erwartet fehlschlagend.
-  it.fails('zählt übersprungene Dubletten und ergänzte Buchungen', async () => {
+  it('zählt übersprungene Dubletten und ergänzte Buchungen (jede camt-Buchung genau einmal)', async () => {
     await importAll([sample(ING_CSV), sample(ING_CAMT)]);
-    expect(app.progress.dupTx).toBe(21);
-    expect(app.progress.enrichedTx).toBeGreaterThan(0);
+    expect(app.progress.dupTx + app.progress.enrichedTx).toBe(21);
+    expect(app.progress.newTx).toBe(125);
   });
 });

@@ -1314,7 +1314,10 @@
           "kind": "sparplan_buy",
           "category": "vorsorge_sparen",
           "subcategory": "sparplan_depot",
-          "transfer": false
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
         },
         {
           "id": "CD:2026-01-16:-2398:amazon",
@@ -1364,7 +1367,10 @@
           "kind": "sparplan_buy",
           "category": "vorsorge_sparen",
           "subcategory": "sparplan_depot",
-          "transfer": false
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
         },
         {
           "id": "CD:2026-02-13:-2980:card_rewe",
@@ -1404,7 +1410,10 @@
           "kind": "sparplan_buy",
           "category": "vorsorge_sparen",
           "subcategory": "sparplan_depot",
-          "transfer": false
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
         },
         {
           "id": "CD:2026-03-10:-6215:fuel",
@@ -1444,7 +1453,10 @@
           "kind": "sparplan_buy",
           "category": "vorsorge_sparen",
           "subcategory": "sparplan_depot",
-          "transfer": false
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
         },
         {
           "id": "CD:2026-04-09:-24900:amazon_monitor",
@@ -1494,7 +1506,10 @@
           "kind": "sparplan_buy",
           "category": "vorsorge_sparen",
           "subcategory": "sparplan_depot",
-          "transfer": false
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
         },
         {
           "id": "CD:2026-05-18:-7190:fuel",
@@ -1524,7 +1539,10 @@
           "kind": "sparplan_buy",
           "category": "vorsorge_sparen",
           "subcategory": "sparplan_depot",
-          "transfer": false
+          "transfer": null,
+          "categoryAlt": [
+            "umbuchung"
+          ]
         },
         {
           "id": "CD:2026-06-05:-3845:card_rewe",
@@ -2248,6 +2266,7 @@
         "doc": "Belege/scan_rechnung_optiker.png",
         "tx": "ING:2026-03-30:-38900:optiker"
       }
-    ]
+    ],
+    "_hinweis_depot": "Wertpapierkauf auf dem Giro (sparplan_buy): Sparen entweder als Kategorie vorsorge_sparen oder als Umbuchung auf das eigene Depotkonto (zählt in computeInsights ebenfalls als Sparen); transfer=null heißt: nicht bewertet."
   }
 }

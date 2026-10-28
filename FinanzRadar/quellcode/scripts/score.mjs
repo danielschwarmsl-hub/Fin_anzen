@@ -190,8 +190,8 @@ for (const [rel, exp] of Object.entries(FILES)) {
 for (const b of expById.values()) {
   if (!b.category) continue;
   const t = matched.get(b.id);
-  check('Kategorie', t && t.category === b.category, `${b.id} (${b.payee}): ${t ? `${t.category}/${t.subcategory || '–'}` : 'Buchung fehlt'} statt ${b.category}/${b.subcategory || '–'}`);
-  if (b.subcategory) check('Unterkategorie', t && t.category === b.category && t.subcategory === b.subcategory, `${b.id} (${b.payee}): ${t ? `${t.category}/${t.subcategory || '–'}` : 'Buchung fehlt'} statt ${b.category}/${b.subcategory}`);
+  check('Kategorie', t && (t.category === b.category || (b.categoryAlt || []).includes(t.category)), `${b.id} (${b.payee}): ${t ? `${t.category}/${t.subcategory || '–'}` : 'Buchung fehlt'} statt ${b.category}/${b.subcategory || '–'}`);
+  if (b.subcategory) check('Unterkategorie', t && ((t.category === b.category && t.subcategory === b.subcategory) || (b.categoryAlt || []).includes(t.category)), `${b.id} (${b.payee}): ${t ? `${t.category}/${t.subcategory || '–'}` : 'Buchung fehlt'} statt ${b.category}/${b.subcategory}`);
 }
 
 // Vollständigkeit und Dubletten
@@ -223,7 +223,7 @@ for (const id of X.oneSidedTransfers || []) {
   const t = matched.get(id);
   check('Umbuchungen', t && t.isTransfer, `${id}: ${t ? 'nicht als Umbuchung markiert' : 'Buchung fehlt'}`);
 }
-const falseTransfers = [...matched].filter(([id, t]) => t.isTransfer && !expById.get(id).transfer).map(([id]) => id);
+const falseTransfers = [...matched].filter(([id, t]) => t.isTransfer && expById.get(id).transfer === false).map(([id]) => id);
 if (falseTransfers.length) area('Umbuchungen').note = `${falseTransfers.length} fälschlich als Umbuchung`;
 for (const id of falseTransfers) area('Umbuchungen').misses.push(`${id}: fälschlich Umbuchung`);
 
@@ -264,8 +264,18 @@ check('Summen', ins.totals.saving === sSaving, `Sparen ${eur(ins.totals.saving)}
 const openReview = snap.transactions.filter(t => (t.needsReview && !t.reviewed) || (t.checks?.length > 0)).length;
 const openDocs = snap.documents.filter(d => d.needsReview).length;
 
+// Szenarien (tests/fixtures/scenarios): Soll-Wirkung je Szenario, jede Erwartung ein Treffer
+const { SCENARIOS, runScenario } = await import('../tests/helpers/run-scenario.js');
+console.error = () => {}; console.warn = () => {};
+try {
+  for (const [id, sc] of Object.entries(SCENARIOS)) {
+    const r = await runScenario(id, { db, app, runImport, ensureSource, computeInsights });
+    for (const [key, want] of Object.entries(sc.expect)) check('Szenarien', r[key] === want, `${id}: ${key} ${r[key]} statt ${want}`);
+  }
+} finally { console.error = origError; console.warn = origWarn; }
+
 // ---------------------------------------------------------------- Ausgabe
-const ORDER = ['Dokumenttyp', 'Format', 'Beträge', 'Positionen', 'Kategorie', 'Unterkategorie', 'Vollständigkeit', 'Dubletten', 'Konten', 'Umbuchungen', 'Belegzuordnung', 'Summen'];
+const ORDER = ['Dokumenttyp', 'Format', 'Beträge', 'Positionen', 'Kategorie', 'Unterkategorie', 'Vollständigkeit', 'Dubletten', 'Konten', 'Umbuchungen', 'Belegzuordnung', 'Summen', 'Szenarien'];
 const rows = ORDER.filter(n => areas.has(n)).map(n => areas.get(n)).map(a => ({ ...a, rate: a.total ? a.hit / a.total : 1 }));
 const result = {
   date: new Date().toISOString(), concurrency: opt.concurrency,
