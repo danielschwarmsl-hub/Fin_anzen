@@ -1,0 +1,12 @@
+Umsatzanzeige;Datei erstellt am: 31.03.2026 10:00
+
+IBAN;DE02 5001 0517 0000 0471 10
+Kontoname;Girokonto
+Bank;ING
+Kunde;Erika Beispiel
+Zeitraum;01.03.2026 - 31.03.2026
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung
+24.03.2026;24.03.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;1040987654321 PP.7788.PP . Musikdienst Beispiel, Ihr Einkauf bei Musikdienst Beispiel;904,11;EUR;-19,99;EUR
+12.03.2026;12.03.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;1040987654320 PP.7788.PP . Sportshop Muster, Ihr Einkauf bei Sportshop Muster;924,10;EUR;-45,90;EUR
+05.03.2026;05.03.2026;Supermarkt Beispiel;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 05.03;970,00;EUR;-30,00;EUR

@@ -1,0 +1,10 @@
+Umsatzanzeige;Datei erstellt am: 31.03.2026 10:00
+
+IBAN;DE02 5001 0517 0000 0471 10
+Kontoname;Girokonto
+Bank;ING
+Kunde;Erika Beispiel
+Zeitraum;01.03.2026 - 31.03.2026
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung
+23.03.2026;23.03.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;1040987654340 PP.7788.PP . US Gadget Store, Ihr Einkauf bei US Gadget Store;953,80;EUR;-46,20;EUR

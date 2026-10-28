@@ -1,0 +1,68 @@
+{
+  "_hinweis": "Fiktive Szenarien (Namen, IBANs, Beträge erfunden). Soll-Wirkung nach Import aller Dateien eines Szenarios in der angegebenen Reihenfolge über den echten Importer und die Nachverarbeitung. Beträge in Cent, Ausgaben/Einnahmen/Sparen positiv wie computeInsights().totals. transferPairs = Anzahl verknüpfter Paare (transferPairId auf beiden Seiten). Formate von Depotumsätzen sind nicht gegen echte Exporte geprüft.",
+  "scenarios": {
+    "paypal_einzug": {
+      "title": "PayPal-Einkauf mit Bankgutschrift-Zeile und Einkauf im Einzugsverfahren, jeweils mit Lastschrift auf dem Girokonto",
+      "files": ["paypal_einzug/ing_girokonto.csv", "paypal_einzug/paypal.csv"],
+      "range": { "from": "2026-03-01", "to": "2026-03-31" },
+      "expect": { "expense": 9589, "income": 0, "transactions": 6, "accounts": 2, "transferPairs": 2 },
+      "why": "Supermarkt 30,00 + Sportshop 45,90 + Musikdienst 19,99. Die PayPal-Lastschriften auf dem Girokonto sind Gegenbuchungen und zählen nicht zusätzlich."
+    },
+    "paypal_mischzahlung": {
+      "title": "PayPal-Mischzahlung: 10,00 aus Guthaben + 30,00 per Bankeinzug (Bankgutschrift-Zeile über den Teilbetrag)",
+      "files": ["paypal_mischzahlung/ing_girokonto.csv", "paypal_mischzahlung/paypal.csv"],
+      "range": { "from": "2026-03-01", "to": "2026-03-31" },
+      "expect": { "expense": 4000, "income": 0, "transactions": 3, "accounts": 2, "transferPairs": 1 },
+      "why": "Ausgabe ist der Einkauf 40,00 auf PayPal; Lastschrift 30,00 ↔ Bankgutschrift 30,00 ist eine Umbuchung."
+    },
+    "paypal_mischzahlung_ohne_gutschrift": {
+      "title": "PayPal-Mischzahlung ohne eigene Bankgutschrift-Zeile: Zahlung 40,00, Lastschrift über 30,00 (Teilbetrag)",
+      "files": ["paypal_mischzahlung_ohne_gutschrift/ing_girokonto.csv", "paypal_mischzahlung_ohne_gutschrift/paypal.csv"],
+      "range": { "from": "2026-03-01", "to": "2026-03-31" },
+      "expect": { "expense": 4000, "income": 0, "transactions": 2, "accounts": 2 },
+      "why": "Die Lastschrift über 30,00 ist der Bankanteil der PayPal-Zahlung (Optimierungsplan Befund 16) und darf nicht zusätzlich als Ausgabe zählen."
+    },
+    "paypal_usd": {
+      "title": "PayPal-Kauf in USD mit Währungsumrechnung, finanziert per Lastschrift",
+      "files": ["paypal_usd/ing_girokonto.csv", "paypal_usd/paypal.csv"],
+      "range": { "from": "2026-03-01", "to": "2026-03-31" },
+      "expect": { "expense": 4620, "income": 0, "transactions": 3, "accounts": 2, "transferPairs": 1 },
+      "why": "Der USD-Kauf zählt genau einmal mit dem EUR-Betrag der Umrechnung (46,20); USD-Zeilen bewegen kein EUR-Geld."
+    },
+    "depot_kauf": {
+      "title": "comdirect Girokonto „Wertpapierkauf“ und derselbe Kauf als Depot-Umsatz",
+      "files": ["depot_kauf/comdirect_girokonto.csv", "depot_kauf/comdirect_depotumsaetze.csv"],
+      "range": { "from": "2026-03-01", "to": "2026-03-31" },
+      "expect": { "expense": 4500, "income": 0, "saving": 100000 },
+      "why": "Der Wertpapierkauf ist Sparen (einmal 1.000,00), keine Ausgabe; der Depot-Umsatz ist dieselbe Bewegung und zählt weder als Einnahme noch als zweites Sparen."
+    },
+    "storno_erstattung": {
+      "title": "Kartenzahlung mit Storno am Folgetag und Bestellung mit späterer Erstattung (Retoure)",
+      "files": ["storno_erstattung/ing_girokonto.csv"],
+      "range": { "from": "2026-03-01", "to": "2026-03-31" },
+      "expect": { "expense": 3000, "income": 0, "transactions": 5 },
+      "why": "Storno und Erstattung heben die ursprünglichen Zahlungen auf; übrig bleibt der Supermarkt mit 30,00. Gutschriften sind kein Einkommen."
+    },
+    "ueberlappung_csv_camt": {
+      "title": "CSV (Jan–Feb) und camt.053 (Feb–Mär) desselben Kontos, Februar doppelt, andere Schreibweise, zwei gleiche Bäckerei-Buchungen an einem Tag",
+      "files": ["ueberlappung_csv_camt/ing_girokonto_2026-01_02.csv", "ueberlappung_csv_camt/camt053_ing_2026-02_03.xml"],
+      "range": { "from": "2026-01-01", "to": "2026-03-31" },
+      "expect": { "expense": 24210, "income": 0, "transactions": 8, "accounts": 1 },
+      "why": "8 verschiedene Buchungen; die 4 Februar-Buchungen aus camt sind Dubletten trotz anderer Schreibweise; zwei echte gleiche Buchungen am 05.02. bleiben zwei."
+    },
+    "ueberlappung_camt_csv": {
+      "title": "Wie ueberlappung_csv_camt, umgekehrte Importreihenfolge",
+      "files": ["ueberlappung_csv_camt/camt053_ing_2026-02_03.xml", "ueberlappung_csv_camt/ing_girokonto_2026-01_02.csv"],
+      "range": { "from": "2026-01-01", "to": "2026-03-31" },
+      "expect": { "expense": 24210, "income": 0, "transactions": 8, "accounts": 1 },
+      "why": "Ergebnis unabhängig von der Reihenfolge."
+    },
+    "konto_ohne_iban": {
+      "title": "ING-Girokonto mit IBAN, zweites ING-Konto (Gemeinschaftskonto) ohne IBAN, DKB-Konto ohne IBAN; gleiche Mietbuchung auf allen drei",
+      "files": ["konto_ohne_iban/ing_girokonto.csv", "konto_ohne_iban/ing_gemeinschaftskonto_ohne_iban.csv", "konto_ohne_iban/dkb_girokonto_ohne_iban.csv"],
+      "range": { "from": "2026-03-01", "to": "2026-03-31" },
+      "expect": { "expense": 158000, "income": 0, "transactions": 6, "accounts": 3 },
+      "why": "Drei verschiedene Konten. Ein Konto ohne IBAN darf nicht mit dem einzigen anderen Konto derselben Bank zusammengeführt werden (Optimierungsplan Befund 13), sonst geht die gleiche Mietbuchung als „Dublette“ verloren."
+    }
+  }
+}
