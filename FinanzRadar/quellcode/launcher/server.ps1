@@ -85,7 +85,7 @@ $outlookWorker = {
 
   $ol = $null; $ns = $null
   try {
-    try { $ol = New-Object -ComObject Outlook.Application } catch { throw }
+    $ol = New-Object -ComObject Outlook.Application
     $ns = $ol.GetNamespace('MAPI')
     switch ($cmd) {
       'folders' {
@@ -209,7 +209,7 @@ $outlookWorker = {
     }
   } catch {
     $msg = [string]$_.Exception.Message
-    if ($msg -match '^FR(\d{3})\|(.*)$') { return @{ status = [int]$Matches[1]; error = $Matches[2] } }
+    if ($msg -match '(?s)^FR(\d{3})\|(.*)$') { return @{ status = [int]$Matches[1]; error = $Matches[2] } }
     $e = $_.Exception
     $hr = $e.HResult
     if ($null -ne $e.InnerException) { $hr2 = $e.InnerException.HResult } else { $hr2 = $hr }
