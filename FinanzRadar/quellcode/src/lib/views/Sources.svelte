@@ -1,5 +1,5 @@
 <script>
-  import { app, setView, saveSettings, toast } from '../store/state.svelte.js';
+  import { app, live, setView, saveSettings, toast } from '../store/state.svelte.js';
   import { db } from '../store/db.js';
   import { runImport, ensureSource } from '../store/importer.js';
   import * as local from '../sources/local.js';
@@ -24,7 +24,7 @@
 
   const hasData = $derived(app.data.files.length > 0);
   const step = $derived(app.progress.running ? 2 : lastRun ? 3 : 1);
-  const reviewCount = $derived(app.data.transactions.filter(t => t.needsReview && !t.reviewed).length + app.data.documents.filter(d => d.needsReview && !d.reviewed && d.type !== 'irrelevant').length);
+  const reviewCount = $derived(live.reviewCount);
   const fileCount = (sid) => app.data.files.filter(f => f.sourceId === sid || (f.origins || []).some(o => o.sourceId === sid)).length;
 
   async function start(items, src) {

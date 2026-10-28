@@ -71,7 +71,7 @@
   const markedTxs = $derived(
     flaggedTxs.filter((t) => inYear(t.bookingDate)).sort((a, b) => (b.bookingDate || '').localeCompare(a.bookingDate || ''))
   );
-  const txWithoutReceipt = $derived(markedTxs.filter((t) => !t.receiptDocId).length);
+  const txWithoutReceipt = $derived(markedTxs.filter((t) => !t.receiptDocId && !t.receiptDocIds?.length).length);
   const groups = $derived(
     REASONS.map(([id, label]) => ({ id, label, docs: markedDocs.filter((d) => reasonOf(d) === id) })).filter((g) => g.docs.length)
   );
@@ -225,8 +225,8 @@
                   <td><span class="ellipsis tx-name">{t.counterparty || t.counterpartyRaw || t.purpose || '–'}</span></td>
                   <td class="r"><Money value={t.amount} /></td>
                   <td>
-                    {#if t.receiptDocId}
-                      <span class="badge good">Beleg</span>
+                    {#if t.receiptDocId || t.receiptDocIds?.length}
+                      <span class="badge good">{(t.receiptDocIds?.length || 1) > 1 ? `${t.receiptDocIds.length} Belege` : 'Beleg'}</span>
                     {:else}
                       <Tip text="Kein Beleg verknüpft. Der Kontoauszug dient als Nachweis.">
                         <span class="hint"><Icon name="alert" size={15} /></span>
