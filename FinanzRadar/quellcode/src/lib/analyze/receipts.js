@@ -361,6 +361,13 @@ export function applyReceipts(txs, documents, lineItems = []) {
     const ids = txDocIds(next);
     const split = ids.length ? suggestSplit(next, ids.flatMap(id => itemsByDoc.get(id) || [])) : null;
     if (split) checks.push({ kind: 'split', reason: `Beleg enthält Positionen aus ${split.length} Kategorien – Aufteilung vorgeschlagen`, refId: ids[0] });
+    // Zusatzfelder bestehender Prüfpunkte (z. B. aiHint der KI) bleiben erhalten, solange es derselbe Prüfpunkt ist
+    for (let i = 0; i < checks.length; i++) {
+      const c = checks[i];
+      if (c.kind !== 'receipt' && c.kind !== 'split') continue;
+      const old = (t.checks || []).find(o => o.kind === c.kind && o.refId === c.refId);
+      if (old) checks[i] = { ...old, ...c };
+    }
     if (!sameJson(t.checks?.length ? t.checks : null, checks.length ? checks : null)) next = { ...next, checks };
     if (!sameJson(t.splitSuggestion, split)) next = { ...next, splitSuggestion: split };
     return next;

@@ -62,6 +62,12 @@ describe('Belege: Nutzerentscheidungen und Auto-Links', () => {
     twice.forEach((t, i) => expect(t).toBe(once[i]));
     expect(once[0].checks).toEqual([{ kind: 'transfer', reason: 'x' }]);
   });
+  it('KI-Felder bleiben erhalten (Buchung und gleicher Prüfpunkt)', () => {
+    const t = tx({ id: 'ai1', aiHint: 'h', aiReason: 'r', aiAt: 1, aiSuggestion: { x: 1 }, checks: [{ kind: 'receipt', refId: 'dai', reason: 'alt', aiHint: 'passt' }] });
+    const [out] = applyReceipts([t], [doc({ id: 'dai', issuer: 'X' })]);
+    expect(out).toMatchObject({ aiHint: 'h', aiReason: 'r', aiAt: 1, aiSuggestion: { x: 1 }, receiptDocId: 'dai' });
+    expect(out.checks).toEqual([{ kind: 'receipt', refId: 'dai', reason: expect.stringMatching(/Betrag und Datum/), aiHint: 'passt' }]);
+  });
 });
 
 // ---------------------------------------------------------------- Unsicherheit
