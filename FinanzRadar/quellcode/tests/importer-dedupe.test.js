@@ -54,7 +54,7 @@ describe('Importer: CSV + PDF/camt desselben Kontos', () => {
 
   // Lücke in saveResult: Bei gleichem dedupeKey (gleiche Schreibweise) wird die camt-Buchung übersprungen, BEVOR fehlende
   // Felder (Mandat, Gläubiger-ID, IBAN) ergänzt werden – ergänzt wird nur im Datum+Betrag-Zweig.
-  it.fails('camt nach CSV ergänzt Mandatsreferenz auch bei gleichem dedupeKey', async () => {
+  it('camt nach CSV ergänzt Mandatsreferenz auch bei gleichem dedupeKey', async () => {
     const snap = await importAll([sample(ING_CSV), sample(ING_CAMT)]);
     const may = snap.transactions.filter(t => t.bookingDate.startsWith('2026-05') && /Vattenfall/.test(t.counterpartyRaw || t.counterparty));
     expect(may).toHaveLength(1);

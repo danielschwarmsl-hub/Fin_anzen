@@ -394,11 +394,14 @@ export async function saveResult(result, { fileId, meta, extracted, existingKeys
   const txs = [];
   for (const t of result.transactions || []) {
     const key = t.dedupeKey;
-    if (key && existingKeys.has(key)) { app.progress.dupTx++; continue; }
     const dk = t.bookingDate + '|' + t.amount;
-    if ((existingCount.get(dk) || 0) > 0) {
-      existingCount.set(dk, existingCount.get(dk) - 1);
-      const ex = existingByKey.get(dk)?.shift();
+    const sameKey = !!key && existingKeys.has(key);
+    if (sameKey || (existingCount.get(dk) || 0) > 0) {
+      // Gleicher Schlüssel: genau diese Buchung ergänzen; sonst die nächste gleich datierte mit gleichem Betrag
+      const list = existingByKey.get(dk) || [];
+      const i = sameKey ? list.findIndex(x => x.dedupeKey === key) : 0;
+      const ex = i >= 0 ? list.splice(i, 1)[0] : null;
+      if (ex) existingCount.set(dk, Math.max(0, (existingCount.get(dk) || 0) - 1));
       const patch = {};
       if (ex) for (const f of ENRICH) if (!ex[f] && t[f]) patch[f] = t[f];
       // Dublette: entweder ergänzt sie eine bestehende Buchung oder sie wird übersprungen
