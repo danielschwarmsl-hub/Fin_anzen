@@ -101,3 +101,80 @@ describe('DKB-Kontoauszug (PDF, viele Seiten)', () => {
     expect(det.type).toBe('lohn');
   });
 });
+
+
+// Exakt das Layout aus dem DKB-Umsatzexport (Screenshot des Nutzers): Dezimalpunkt („-75.00“), absteigend sortiert,
+// kein Saldo, aber „Anzahl der Transaktionen“, mehrzeilige Erläuterung, 0.00-Zeilen.
+function buildDkbExport({ pages = 4, perPage = 10, thousands = 'plain', countOverride = null } = {}) {
+  const ROWS = [
+    [['Kartenzahlung', 'REWE Markt GmbH', 'VISA Debitkartenumsatz vom 27.12.2025'], -6876],
+    [['Gutschrift', 'Arbeitgeber GmbH', 'LOHN/GEHALT 12/2025 Gehaltsabrechnung'], 285000],
+    [['Lastschrift', 'AUDIBLE GMBH', 'Audible Abo 12/2025'], -995],
+    [['Dauerauftrag', 'Hausverwaltung Elbblick', 'Miete Januar'], -123456],
+    [['Kartenzahlung', 'Hamburger Wasserwerke', 'Wasser Abschlag'], -4500],
+    [['Abschluss', 'Rechnungsabschluss'], 0],
+  ];
+  const fmtDot = (c) => {
+    const v = (Math.abs(c) / 100).toFixed(2);
+    const [i, d] = v.split('.');
+    const ii = thousands === 'comma' ? i.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : i;
+    return (c < 0 ? '-' : '') + ii + '.' + d;
+  };
+  const total = pages * perPage;
+  const out = [];
+  let k = 0;
+  for (let p = 1; p <= pages; p++) {
+    const lines = [];
+    let y = 800;
+    const L = (parts) => { lines.push(mkLine(y, parts)); y -= 12; };
+    L([[1060, `Seite ${p} von ${pages}`]]);
+    if (p === 1) {
+      L([[140, 'DKB']]); L([[140, 'Deutsche Kreditbank AG']]);
+      L([[140, 'Auszug'], [1060, '05. Juli 2026']]);
+      L([[140, 'DE02 1203 0000 0000 2020 31'], [910, `Anzahl der Transaktionen: ${countOverride ?? total}`]]);
+      L([[910, 'Zeitraum: 01.01.2025 - 31.12.2025']]);
+    }
+    L([[160, 'Datum'], [340, 'Erläuterung'], [1050, 'Betrag EUR']]);
+    for (let i = 0; i < perPage; i++, k++) {
+      const [texts, amount] = ROWS[k % ROWS.length];
+      const day = String(28 - (k % 28)).padStart(2, '0');
+      const tok = fmtDot(amount);
+      L([[160, `${day}.12.2025`], [340, texts[0]], [1140 - tok.length * 5, tok]]);
+      for (const t of texts.slice(1)) L([[340, t]]);
+    }
+    out.push({ n: p, text: lines.map((l) => l.text).join('\n'), lines });
+  }
+  return { ex: { kind: 'pdf', text: out.map((p) => p.text).join('\n\f\n'), pages: out, ocr: false, meta: { pageCount: pages } }, total };
+}
+
+describe('DKB-Umsatzexport mit Dezimalpunkt (Layout wie im Screenshot)', () => {
+  it('Kontoauszug mit allen Buchungen, 0.00-Zeilen nicht als Buchung, Anzahl stimmt → kein Prüfhinweis', async () => {
+    const { ex, total } = buildDkbExport();
+    const det = detectType(ex, { name: 'Umsaetze_2025.pdf', ext: 'pdf' });
+    expect(det).toMatchObject({ type: 'kontoauszug', format: 'pdf_statement', institution: 'DKB' });
+    const res = await parseStatement(det, ex, { name: 'Umsaetze_2025.pdf', ext: 'pdf' });
+    const zeros = Math.floor(total / 6) + (total % 6 > 5 ? 1 : 0);
+    expect(res.transactions).toHaveLength(total - zeros);
+    expect(res.transactions.map((t) => t.amount)).toEqual(expect.arrayContaining([-6876, 285000, -995, -123456, -4500]));
+    expect(res.transactions.every((t) => t.amount !== 0)).toBe(true);
+    const visa = res.transactions.find((t) => t.amount === -6876);
+    expect(visa).toMatchObject({ counterparty: 'REWE Markt GmbH', bookingDate: '2025-12-28' });
+    expect(visa.purpose).toMatch(/VISA Debitkartenumsatz vom 27\.12\.2025/);
+    expect(res.document.needsReview).toBe(false);
+    expect(res.document.periodFrom).toBe('2025-01-01');
+    expect(res.document.periodTo).toBe('2025-12-31');
+  });
+
+  it('Tausender mit Komma („-1,234.56“)', async () => {
+    const { ex } = buildDkbExport({ thousands: 'comma' });
+    const res = await parseStatement(detectType(ex, { name: 'x.pdf', ext: 'pdf' }), ex, { name: 'x.pdf', ext: 'pdf' });
+    expect(res.transactions.map((t) => t.amount)).toContain(-123456);
+  });
+
+  it('Anzahl weicht ab → klarer Prüfhinweis', async () => {
+    const { ex } = buildDkbExport({ countOverride: 733 });
+    const res = await parseStatement(detectType(ex, { name: 'x.pdf', ext: 'pdf' }), ex, { name: 'x.pdf', ext: 'pdf' });
+    expect(res.document.needsReview).toBe(true);
+    expect(res.document.reviewReason).toMatch(/40 von 733 Transaktionen gelesen/);
+  });
+});

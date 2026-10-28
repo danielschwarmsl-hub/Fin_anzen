@@ -206,7 +206,7 @@ async function processContent(item, source, { signal, existingKeys }, { file, bu
  * Nachverarbeitung (ohne aiHooks.afterImport). forceType: vom Nutzer gewählter Dokumenttyp (ohne erneute Erkennung);
  * ocrBoost: OCR gleich mit höherer Auflösung. KI-Felder (aiHint, aiAt, aiReason, aiSuggestion) bleiben erhalten.
  */
-export async function reprocessFile(fileId, { forceType = null, ocrBoost = false } = {}) {
+export async function reprocessFile(fileId, { forceType = null, ocrBoost = false, skipPost = false } = {}) {
   const rec = await db.files.get(fileId);
   if (!rec) throw new Error('Datei nicht gefunden');
   const stored = await db.blobs.get(fileId);
@@ -237,9 +237,65 @@ export async function reprocessFile(fileId, { forceType = null, ocrBoost = false
   } finally {
     if (!app.progress.running) await terminateOcr().catch(() => {});
   }
+  if (skipPost) return db.files.get(fileId);
   try { await postProcess(); } catch (e) { console.error(e); }
   await reload();
   return db.files.get(fileId);
+}
+
+/**
+ * Stand der Lese-Logik. Erhöhen, wenn Erkennung/Parser sich so ändern, dass alte Importe falsch sein können;
+ * beim nächsten Start werden verdächtige Dateien dann automatisch neu gelesen (reprocessStale).
+ */
+export const PARSER_VERSION = 2;
+const STATEMENT_DOC_TYPES = new Set(['kontoauszug', 'kreditkarte', 'paypal', 'depot']);
+
+/** Dateien neu lesen (Nutzerwahl des Typs bleibt erhalten); Fortschritt in app.progress. → { done, failed } */
+async function reprocessMany(fileIds, label) {
+  let done = 0, failed = 0;
+  Object.assign(app.progress, { running: true, phase: 'process', total: fileIds.length, done: 0, current: label });
+  try {
+    for (const id of fileIds) {
+      const f = await db.files.get(id);
+      const forceType = f?.detection?.forced ? f.detection.type : null;
+      app.progress.current = `${label}: ${f?.name || id}`;
+      try { await reprocessFile(id, { forceType, skipPost: true }); done++; } catch (e) { console.warn('Neu lesen', f?.name, e); failed++; }
+      app.progress.done++;
+    }
+    try { await postProcess(); } catch (e) { console.error(e); }
+  } finally {
+    Object.assign(app.progress, { running: false, phase: 'done', current: '' });
+    if (fileIds.length) await terminateOcr().catch(() => {});
+    await reload();
+  }
+  return { done, failed };
+}
+
+/** Alle importierten Dateien neu einlesen (Einstellungen → „Alle Dateien neu einlesen“). */
+export async function reprocessAll() {
+  const ids = (await db.files.toArray()).filter(f => f.status === 'done' || f.status === 'ignored' || f.status === 'error').map(f => f.id);
+  return reprocessMany(ids, 'Neu einlesen');
+}
+
+/**
+ * Nach einem Update: nur verdächtige Altimporte neu lesen – Kontoumsatz-Dokumente ohne Buchungen und lange Dokumente
+ * (mehr als 3 Seiten), die nicht als Kontoumsatz erkannt wurden (z. B. 69-seitiger DKB-Auszug als „Lohnabrechnung“).
+ * Läuft einmal je PARSER_VERSION.
+ */
+export async function reprocessStale({ getSetting, setSetting }) {
+  const seen = await getSetting('parserVersion', 1);
+  if (seen >= PARSER_VERSION) return { done: 0, failed: 0 };
+  const [docs, txs] = await Promise.all([db.documents.toArray(), db.transactions.toArray()]);
+  const withTx = new Set(txs.map(t => t.fileId));
+  const ids = new Set();
+  for (const d of docs) {
+    if (!d.fileId) continue;
+    if (STATEMENT_DOC_TYPES.has(d.type) && !withTx.has(d.fileId)) ids.add(d.fileId);
+    else if (!STATEMENT_DOC_TYPES.has(d.type) && (d.pages || 0) > 3) ids.add(d.fileId);
+  }
+  const res = ids.size ? await reprocessMany([...ids], 'Nach Update neu einlesen') : { done: 0, failed: 0 };
+  await setSetting('parserVersion', PARSER_VERSION);
+  return res;
 }
 
 async function readAndSave(meta, blob, hash, { signal, existingKeys, forceType = null, ocrBoost = false }) {

@@ -56,7 +56,7 @@ vi.mock('../src/lib/extract/index.js', () => ({
 const { detectType, detectDocumentType, scoreTypes } = await import('../src/lib/detect/index.js');
 const { parse, UNREADABLE_REASON } = await import('../src/lib/parsers/index.js');
 const { mergeOcrPriceLines } = await import('../src/lib/parsers/docs/util.js');
-const { runImport, ensureSource, saveResult, reprocessFile } = await import('../src/lib/store/importer.js');
+const { runImport, ensureSource, saveResult, reprocessFile, reprocessStale, reprocessAll, PARSER_VERSION } = await import('../src/lib/store/importer.js');
 const { app } = await import('../src/lib/store/state.svelte.js');
 const { extract } = await import('../src/lib/extract/index.js');
 const { postProcess } = await import('../src/lib/store/postprocess.js');
@@ -308,6 +308,25 @@ describe('Importer', () => {
     const txs = (await fakeDb.transactions.toArray()).map(t => t.amount).sort((a, b) => a - b);
     expect(txs).toEqual([-8500, 285000]);
     expect(fakeDb.accounts.rows.size).toBe(1);
+  });
+
+  it('nach Update: nur verdächtige Altimporte neu lesen (lange Nicht-Kontoauszüge, Kontoauszüge ohne Buchungen), einmal je Version', async () => {
+    const s = await src();
+    const txt = 'Muster GmbH\nRechnung\nRechnungsnummer R-9\nRechnungsdatum 01.01.2026\nBeratung   100,00\nRechnungsbetrag 100,00\n';
+    await runImport([item('Belege/a.txt', txt), item('Belege/b.txt', txt.replace('R-9', 'R-10'))], s);
+    const docs = await fakeDb.documents.toArray();
+    expect(docs).toHaveLength(2);
+    await fakeDb.documents.update(docs[0].id, { pages: 69 }); // simuliert: langes Dokument, falsch als Rechnung erkannt
+    const store = new Map([['parserVersion', 1]]);
+    const io = { getSetting: async (k, f) => (store.has(k) ? store.get(k) : f), setSetting: async (k, v) => { store.set(k, v); } };
+    extract.mockClear();
+    const r = await reprocessStale(io);
+    expect(r).toEqual({ done: 1, failed: 0 });
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(store.get('parserVersion')).toBe(PARSER_VERSION);
+    expect(await reprocessStale(io)).toEqual({ done: 0, failed: 0 });
+    const all = await reprocessAll();
+    expect(all).toEqual({ done: 2, failed: 0 });
   });
 
   it('KI-Typerkennung: typeSource/aiReason/alternatives ins Dokument, Prüfhinweis; typeSource in files.detection', async () => {

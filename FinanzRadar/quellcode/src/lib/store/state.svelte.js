@@ -78,6 +78,12 @@ export async function init() {
   await reload();
   if (!app.data.files.length) app.view = 'start';
   app.ready = true;
+  // Nach einem Update verdächtige Altimporte (z. B. falsch erkannte Kontoauszüge) im Hintergrund neu lesen
+  if (app.data.files.length) {
+    import('./importer.js').then(m => m.reprocessStale?.({ getSetting, setSetting })).then(r => {
+      if (r?.done) toast(`Nach dem Update ${r.done} Datei${r.done === 1 ? '' : 'en'} neu eingelesen`, { tone: 'good', ms: 6000 });
+    }).catch(e => console.warn('Neu einlesen nach Update', e));
+  }
 }
 
 export async function reload() {
@@ -124,8 +130,22 @@ export async function updateDocument(id, patch) {
   if (patch.type && cur?.fileId && patch.type !== cur.type && patch.type !== 'irrelevant') {
     const { type, ...rest } = patch;
     const { reprocessFile } = await import('./importer.js');
-    await reprocessFile(cur.fileId, { forceType: type });
+    const { TYPE_LABELS } = await import('../parsers/naming.js');
+    const label = TYPE_LABELS[type]?.name || type;
+    toast(`Wird als ${label} neu eingelesen …`, { ms: 2500 });
+    try {
+      await reprocessFile(cur.fileId, { forceType: type });
+    } catch (e) {
+      toast(`Neu einlesen fehlgeschlagen: ${e?.message || e}`, { tone: 'bad', ms: 8000 });
+      return;
+    }
     const docs = await db.documents.where('fileId').equals(cur.fileId).toArray();
+    // Sichtbares Ergebnis: bei Kontoumsätzen die Zahl der gelesenen Buchungen, 0 Buchungen deutlich melden
+    if (['kontoauszug', 'kreditkarte', 'paypal', 'depot'].includes(type)) {
+      const n = await db.transactions.filter(t => t.fileId === cur.fileId).count();
+      if (n) toast(`Als ${label} neu eingelesen: ${n} Buchungen`, { tone: 'good', ms: 6000 });
+      else toast(`Als ${label} eingelesen, aber keine Buchungen gefunden – das Format dieser Datei wird noch nicht verstanden. Bitte eine Beispielzeile melden.`, { tone: 'bad', ms: 12000 });
+    } else toast(`Als ${label} neu eingelesen`, { tone: 'good' });
     // Felder, die der Parser liefert (Titel, Datum, Betrag …), nicht mit Werten des alten Typs überschreiben
     const keep = {};
     for (const k of ['needsReview', 'reviewed', 'tags', 'note']) if (k in rest) keep[k] = rest[k];
