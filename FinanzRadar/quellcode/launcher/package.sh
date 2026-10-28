@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 OUT=${1:-release}
 rm -rf "$OUT/FinanzRadar" && mkdir -p "$OUT/FinanzRadar"
 npx vite build --outDir "$OUT/FinanzRadar/app" --emptyOutDir >/dev/null
-cp "launcher/FinanzRadar starten (Mac).command" "launcher/FinanzRadar starten (Windows).bat" launcher/server.ps1 launcher/server.mjs "$OUT/FinanzRadar/"
+cp "launcher/FinanzRadar starten (Mac).command" "launcher/FinanzRadar starten (Windows).bat" launcher/server.ps1 launcher/server.mjs launcher/server.py launcher/outlook.applescript "$OUT/FinanzRadar/"
 chmod +x "$OUT/FinanzRadar/FinanzRadar starten (Mac).command"
 cp README.md "$OUT/FinanzRadar/LIESMICH.md"
 mkdir -p "$OUT/FinanzRadar/quellcode"
