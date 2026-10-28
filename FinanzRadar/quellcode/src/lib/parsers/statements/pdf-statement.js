@@ -2,11 +2,15 @@
 import { parseGermanAmount, parseGermanDate, normalizeIban } from '../../util/format.js';
 import {
   lc, cleanText, makeTx, buildResult, detection, findIban, detectInstitution, institutionFromIban, normalizeBookingText,
-  kindFromName, KIND_LABEL, accountName, findDateRange, parseSepaTokens,
+  kindFromName, KIND_LABEL, accountName, findDateRange, parseSepaTokens, fixSignByBalance,
 } from './common.js';
 
+// Beträge: deutsch „-1.234,56“ oder – z. B. im DKB-Umsatzexport – mit Dezimalpunkt „-1234.56“ / „-1,234.56“
 const AMT = String.raw`[+\-−–]?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}[+\-−–]?`;
-const AMOUNT_END = new RegExp(String.raw`(?:^|\s)(${AMT})(?:\s*(?:EUR|€))?(?:\s*([SH]))?\s*$`);
+const AMT_DOT = String.raw`[+\-−–]?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}[+\-−–]?`;
+const amountEnd = (amt) => new RegExp(String.raw`(?:^|\s)(${amt})(?:\s*(?:EUR|€))?(?:\s*([SH]))?\s*$`);
+const AMOUNT_END = amountEnd(AMT);
+const AMOUNT_END_DOT = amountEnd(AMT_DOT);
 const DATE = String.raw`\d{2}\.\d{2}\.(?:\d{4}|\d{2})?`;
 const BOOKING_START = new RegExp(String.raw`^(${DATE})(?=\s|$)\s*(?:(${DATE})(?=\s|$))?\s*(.*)$`);
 // Nur Seitenköpfe/-füße und Übertragszeilen am Zeilenanfang: Namen wie "Erika Muster" oder "Kontoübertrag" im Zweck bleiben Buchungstext
@@ -19,19 +23,86 @@ const AMBIG_RE = /kontostand\s+(?:am|vom)/i;
 const CARD_RE = /kreditkarten[- ]?(abrechnung|auszug)|(visa|master\s?card)[- ]?(karten)?[- ]?abrechnung|kartenabrechnung|abrechnung\s+ihrer\s+(visa|master)/i;
 const PAYPAL_PDF = /paypal/i;
 
-function signedAmount(tok, sh) {
-  let v = parseGermanAmount(tok.replace(/[−–]/g, '-'));
+function signedAmount(tok, sh, fmt) {
+  let t = tok.replace(/[−–]/g, '-');
+  if (fmt?.style === 'dot') t = t.replace(/,/g, '').replace('.', ',');
+  let v = parseGermanAmount(t);
   if (v == null) return null;
   if (sh === 'S') v = -Math.abs(v);
   else if (sh === 'H') v = Math.abs(v);
   return v;
 }
 
-/** Zählt Zeilen, die wie Buchungen aussehen (Datum vorn, Betrag hinten). */
-function countBookingLines(lines) {
-  let n = 0;
-  for (const l of lines) { const m = BOOKING_START.exec(l.text); if (m && AMOUNT_END.test(m[3] || '')) n++; }
-  return n;
+/**
+ * Zahlenformat des Dokuments: überwiegen Zeilen, die auf „-75.00“ enden, gilt der Dezimalpunkt. Beim Dezimalpunkt
+ * zählt ein Betrag nur in der Betragsspalte (rechte Kante nahe „Betrag“ im Spaltenkopf), damit „… vom 27.12“ im
+ * Verwendungszweck kein Betrag wird.
+ */
+function amountFormat(lines) {
+  let comma = 0, dot = 0;
+  for (const l of lines) {
+    const t = l.text.trim();
+    if (AMOUNT_END.test(t)) comma++;
+    else if (AMOUNT_END_DOT.test(t)) dot++;
+  }
+  if (!(dot > comma && dot >= 2)) return { style: 'comma', re: AMOUNT_END, colOk: () => true };
+  let colRight = null;
+  for (const l of lines) {
+    if (!HEADER_LINE.test(l.text.trim())) continue;
+    const it = (l.items || []).find(i => /betrag/i.test(i.str));
+    if (it) { colRight = it.x + it.w; break; }
+  }
+  const colOk = (line, tok) => {
+    if (colRight == null || !line.items?.length) return true;
+    const it = [...line.items].reverse().find(i => i.str.includes(tok.trim()));
+    return !it || it.x + it.w >= colRight - 80;
+  };
+  return { style: 'dot', re: AMOUNT_END_DOT, colOk };
+}
+
+const MAX_BLOCK_LINES = 6; // so weit darf der Betrag unter der Datumszeile stehen (mehrzeilige „Erläuterung“)
+
+/**
+ * Buchungsblöcke: Zeile mit Datum vorn startet eine Buchung. Der Betrag steht am Ende der Datumszeile oder – bei
+ * mehrzeiliger Erläuterung bzw. Datum in eigener Zeile – am Ende einer der folgenden Zeilen vor dem nächsten Datum.
+ * Datumszeilen ohne Betrag im Block bleiben Text der vorherigen Buchung (z. B. „15.01. Rechnung“ im Zweck).
+ * → [{ m, line, amountTok, sh, amountLine, cont: [{ text, line }] }]; Zeilen außerhalb von Blöcken: { text, line, loose: true }
+ */
+function bookingBlocks(lines, fmt = amountFormat(lines)) {
+  const AE = fmt.re;
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const t = l.text.trim();
+    if (!t) continue;
+    const m = BOOKING_START.exec(t);
+    if (!m || HEADER_LINE.test(t)) { out.push({ text: t, line: l, loose: true }); continue; }
+    const am0 = AE.exec(m[3] || '');
+    const am = am0 && fmt.colOk(l, am0[1]) ? am0 : null;
+    if (am) { out.push({ m, line: l, am, amountLine: l, rest: (m[3] || '').slice(0, am.index).trim(), cont: [] }); continue; }
+    // Betrag in einer Folgezeile suchen (bis zur nächsten Datums-, Kopf- oder Abschlusszeile)
+    let found = -1, fam = null;
+    for (let j = i + 1; j < lines.length && j <= i + MAX_BLOCK_LINES; j++) {
+      const u = lines[j].text.trim();
+      if (!u) continue;
+      if (BOOKING_START.test(u) || HEADER_LINE.test(u) || CLOSING_LINE.test(u) || SKIP_LINE.test(u)) break;
+      const a = AE.exec(u);
+      if (a && fmt.colOk(lines[j], a[1])) { found = j; fam = a; break; }
+    }
+    if (found < 0) { out.push({ text: t, line: l, loose: true }); continue; }
+    const cont = [];
+    for (let j = i + 1; j < found; j++) { const u = lines[j].text.trim(); if (u) cont.push(u); }
+    const lastRest = lines[found].text.trim().slice(0, fam.index).trim();
+    if (lastRest) cont.push(lastRest);
+    out.push({ m, line: l, am: fam, amountLine: lines[found], rest: (m[3] || '').trim(), cont });
+    i = found;
+  }
+  return out;
+}
+
+/** Zählt Buchungen (Datum vorn, Betrag am Zeilenende – auch in einer Folgezeile). */
+function countBookingLines(lines, fmt) {
+  return bookingBlocks(lines, fmt).filter(b => !b.loose).length;
 }
 
 export function detectPdfStatement(ctx) {
@@ -39,12 +110,16 @@ export function detectPdfStatement(ctx) {
   const lines = ctx.lines;
   if (!lines.length) return null;
   const text = lines.map(l => l.text).join('\n');
-  const bookings = countBookingLines(lines);
+  const fmt = amountFormat(lines);
+  const bookings = countBookingLines(lines, fmt);
   const hasBalance = OPEN_RE.test(text) || CLOSE_RE.test(text) || AMBIG_RE.test(text);
-  const hasWord = /kontoauszug|kontoumsätze|umsatzübersicht|tagesgeld|girokonto|kontoübersicht/i.test(text.slice(0, 3000));
+  const hasWord = /kontoauszug|kontoumsätze|umsatzübersicht|tagesgeld|girokonto|kontoübersicht|anzahl der (?:transaktionen|umsätze|buchungen)/i.test(text.slice(0, 3000));
+  // Spaltenkopf „Datum … Betrag“ und viele Buchungen: Umsatzliste, auch ohne Titel/Saldo (z. B. DKB „Datum Erläuterung Betrag EUR“)
+  const header = lines.some(l => HEADER_LINE.test(l.text.trim()));
+  const list = header && bookings >= 10;
   const card = CARD_RE.test(text.slice(0, 3000));
-  if (bookings < 2 || !(hasBalance || hasWord || card)) return null;
-  if (!hasBalance && !card && !/kontoauszug/i.test(text)) return null;
+  if (bookings < 2 || !(hasBalance || hasWord || card || list)) return null;
+  if (!hasBalance && !card && !list && !/kontoauszug/i.test(text)) return null;
   const head = lines.slice(0, 15).map(l => l.text).join('\n');
   const institution = detectInstitution(head) || institutionFromIban(findIban(head)) || detectInstitution(text, { skip: ['PayPal'] });
   const signals = [`${bookings} Buchungszeilen (Datum … Betrag)`];
@@ -54,10 +129,12 @@ export function detectPdfStatement(ctx) {
   else if (hasBalance) { signals.push('Saldozeile'); conf += 0.07; }
   if (institution) { signals.push(`Institut ${institution}`); conf += 0.1; }
   if (findIban(head)) { signals.push('IBAN im Kopf'); conf += 0.05; }
+  if (header) { signals.push('Spaltenkopf Datum/Betrag'); conf += 0.05; }
+  if (bookings >= 10) conf += 0.1;
   let type = 'kontoauszug';
   if (card) { type = 'kreditkarte'; signals.push('Kreditkartenabrechnung'); }
   else if (institution === 'PayPal') type = 'paypal';
-  return detection(type, 'pdf_statement', institution, conf, signals);
+  return { ...detection(type, 'pdf_statement', institution, Math.min(0.95, conf), signals), bookings };
 }
 
 /** Spaltenpositionen "Soll"/"Haben" aus Kopfzeile (rechte Kante) */
@@ -71,14 +148,14 @@ function findSollHaben(lines) {
   return null;
 }
 
-function findBalances(lines, period) {
+function findBalances(lines, period, fmt = amountFormat(lines)) {
   const out = { opening: null, closing: null, openingDate: null, closingDate: null };
   const ambiguous = [];
   for (const l of lines) {
     const t = l.text;
-    const am = AMOUNT_END.exec(t);
+    const am = fmt.re.exec(t);
     if (!am) continue;
-    const v = signedAmount(am[1], am[2]);
+    const v = signedAmount(am[1], am[2], fmt);
     if (v == null) continue;
     const dateM = t.match(/\d{2}\.\d{2}\.\d{4}/);
     const date = dateM ? parseGermanDate(dateM[0]) : null;
@@ -121,6 +198,49 @@ function yearFor(_day, month, period, fallbackYear) {
   return fallbackYear;
 }
 
+const fmtCent = (c) => (c < 0 ? '-' : '') + (Math.abs(c) / 100).toFixed(2).replace('.', ',') + ' €';
+const clip = (s, n = 140) => { const t = cleanText(s); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+
+/**
+ * Diagnose für die Anzeige im Dokument: was gefunden wurde und wo das Einlesen hakt – in Sätzen, mit Seite und Zeile.
+ * → { pages, lines, numberFormat, header, dateLines, bookings, unparsed: [{ page, text }], strayAmounts: [{ page, text }],
+ *     expectedCount, readCount, balance, problems: string[] }
+ */
+function diagnose({ lines, fmt, blocks, transactions, readCount, expectedCount, bal, sum }) {
+  const isHeader = (t) => HEADER_LINE.test(t);
+  const dateLines = lines.filter(l => { const t = l.text.trim(); return BOOKING_START.test(t) && !isHeader(t); });
+  const amountLines = new Set(blocks.filter(b => !b.loose).map(b => b.amountLine));
+  const unparsed = blocks.filter(b => b.loose && BOOKING_START.test(b.text) && !isHeader(b.text)).map(b => ({ page: b.line.n ?? null, text: clip(b.text) }));
+  const otherStyle = fmt.style === 'dot' ? AMOUNT_END : AMOUNT_END_DOT;
+  const strayAmounts = lines.filter(l => {
+    const t = l.text.trim();
+    return !amountLines.has(l) && (fmt.re.test(t) || otherStyle.test(t)) && !OPEN_RE.test(t) && !CLOSE_RE.test(t) && !AMBIG_RE.test(t) && !BOOKING_START.test(t);
+  }).map(l => ({ page: l.n ?? null, text: clip(l.text.trim()) }));
+  const header = lines.find(l => isHeader(l.text.trim()))?.text.trim() || null;
+  const pages = new Set(lines.map(l => l.n)).size;
+  const fmtName = fmt.style === 'dot' ? 'Dezimalpunkt (-75.00)' : 'Dezimalkomma (-75,00)';
+  const where = (list) => { const ps = [...new Set(list.map(x => x.page).filter(Boolean))]; return ps.length ? ` (Seite ${ps.slice(0, 6).join(', ')}${ps.length > 6 ? ' …' : ''})` : ''; };
+  const problems = [];
+  if (!lines.length) problems.push('Kein Text im PDF gefunden – vermutlich ein Scan ohne Textebene.');
+  else if (!dateLines.length) problems.push(`Keine Zeile beginnt mit einem Datum (TT.MM.JJJJ) – die Buchungsspalten wurden nicht erkannt${header ? ` (Spaltenkopf: „${clip(header, 80)}“)` : ', auch kein Spaltenkopf „Datum … Betrag“'}.`);
+  else if (!transactions.length) {
+    problems.push(`${dateLines.length} Zeilen mit Datum gefunden, aber zu keiner ein Betrag am Zeilenende (erwartetes Format: ${fmtName}).`);
+    if (strayAmounts.length) problems.push(`Beträge stehen in eigenen Zeilen ohne Datum, z. B. Seite ${strayAmounts[0].page}: „${strayAmounts[0].text}“.`);
+  }
+  if (unparsed.length && transactions.length) problems.push(`${unparsed.length} Datumszeile${unparsed.length === 1 ? '' : 'n'} ohne erkennbaren Betrag${where(unparsed)} – z. B. „${unparsed[0].text}“.`);
+  if (expectedCount != null && readCount !== expectedCount) problems.push(`Laut Auszug ${expectedCount} Transaktionen, gelesen ${readCount} (${readCount < expectedCount ? `${expectedCount - readCount} fehlen` : `${readCount - expectedCount} zu viel`}).`);
+  let balance = null;
+  if (bal.opening != null && bal.closing != null) {
+    const diff = bal.closing - (bal.opening + sum);
+    balance = { opening: bal.opening, closing: bal.closing, sum, diff };
+    if (diff) problems.push(`Saldo geht nicht auf: Anfang ${fmtCent(bal.opening)} + Buchungen ${fmtCent(sum)} = ${fmtCent(bal.opening + sum)}, laut Auszug ${fmtCent(bal.closing)} (Differenz ${fmtCent(diff)}).`);
+  }
+  return {
+    pages, lines: lines.length, numberFormat: fmt.style, header, dateLines: dateLines.length, bookings: transactions.length,
+    unparsed: unparsed.slice(0, 8), strayAmounts: strayAmounts.slice(0, 5), expectedCount, readCount, balance, problems,
+  };
+}
+
 const OWN_PERSON_PREFIX = /^(?:Überweisung|Gutschrift|Lastschrift|Zahlung)\s+(?:von|an)\s+/i;
 
 export function parsePdfStatement(det, ctx) {
@@ -128,11 +248,13 @@ export function parsePdfStatement(det, ctx) {
   const text = lines.map(l => l.text).join('\n');
   const period = findPeriod(text);
   const fallbackYear = period?.to ? +period.to.slice(0, 4) : (text.match(/\b(20\d{2})\b/) || [])[1] ? +text.match(/\b(20\d{2})\b/)[1] : new Date().getFullYear();
-  const bal = findBalances(lines, period);
+  const fmt = amountFormat(lines);
+  const bal = findBalances(lines, period, fmt);
   const sh = findSollHaben(lines);
 
   const head = lines.slice(0, 15).map(l => l.text).join('\n');
-  const firstBooking = lines.findIndex(l => { const m = BOOKING_START.exec(l.text); return m && AMOUNT_END.test(m[3] || ''); });
+  const firstBlock = bookingBlocks(lines, fmt).find(b => !b.loose);
+  const firstBooking = firstBlock ? lines.indexOf(firstBlock.line) : -1;
   const headText = lines.slice(0, firstBooking > 0 ? firstBooking : 30).map(l => l.text).join('\n');
   const iban = findIban(headText) || findIban(text);
   const institution = det?.institution || detectInstitution(head) || institutionFromIban(iban) || detectInstitution(text, { skip: ['PayPal'] }) || null;
@@ -151,46 +273,54 @@ export function parsePdfStatement(det, ctx) {
   const bookings = [];
   let curB = null;
   const close = () => { curB = null; };
-  for (const l of lines) {
-    const t = l.text.trim();
-    if (!t) continue;
-    const m = BOOKING_START.exec(t);
-    const am = m ? AMOUNT_END.exec(m[3] || '') : null;
-    if (m && am && !HEADER_LINE.test(t)) {
-      const body = m[3] || '';
-      const restText = body.slice(0, am.index).trim();
-      let amount = signedAmount(am[1], am[2]);
-      if (sh && !/[+\-−–]/.test(am[1]) && !am[2]) {
-        // Soll/Haben-Spalten: nach x-Position der rechten Kante
-        const it = [...l.items].reverse().find(i => i.str.includes(am[1]));
-        if (it) {
-          const xr = it.x + it.w;
-          amount = Math.abs(xr - sh.haben) < Math.abs(xr - sh.soll) ? Math.abs(amount) : -Math.abs(amount);
-        }
-      }
-      const bookingDate = parseGermanDate(m[1], yearFor(m[1], +m[1].slice(3, 5), period, fallbackYear));
-      const valueDate = m[2] ? parseGermanDate(m[2], yearFor(m[2], +m[2].slice(3, 5), period, fallbackYear)) : bookingDate;
-      curB = { bookingDate, valueDate, amount, head: cleanText(restText), cont: [] };
-      bookings.push(curB);
+  for (const b of bookingBlocks(lines, fmt)) {
+    if (b.loose) {
+      const t = b.text;
+      if (HEADER_LINE.test(t) || SKIP_LINE.test(t)) continue;
+      if (CLOSING_LINE.test(t)) { close(); continue; }
+      if (curB) curB.cont.push(cleanText(t));
       continue;
     }
-    if (HEADER_LINE.test(t) || SKIP_LINE.test(t)) continue;
-    if (CLOSING_LINE.test(t)) { close(); continue; }
-    if (curB) curB.cont.push(cleanText(t));
+    const { m, am } = b;
+    let amount = signedAmount(am[1], am[2], fmt);
+    if (sh && !/[+\-−–]/.test(am[1]) && !am[2]) {
+      // Soll/Haben-Spalten: nach x-Position der rechten Kante
+      const it = [...(b.amountLine.items || [])].reverse().find(i => i.str.includes(am[1]));
+      if (it) {
+        const xr = it.x + it.w;
+        amount = Math.abs(xr - sh.haben) < Math.abs(xr - sh.soll) ? Math.abs(amount) : -Math.abs(amount);
+      }
+    }
+    const bookingDate = parseGermanDate(m[1], yearFor(m[1], +m[1].slice(3, 5), period, fallbackYear));
+    const valueDate = m[2] ? parseGermanDate(m[2], yearFor(m[2], +m[2].slice(3, 5), period, fallbackYear)) : bookingDate;
+    // Datum in eigener Zeile: erste Folgezeile ist der Kopf (Buchungsart/Gegenpartei)
+    const cont = b.cont.map(cleanText).filter(Boolean);
+    const head = cleanText(b.rest) || cont.shift() || '';
+    curB = { bookingDate, valueDate, amount, head, cont };
+    bookings.push(curB);
   }
 
   const transactions = bookings.map(b => {
     let cont = [...b.cont];
     let counterpartyIban = null;
+    const IBAN_LINE = /^IBAN:?\s*([A-Z]{2}\d{2}[A-Z0-9 ]{10,})$/;
+    const ibanIdx = cont.findIndex(c => IBAN_LINE.test(c));
     cont = cont.filter(c => {
-      const im = /^IBAN:?\s*([A-Z]{2}\d{2}[A-Z0-9 ]{10,})$/.exec(c);
-      if (im) { counterpartyIban = findIban(im[1]); return false; }
+      const im = IBAN_LINE.exec(c);
+      if (im) { counterpartyIban = findIban(im[1]) || im[1].replace(/\s+/g, ''); return false; }
       return true;
     });
     const known = normalizeBookingText(b.head);
     let bookingText = known || b.head || null;
     let counterparty, purpose;
-    if (known === 'Zinsen' || known === 'Gebühr') {
+    if (!known && ibanIdx >= 0) {
+      // DKB & Co.: Empfänger (ggf. mit Adresszeile) – „IBAN …“ – Verwendungszweck; keine eigene Buchungsart-Zeile
+      counterparty = b.head.replace(OWN_PERSON_PREFIX, '');
+      purpose = b.cont.slice(ibanIdx + 1).join(' ') || b.cont.slice(0, ibanIdx).join(' ');
+      bookingText = normalizeBookingText(purpose)
+        || (/(?:debit|kredit)kartenumsatz|kartenzahlung|girocard|apple pay|google pay/i.test(purpose) ? 'Kartenzahlung'
+          : /\bPP\.\d+\.PP\b|ihr einkauf bei|lastschrift/i.test(purpose) ? 'Lastschrift' : null);
+    } else if (known === 'Zinsen' || known === 'Gebühr') {
       counterparty = institution || cont[0] || b.head;
       purpose = cont.join(' ') || b.head;
     } else if (known || (b.head && b.head.length < 40 && cont.length)) {
@@ -205,6 +335,11 @@ export function parsePdfStatement(det, ctx) {
       counterpartyRaw: counterparty, purpose, bookingText, counterpartyIban,
     });
   }).filter(t => t.bookingDate && t.amount != null);
+  // Umsatzexporte ohne Saldo (z. B. DKB): „Anzahl der Transaktionen: 733“ als Vollständigkeitsprüfung; 0,00-Zeilen zählen mit
+  const expectedM = text.match(/anzahl der (?:transaktionen|umsätze|buchungen)\s*:?\s*(\d+)/i);
+  const expectedCount = expectedM ? +expectedM[1] : null;
+  const readCount = transactions.length;
+  for (let i = transactions.length - 1; i >= 0; i--) if (transactions[i].amount === 0) transactions.splice(i, 1);
 
   // Vorzeichen-Fallback: stimmt der Saldo nur bei invertierten Beträgen (z. B. Kreditkarte), invertieren
   const total = transactions.reduce((a, t) => a + t.amount, 0);
@@ -215,8 +350,14 @@ export function parsePdfStatement(det, ctx) {
   }
 
   const reasons = [];
-  if (bal.opening == null || bal.closing == null) reasons.push('Salden nicht gefunden');
-  if (!transactions.length) reasons.push('Keine Buchungen erkannt');
+  // Genau eine Buchung mit halber Saldo-Differenz: Vorzeichen falsch gelesen → drehen und zur Prüfung markieren
+  const flip = fixSignByBalance(transactions, bal.opening, bal.closing);
+  if (flip) { signals.push(flip.signal); reasons.push(flip.reason); }
+  const countOk = expectedCount != null && readCount === expectedCount;
+  if (expectedCount != null && !countOk) reasons.push(`${readCount} von ${expectedCount} Transaktionen gelesen – bitte prüfen`);
+  else if ((bal.opening == null || bal.closing == null) && !countOk) reasons.push('Salden nicht gefunden');
+  const diagnostics = diagnose({ lines, fmt, blocks: bookingBlocks(lines, fmt), transactions, readCount, expectedCount, bal, sum: transactions.reduce((a, t) => a + t.amount, 0) });
+  if (!transactions.length) reasons.unshift(`Keine Buchungen erkannt${diagnostics.problems[0] ? ': ' + diagnostics.problems[0] : ''}`);
   const periodFrom = period?.from || bal.openingDate || null;
   const periodTo = period?.to || bal.closingDate || null;
   const hasBoth = bal.opening != null && bal.closing != null;
@@ -226,7 +367,7 @@ export function parsePdfStatement(det, ctx) {
     type: det?.type || (kind === 'kreditkarte' ? 'kreditkarte' : kind === 'paypal' ? 'paypal' : 'kontoauszug'),
     format: 'pdf_statement', institution, account, transactions,
     opening: bal.opening, closing: bal.closing, openingDate: bal.openingDate || periodFrom, closingDate: bal.closingDate || periodTo,
-    periodFrom, periodTo, style: 'auszug', confidence: ok ? 0.85 : 0.5, reviewReasons: reasons,
-    fields: { signals },
+    periodFrom, periodTo, style: 'auszug', confidence: ok || (countOk && !hasBoth) ? (flip ? 0.7 : 0.85) : 0.5, reviewReasons: reasons,
+    fields: { signals, ...(expectedCount != null ? { expectedCount, readCount } : {}), diagnostics },
   });
 }

@@ -11,7 +11,8 @@
     "prebuild": "node scripts/vendor.mjs && node scripts/samples.mjs",
     "predev": "node scripts/vendor.mjs && node scripts/samples.mjs",
     "lint": "eslint src",
-    "check": "node scripts/check-svelte.mjs"
+    "check": "node scripts/check-svelte.mjs",
+    "score": "node scripts/score.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.1.1",

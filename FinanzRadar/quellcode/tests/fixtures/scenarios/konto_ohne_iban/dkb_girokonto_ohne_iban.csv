@@ -1,0 +1,7 @@
+"Konto";"DKB Girokonto"
+"Kontoinhaber";"Paul Beispiel"
+"Zeitraum:";"01.03.2026 - 31.03.2026"
+
+"Buchungsdatum";"Wertstellung";"Status";"Zahlungspflichtige*r";"Zahlungsempfänger*in";"Verwendungszweck";"Umsatztyp";"Betrag (€)"
+"15.03.26";"15.03.26";"Gebucht";"Paul Beispiel";"Supermarkt Beispiel";"Kartenzahlung";"Ausgang";"-25,00"
+"02.03.26";"02.03.26";"Gebucht";"Paul Beispiel";"Hausverwaltung Beispiel";"Mietanteil 03/2026 Wohnung 3 OG";"Ausgang";"-500,00"

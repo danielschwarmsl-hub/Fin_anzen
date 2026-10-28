@@ -4,11 +4,13 @@
 // Wortgrenzen (kein Buchstabe/keine Ziffer davor/danach) werden automatisch ergänzt; Wortanfänge mit [a-z]* öffnen.
 // Reihenfolge zählt: spezifische Einträge stehen vor allgemeinen (ALDI Talk vor ALDI, Globus Baumarkt vor Globus ...).
 //
-// Eintrag: { id, name, category, sub, re, recurringHint, intermediary, conf, cpOnly, refine }
+// Eintrag: { id, name, category, sub, re, recurringHint, intermediary, conf, cpOnly, refine, platform, noSingle }
 //  - cpOnly: nur gegen die Gegenpartei prüfen (im Verwendungszweck zu mehrdeutig)
 //  - refine: 'insurance' | 'wohnen' → Unterkategorie wird aus dem Verwendungszweck verfeinert (rules.js)
 //  - intermediary: Zahlungsdienstleister – liefert keine Kategorie, nur den Hinweis
 //  - conf < 0.6: "schwacher" Treffer, Stichwortregeln haben Vorrang
+//  - platform: Plattform (Amazon) – ein Abo-Anbieter im Verwendungszweck (Audible, Prime …) hat Vorrang
+//  - noSingle: Laden mit Einzelkäufen (App-/Spiele-Stores) – eine einzelne Zahlung ist noch kein Abo
 
 /** Text für den Mustervergleich glätten */
 export function fold(s) {
@@ -34,56 +36,82 @@ function G(category, sub, opts, entries) {
     LIST.push({
       id: 'm' + LIST.length, name, category, sub: o.sub ?? sub, src, re: new RegExp('(?<![a-z0-9])(?:' + src + ')(?![a-z0-9])'),
       recurringHint: o.recurringHint || null, intermediary: !!o.intermediary, conf: o.conf ?? 0.9,
-      cpOnly: !!o.cpOnly, refine: o.refine || null,
+      cpOnly: !!o.cpOnly, refine: o.refine || null, platform: !!o.platform, noSingle: !!o.noSingle,
     });
   }
 }
 
 // ---------------------------------------------------------------- Lebensmittel
-G('wohnen', 'internet_telefon', { recurringHint: 'monthly' }, [['ALDI Talk', 'aldi talk[a-z ]*']]);
+G('wohnen', 'internet_telefon', { recurringHint: 'monthly' }, [['ALDI Talk', 'aldi talk[a-z ]*'], ['Lidl Connect', 'lidl connect'], ['Tchibo mobil', 'tchibo mobil']]);
 G('wohnen', 'einrichtung', {}, [['Globus Baumarkt', 'globus bau[a-z]*']]);
+// Supermarkt-Tankstellen vor den Supermärkten; Ladesäulen-Anbieter vor Shell und den Stromversorgern
+G('mobilitaet', 'tanken', {}, [['Supermarkt-Tankstelle', 'globus tank[a-z ]*|kaufland tank[a-z ]*|edeka tank[a-z ]*|e center tank[a-z ]*']]);
+G('mobilitaet', 'e_laden', {}, [
+  ['EnBW mobility+', 'enbw mobility ?\\+?'], ['Shell Recharge', 'shell recharge'], ['Maingau E-Mobility', 'maingau (?:e ?mobility|ladepark)'], ['EWE Go', 'ewe go'],
+  ['Hamburg Energie Laden', 'hamburg energie (?:ladepunkt[a-z]*|ladesaeule[a-z]*|e ?mobility)'], ['Ionity', 'ionity'], ['Tesla Supercharger', 'tesla supercharger|supercharger'], ['Plugsurfing', 'plugsurfing'],
+  ['Elli', 'elli (?:charging|laden)'],
+]);
+G('lebensmittel', 'lieferdienst', {}, [['REWE Lieferservice', 'rewe liefer(?:service|dienst)']]);
 G('lebensmittel', 'supermarkt', {}, [
   ['REWE', 'rewe[a-z]*'], ['EDEKA', 'edeka[a-z]*|e center|e neukauf'], ['ALDI', 'aldi(?: sued| nord| sud)?'], ['Lidl', 'lidl[a-z]*'],
-  ['Penny', 'penny(?: markt)?', { cpOnly: true }], ['Netto', 'netto marken[a-z ]*|netto (?:markt|filiale|city|discount)'], ['Kaufland', 'kaufland[a-z]*'],
+  ['Penny', 'penny(?: markt)?', { cpOnly: true }], ['Netto', 'netto marken[a-z ]*|netto (?:markt|filiale|city|discount|stavenhagen|mit (?:dem )?hund)'], ['Kaufland', 'kaufland[a-z]*'],
   ['Norma', 'norma(?: lebensmittel[a-z]*| filial[a-z]*| markt)'], ['tegut', 'tegut[a-z]*'],
   ['Globus', 'globus(?: sb[a-z ]*| markt| handelshof)?', { cpOnly: true }], ['real', 'real (?:sb|markt|filiale|warenhaus)', { cpOnly: true }],
   ['Marktkauf', 'marktkauf'], ['Nahkauf', 'nahkauf|nah and gut'], ['Famila', 'famila[a-z ]*'], ['Combi', 'combi (?:verbrauchermarkt|markt)'],
   ['Hit', 'hit (?:markt|ullrich|verbrauchermarkt)'], ['V-Markt', 'v markt'], ['Bio Company', 'bio company'], ['Alnatura', 'alnatura'],
   ['Denn\'s Biomarkt', 'denns(?: biomarkt)?|denn s biomarkt|basic bio|biomarkt'], ['Picnic', 'picnic(?: lieferdienst| deutschland)?'],
-  ['Metro', 'metro (?:cash|ag|grosshandel|deutschland)'], ['Selgros', 'selgros'], ['Mix Markt', 'mix markt'], ['Wochenmarkt', 'wochenmarkt|hofladen'],
+  ['Metro', 'metro (?:cash|ag|grosshandel|deutschland)'], ['Selgros', 'selgros'], ['Mix Markt', 'mix markt'],
+  ['Mercado', 'mercado markt'], ['Sky (Coop)', 'sky (?:markt|supermarkt)|coop sky'], ['Markant', 'markant (?:markt|supermarkt)'], ['Citti', 'citti markt'], ['Erdkorn', 'erdkorn(?: biomarkt)?'],
+  ['Mutterland', 'mutterland'], ['Asia-Markt', 'asia (?:markt|supermarkt|shop)', { cpOnly: true }], ['Sultan Markt', 'sultan (?:markt|supermarkt)'], ['Akdeniz Markt', 'akdeniz (?:markt|supermarkt)'], ['Wochenmarkt', 'wochenmarkt|hofladen'],
   ['Metzgerei', 'metzgerei[a-z ]*|fleischerei[a-z ]*', { sub: 'baeckerei' }],
 ]);
 G('lebensmittel', 'baeckerei', { cpOnly: true }, [
   ['Bäckerei', 'baeckerei[a-z ]*|baecker[a-z ]*|baeckerhaus|backshop|backwerk|back factory|le crobag'], ['Kamps', 'kamps'], ['Ditsch', 'ditsch'], ['Brezelkönig', 'brezelkoenig'],
+  ['Dat Backhus', 'dat backhus'], ['Von Allwörden', '(?:von )?allwoerden'],
 ]);
 G('lebensmittel', 'lieferdienst', {}, [
   ['Flink', 'flink(?: se| food)?', { cpOnly: true }], ['Getir', 'getir'], ['Gorillas', 'gorillas'], ['Knuspr', 'knuspr'], ['HelloFresh', 'hello ?fresh', { recurringHint: 'monthly' }],
-  ['Marley Spoon', 'marley spoon'], ['Lieferando', 'lieferando|just eat(?: takeaway)?'], ['Wolt', 'wolt', { cpOnly: true }], ['Uber Eats', 'uber ?eats'], ['Foodora', 'foodora'],
+  ['Marley Spoon', 'marley spoon', { recurringHint: 'monthly' }], ['Frischepost', 'frischepost'], ['Ökokiste', 'oekokiste', { recurringHint: 'monthly' }], ['Lieferando', 'lieferando|just eat(?: takeaway)?'], ['Wolt', 'wolt', { cpOnly: true }], ['Uber Eats', 'uber ?eats'], ['Foodora', 'foodora'],
   ['Flaschenpost', 'flaschenpost'],
 ]);
 G('lebensmittel', 'drogerie', {}, [
-  ['dm', 'dm drogerie[a-z ]*|dm markt|dm fil[a-z]*'], ['Rossmann', 'rossmann[a-z ]*'],
-  ['Müller', 'mueller (?:drogerie|handels|markt|filiale)|drogerie mueller'], ['Budni', 'budni|budnikowsky'],
+  ['dm', 'dm drogerie[a-z ]*|dm markt|dm fil[a-z]*|dm online'], ['Rossmann', 'rossmann[a-z ]*'],
+  ['Müller', 'mueller (?:drogerie|handels)|drogerie mueller'], ['Budni', 'budni|budnikowsky'],
 ]);
 G('lebensmittel', 'restaurant', {}, [
   ['McDonald\'s', 'mc ?donald ?s?[a-z ]*'], ['Burger King', 'burger king'], ['KFC', 'kfc|kentucky fried'], ['Subway', 'subway(?: restaurant| sandwich)?', { cpOnly: true }],
   ['Starbucks', 'starbucks[a-z ]*'], ['Vapiano', 'vapiano'], ['L\'Osteria', 'l osteria|losteria'], ['Block House', 'block house'], ['Hans im Glück', 'hans im glueck'],
   ['Nordsee', 'nordsee'], ['Dean & David', 'dean and david'], ['Pizza Hut', 'pizza hut'], ['Domino\'s', 'domino s?(?: pizza)?'], ['Five Guys', 'five guys'],
   ['Coffee Fellows', 'coffee fellows'], ['Espresso House', 'espresso house'],
+  // Hamburg
+  ['Otto\'s Burger', 'ottos burger|otto s burger'], ['Jim Block', 'jim block'], ['Peter Pane', 'peter pane'], ['Burger Lab', 'burger lab'], ['Schweinske', 'schweinske'],
+  ['Maredo', 'maredo'], ['Wienerwald', 'wienerwald', { cpOnly: true }], ['Bullerei', 'bullerei'], ['Balzac Coffee', 'balzac coffee(?: co)?'], ['Elbgold', 'elbgold', { cpOnly: true }],
+  ['Nord Coast Coffee', 'nord ?coast coffee'], ['Public Coffee Roasters', 'public coffee(?: roasters)?'], ['Gosch', 'gosch', { cpOnly: true }], ['Brücke 10', 'bruecke 10'],
+  ['Fischereihafen Restaurant', 'fischereihafen restaurant'], ['Strandperle', 'strandperle', { cpOnly: true }], ['Strandpauli', 'strandpauli'], ['Landhaus Scherrer', 'landhaus scherrer'],
+  ['Ratsweinkeller', 'ratsweinkeller'], ['Old Commercial Room', 'old commercial room'],
   ['Restaurant', 'restaurant[a-z ]*|gaststaette|ristorante|trattoria|pizzeria|gasthof|gasthaus|brauhaus|imbiss|bistro|cafe|kaffeehaus|biergarten|taverne|doener|kebab|sushi', { cpOnly: true, conf: 0.8 }],
 ]);
-G('lebensmittel', 'kiosk', { cpOnly: true }, [['Kiosk', 'kiosk|spaeti|tabakwaren|trinkgut|getraenkemarkt']]);
+G('lebensmittel', 'kiosk', { cpOnly: true }, [['Kiosk', 'kiosk|spaeti|tabakwaren|trinkgut|getraenkemarkt'], ['Liquid', 'e ?liquids?|liquids?']]);
+// E-Zigarette (wie Tabak): nur spezifische Shop-Namen, kein allgemeines „dampf…“ (Alsterdampfer, Dampfreiniger)
+G('lebensmittel', 'kiosk', {}, [
+  ['E-Zigarette', 'e ?zigarette[a-z]*|dampfdorado|dampfplanet|dampfer shop|dampf ?shop|dampfladen|vape[a-z]*|steamshop|insmoke|avoria|smoke ?shop'],
+]);
+G('lebensmittel', 'restaurant', {}, [['Too Good To Go', 'too good to go|toogoodtogo']]);
 
 // ---------------------------------------------------------------- Mobilität
 G('mobilitaet', 'tanken', {}, [
   ['Aral', 'aral(?: tankstelle| station)?'], ['Shell', 'shell(?: tankstelle| station| deutschland)?'], ['Esso', 'esso(?: tankstelle| station)?'],
-  ['TotalEnergies', 'total ?energies|total (?:tankstelle|station|deutschland)'], ['JET', 'jet (?:tankstelle|tank[a-z]*|station)'], ['STAR', 'star (?:tankstelle|station|tankstellen)'],
+  ['TotalEnergies', 'total ?energies|total (?:service station|service|tankstelle|station|deutschland)'], ['JET', 'jet (?:tankstelle|tank[a-z]*|station)'], ['STAR', 'star (?:tankstelle|station|tankstellen)'], ['STAR', 'star(?= (?:hamburg|berlin|bremen|kiel|luebeck|hannover|muenchen|koeln|frankfurt|stuttgart|duesseldorf|leipzig|dresden|nuernberg|[a-z]+ [a-z]+$))', { cpOnly: true, conf: 0.7 }],
   ['HEM', 'hem (?:tankstelle|station|tank)'], ['Agip/Eni', 'agip|eni (?:station|tankstelle)'], ['OMV', 'omv'], ['Avia', 'avia(?: tankstelle| station)?'], ['bft', 'bft(?: tankstelle| station)?'],
-  ['Orlen', 'orlen'], ['Tamoil', 'tamoil'], ['Tankstelle', 'tankstelle[a-z ]*|autohof|tank and rast|tank rast', { conf: 0.8 }],
+  ['Orlen', 'orlen'], ['Tamoil', 'tamoil'],
+  ['Q1', 'q1 (?:energie|tankstelle|station)'], ['Westfalen', 'westfalen (?:tankstelle|station)'], ['Raiffeisen Tankstelle', 'raiffeisen (?:tankstelle|station)'], ['Score', 'score (?:tankstelle|station)'],
+  ['Hoyer', 'hoyer (?:tankstelle|station)'], ['Calpam', 'calpam(?: tankstelle| station)?'], ['Nordoel', 'nord ?oel'], ['Team Energie', 'team (?:energie|tankstelle)'], ['Classic', 'classic (?:tankstelle|station)'],
+  ['OIL!', 'oil (?:tankstelle|station)'], ['Tankstelle', 'tankstelle[a-z ]*|autohof|tank and rast|tank rast', { conf: 0.8 }],
 ]);
 G('mobilitaet', 'auto', {}, [
   ['Parken', 'parkhaus[a-z ]*|apcoa|q park|qpark|park and joy|easypark|parkster|parkone|parkscheinautomat|parknow|parkgebuehr[a-z ]*'],
-  ['Toll Collect', 'toll collect'], ['ADAC', 'adac(?: e v| mitglied[a-z]*)?', { recurringHint: 'yearly' }],
+  ['Park and Fly', 'park (?:and )?fly|airport parking|flughafen ?parken|parken am flughafen'], ['Toll Collect', 'toll collect'],
+  ['Mr. Wash', 'mr wash', { sub: 'autowaesche' }], ['Washtec', 'washtec', { sub: 'autowaesche' }], ['SB-Waschpark', 'sb waschpark|waschpark[a-z ]*|waschstrasse[a-z ]*|autowaesche[a-z ]*', { sub: 'autowaesche', cpOnly: true }], ['ADAC', 'adac(?: e v| mitglied[a-z]*)?', { recurringHint: 'yearly' }],
   ['TÜV', 'tuev (?:nord|sued|hessen|rheinland)|dekra|gtue|a t u|atu (?:auto|werkstatt)|pit stop|vergoelst|carglass|autowerkstatt|kfz werkstatt|reifen[a-z ]*|autoteile[a-z ]*'],
 ]);
 G('mobilitaet', 'oepnv', {}, [
@@ -93,54 +121,107 @@ G('mobilitaet', 'oepnv', {}, [
 ]);
 G('mobilitaet', 'bahn_fernverkehr', {}, [
   ['Deutsche Bahn', 'deutsche bahn(?: ag| vertrieb| fernverkehr)?|db (?:vertrieb|fernverkehr|regio|bahn)|bahn de|bahncard|db navigator'],
+  ['Stena Line', 'stena line'], ['Color Line', 'color ?line'], ['TT-Line', 'tt ?line(?: ferries)?'], ['Scandlines', 'scandlines'], ['FRS', 'frs (?:iberia|ferry|ferries)'],
+  ['Finnlines', 'finnlines'], ['DFDS', 'dfds(?: seaways)?'], ['Viking Line', 'viking line'], ['Tallink', 'tallink'], ['Irish Ferries', 'irish ferries'], ['Brittany Ferries', 'brittany ferries'],
+  ['Corsica Ferries', 'corsica (?:ferries|linea)'], ['Grimaldi Lines', 'grimaldi lines'], ['Minoan Lines', 'minoan lines'], ['Superfast Ferries', 'superfast ferries'], ['P&O Ferries', 'p (?:and )?o ferries'],
   ['FlixBus', 'flix ?bus|flixtrain|flix se'], ['BlaBlaCar', 'blablacar'], ['Omio', 'omio'], ['Trainline', 'trainline'], ['ÖBB', 'oebb'], ['SBB', 'sbb'],
 ]);
 G('mobilitaet', 'taxi_sharing', {}, [
   ['Uber', 'uber(?: bv| b v| trip| technologies)?'], ['Bolt', 'bolt(?: operations| ride| technology)?', { cpOnly: true }], ['Free Now', 'free ?now|mytaxi'],
-  ['Taxi', 'taxi[a-z ]*|funk taxi|taxizentrale', { cpOnly: true }], ['Share Now', 'share ?now'], ['Miles', 'miles mobility', { cpOnly: true }], ['Cambio', 'cambio carsharing'],
-  ['Flinkster', 'flinkster'], ['Sixt', 'sixt(?: rent[a-z ]*| share| gmbh)?'], ['Europcar', 'europcar'], ['Hertz', 'hertz'], ['Tier', 'tier (?:mobility|scooter)'],
+  ['Taxi', 'taxi[a-z ]*|funk taxi|taxizentrale', { cpOnly: true }], ['Share Now', 'share ?now'], ['Miles', 'miles mobil(?:ity)?|miles com', { cpOnly: true }], ['Cambio', 'cambio(?: carsharing)?', { cpOnly: true }],
+  ['WeShare', 'weshare|we share mobility'], ['Greenwheels', 'greenwheels'], ['Zipcar', 'zipcar'], ['Getaround', 'getaround'], ['SIGNAL', 'signal (?:sharing|mobility)'], ['Bird', 'bird (?:scooter|mobility|rides)'],
+  ['MOIA', 'moia(?: hamburg)?'],
+  ['Flinkster', 'flinkster'], ['Stadtmobil', 'stadtmobil'], ['StadtRAD', 'stadtrad(?: hamburg)?'], ['Donkey Republic', 'donkey republic'], ['Sixt', 'sixt(?: rent[a-z ]*| share| gmbh)?'], ['Europcar', 'europcar'], ['Hertz', 'hertz'],
+  ['Avis', 'avis (?:budget|autovermietung|car rental)'], ['Enterprise', 'enterprise (?:rent ?a ?car|holdings)'], ['billiger-mietwagen.de', 'billiger mietwagen[a-z ]*'], ['Sunny Cars', 'sunny ?cars'],
+  ['Buchbinder', 'buchbinder (?:rent a car|autovermietung)'], ['Rentalcars.com', 'rentalcars(?: com)?'], ['Goldcar', 'goldcar'], ['Alamo', 'alamo rent(?: a car)?'], ['Budget', 'budget (?:rent a car|autovermietung)'],
+  ['Auto Europe', 'auto europe'], ['Tier', 'tier (?:mobility|scooter|services)'],
   ['Lime', 'lime(?: bike| scooter)?', { cpOnly: true }], ['Voi', 'voi (?:technology|scooter)'], ['Dott', 'dott (?:scooter|mobility)'], ['nextbike', 'nextbike|call a bike'],
 ]);
 
 // ---------------------------------------------------------------- Reisen & Freizeit
+// Reiseversicherungen vor den allgemeinen Versicherer-Mustern (ERGO, HanseMerkur, Allianz)
 G('freizeit_reisen', 'urlaub', {}, [
+  ['ERGO Reiseversicherung', 'ergo (?:reise[a-z]*|travel)'], ['HanseMerkur Reiseversicherung', 'hanse ?merkur (?:reise[a-z]*|travel)'], ['Allianz Reiseversicherung', 'allianz (?:reise[a-z]*|travel|partners)'],
+  ['Europäische Reiseversicherung', 'europaeische reise[a-z]*'], ['Mondial Assistance', 'mondial assistance'],
+]);
+G('freizeit_reisen', 'fluege', {}, [
   ['Lufthansa', 'lufthansa[a-z ]*'], ['Eurowings', 'eurowings'], ['Ryanair', 'ryanair'], ['easyJet', 'easy ?jet'], ['Condor', 'condor(?: flugdienst)?'], ['TUIfly', 'tui ?fly'],
   ['Wizz Air', 'wizz ?air'], ['Vueling', 'vueling'], ['KLM', 'klm'], ['Air France', 'air france'], ['Turkish Airlines', 'turkish airlines'],
+  ['Emirates', 'emirates airlines?'], ['Thai Airways', 'thai airways?'], ['Austrian Airlines', 'austrian air(?:lines)?'], ['Swiss', 'swiss (?:international )?air ?lines'],
+  ['Brussels Airlines', 'brussels airlines'], ['SAS', 'sas (?:scandinavian|airlines)|scandinavian airlines'], ['Norwegian Air', 'norwegian air(?: shuttle)?'], ['Finnair', 'finnair'], ['Aer Lingus', 'aer lingus'],
+  ['Iberia', 'iberia (?:airlines|express)'], ['ITA Airways', 'ita airways'], ['LOT', 'lot polish(?: airlines)?'], ['Aegean Airlines', 'aegean air(?:lines)?'], ['Pegasus Airlines', 'pegasus airlines'],
+  ['SunExpress', 'sun ?express'], ['Edelweiss Air', 'edelweiss air'], ['Corendon', 'corendon'], ['Transavia', 'transavia'], ['British Airways', 'british airways'], ['Qatar Airways', 'qatar (?:airways|airline)'],
+  ['Etihad Airways', 'etihad(?: airways| airline)'], ['Singapore Airlines', 'singapore airlines'], ['Delta Air Lines', 'delta air ?lines'], ['United Airlines', 'united airlines'], ['American Airlines', 'american airlines'],
+  ['Air Canada', 'air canada'], ['Japan Airlines', 'japan airlines'], ['Qantas', 'qantas'], ['Volotea', 'volotea'], ['Smartwings', 'smartwings'], ['TAP Air Portugal', 'tap (?:air )?portugal'],
+  ['Discover Airlines', 'discover airlines'], ['Air Berlin', 'air ?berlin'], ['Germania', 'germania flug[a-z ]*'], ['Sundair', 'sundair'], ['Croatia Airlines', 'croatia airlines'], ['Air Serbia', 'air serbia'],
+  ['Azur Air', 'azur air'], ['airBaltic', 'air ?baltic'], ['Air Europa', 'air europa'], ['Icelandair', 'icelandair'], ['Cathay Pacific', 'cathay pacific'],
+  ['Jet2', 'jet2(?: com)?(?! ?holidays)'], ['Kiwi.com', 'kiwi com'], ['fluege.de', 'fluege de'], ['Check24 Flug', 'check24 flug[a-z]*'], ['Google Flights', 'google flights'],
+  ['Flightright', 'flightright|fairplane|airhelp'],
+]);
+G('freizeit_reisen', 'kreuzfahrt', {}, [
+  ['AIDA', 'aida cruises|aida kreuzfahrten'], ['MSC Cruises', 'msc (?:cruises?|kreuzfahrten)'], ['Mein Schiff', 'mein schiff|tui cruises'], ['Hurtigruten', 'hurtigruten'],
+  ['Costa Kreuzfahrten', 'costa (?:kreuzfahrten|cruises|crociere)'], ['Royal Caribbean', 'royal caribbean'], ['Norwegian Cruise Line', 'norwegian cruise line|ncl cruise'], ['Phoenix Reisen', 'phoenix reisen'],
+  ['Celebrity Cruises', 'celebrity cruises'], ['Holland America Line', 'holland america'], ['Viking', 'viking (?:river cruises|flusskreuzfahrten)'],
+]);
+G('freizeit_reisen', 'urlaub', {}, [
   ['TUI', 'tui(?: deutschland| cruises| travel)?|dertour|alltours|schauinsland|fti'], ['Weg.de', 'weg de|urlaubsguru|ab in den urlaub|opodo|edreams|momondo|kayak|skyscanner'],
-  ['Check24 Reisen', 'check24 reise[a-z ]*'], ['AIDA', 'aida cruises|aida kreuzfahrten'], ['Center Parcs', 'center parcs|europa park|ferienhaus[a-z ]*'],
+  ['Check24 Reisen', 'check24 (?:reise[a-z ]*|urlaub|pauschalreise)'], ['Center Parcs', 'center parcs|europa park|ferienhaus[a-z ]*'],
+  ['Trip.com', 'trip com'], ['lastminute.com', 'lastminute (?:com|de)'], ['Holidaycheck', 'holidaycheck'], ['Jet2holidays', 'jet2 ?holidays'], ['Thomas Cook', 'thomas ?cook'],
+  ['Gebeco', 'gebeco'], ['Dr. Tigges', '(?:dr )?tigges'], ['Bucher Reisen', 'bucher reisen'],
+  ['Flughafen', 'fraport|hamburg airport|munich airport|berlin brandenburg airport|ber airport|duesseldorf airport|cologne bonn airport|flughafen (?:hamburg|muenchen|berlin|duesseldorf|koeln|frankfurt|stuttgart|hannover|nuernberg|leipzig|bremen|dortmund)'],
+  ['Lounge', 'priority ?pass|lounge ?key|plaza premium'],
 ]);
 G('freizeit_reisen', 'hotel', {}, [
   ['Booking.com', 'booking ?com(?: b v)?'], ['Airbnb', 'airbnb[a-z ]*'], ['Hotels.com', 'hotels ?com'], ['Expedia', 'expedia'], ['HRS', 'hrs(?: hotel[a-z ]*)?'], ['Trivago', 'trivago'],
   ['Agoda', 'agoda'], ['Hostelworld', 'hostelworld'], ['Motel One', 'motel one'], ['B&B Hotels', 'b and b hotel[a-z]*'], ['A&O Hostels', 'a and o hostel[a-z ]*'],
+  ['Accor', 'ibis(?: styles| budget)?|accor(?:hotels)?|novotel|mercure|sofitel|pullman hotel[a-z]*'], ['NH Hotels', 'nh (?:hotels?|collection)'],
+  ['Marriott', 'marriott|ritz carlton|sheraton|westin|aloft hotel|moxy hotel|renaissance hotel|residence inn'], ['Hilton', 'hilton[a-z ]*|doubletree', { cpOnly: true }],
+  ['Meininger', 'meininger(?: hotels?)?'], ['Premier Inn', 'premier ?inn'], ['25hours', '25 ?hours(?: hotels?)?'], ['Steigenberger', 'steigenberger'], ['Maritim', 'maritim(?: hotels?)?', { cpOnly: true }],
+  ['Radisson', 'radisson(?: blu)?'], ['IHG', 'holiday inn[a-z ]*|crowne plaza|intercontinental|ihg hotels'], ['Best Western', 'best western'], ['Hyatt', 'hyatt'], ['Dorint', 'dorint'],
+  ['Lindner Hotels', 'lindner hotels?'], ['Ruby Hotels', 'ruby hotels?'], ['Achat Hotels', 'achat hotels?'], ['Vienna House', 'vienna house'], ['Atlantic Hotels', 'atlantic hotels?'], ['Kempinski', 'kempinski'],
+  ['Leonardo Hotels', 'leonardo hotels?'], ['Wyndham', 'wyndham|ramada|days inn'], ['Generator Hostels', 'generator hostels?'], ['Jugendherberge', 'djh|jugendherberge[a-z ]*'], ['Tripadvisor', 'trip ?advisor'],
+  ['FeWo-direkt', 'fewo ?direkt'], ['Vrbo', 'vrbo|homeaway'], ['Holidu', 'holidu'], ['Interhome', 'interhome'], ['Novasol', 'novasol'], ['Casamundo', 'casamundo'], ['Traum-Ferienwohnungen', 'traum ferienwohnung(?:en)?'],
   ['Hotel', 'hotel[a-z ]*|pension[a-z ]*|ferienwohnung[a-z ]*|campingplatz[a-z ]*|camping[a-z ]*', { cpOnly: true, conf: 0.8 }],
 ]);
 G('freizeit_reisen', 'kultur', { cpOnly: true }, [
   ['Kino', 'kino[a-z ]*|cinemaxx|cinestar|uci kinowelt|cineplex|cinecitta|filmpalast|kinopolis|multiplex'], ['Ticketmaster', 'ticketmaster'], ['Eventim', 'eventim|reservix|adticket|ticket ?online|dasticket'],
   ['Theater', 'theater[a-z ]*|konzerthaus|philharmonie|elbphilharmonie|musical[a-z ]*|stage entertainment|mehr theater'], ['Museum', 'museum[a-z ]*'],
+  ['Molotow', 'molotow'], ['Mojo Club', 'mojo club'], ['Uebel & Gefährlich', 'uebel(?: and)? gefaehrlich'], ['Golden Pudel', 'golden pudel(?: club)?'], ['Zeisehallen', 'zeisehallen|zeise kinos?'],
+  ['Hafenklang', 'hafenklang'], ['Knust', 'knust'], ['Indra Club', 'indra club'],
+  ['Hagenbeck', 'hagenbeck[a-z ]*'], ['Miniatur Wunderland', 'miniatur wunderland'],
   ['Zoo', 'zoo|tierpark[a-z ]*|freizeitpark[a-z ]*|heide park|phantasialand|movie park|hansa park|legoland|serengeti park'], ['Bowling', 'bowling[a-z ]*|minigolf|kletterhalle|boulderhalle|escape room[a-z ]*'],
 ]);
+G('freizeit_reisen', 'sport', {}, [
+  ['Bäderland', 'baederland(?: hamburg)?'], ['HSV', 'hamburger s(?:port )?v(?:erein)?|hsv fussball', { cpOnly: true }], ['FC St. Pauli', 'fc st pauli|st pauli fc'],
+]);
+G('freizeit_reisen', 'hobby', {}, [['Lotto', 'lotto (?:hamburg|24)|lottoland|eurojackpot|tipp24|lotto[a-z ]*gesellschaft|lotto[a-z]*annahme', { conf: 0.85 }]]);
+G('gesundheit', 'wellness', { cpOnly: true, conf: 0.8 }, [['Friseur', 'friseur[a-z ]*|frisoer[a-z ]*|barber[a-z ]*|haarstudio[a-z ]*|hair ?salon|haarsalon']]);
 G('freizeit_reisen', 'geschenke', { cpOnly: true }, [
   ['Fleurop', 'fleurop|blume2000|valentins|miflora|blumenversand|florist[a-z ]*|blumen[a-z ]*'], ['mydays', 'mydays|jochen schweizer'], ['Tonies', 'tonies|toniebox'],
 ]);
 G('freizeit_reisen', 'hobby', { cpOnly: true }, [['Fotobuch', 'cewe(?: fotobuch)?|pixum|saal digital|posterxxl|myposter|fotokasten|photobox'], ['Spreadshirt', 'spreadshirt|vistaprint|flyeralarm|printful']]);
 
 // ---------------------------------------------------------------- Wohnen
+G('abos_medien', 'cloud', { recurringHint: 'monthly' }, [['MagentaCLOUD', 'magenta ?cloud']]);
 G('wohnen', 'internet_telefon', { recurringHint: 'monthly' }, [
   ['Telekom', 'telekom(?: deutschland| mobilfunk)?|deutsche telekom|magenta ?(?:tv|eins|mobil)?|t mobile|t online'],
   ['Vodafone', 'vodafone[a-z ]*|kabel deutschland|unitymedia'], ['O2', 'o2(?: telefonica| online)?|telefonica[a-z ]*'],
   ['1&1', '1 and 1(?: telecom| versatel| ionos)?|1und1|versatel'], ['congstar', 'congstar'], ['freenet', 'freenet(?: digital)?|mobilcom(?: debitel)?'],
   ['klarmobil', 'klarmobil'], ['WinSIM', 'winsim|simyo|drillisch|yourfone|lebara|otelo|premiumsim|netzclub|sim de'], ['Blau', 'blau(?: mobilfunk| de)', {}],
+  ['fonic', 'fonic'], ['Alice', 'hansenet|alice (?:dsl|mobile|internet)'],
   ['PŸUR', 'pyur|netcologne|m net|wilhelm tel|ewe tel|deutsche glasfaser|tele columbus|sipgate|fonial'],
 ]);
 G('wohnen', 'strom_gas', { recurringHint: 'monthly' }, [
   ['Vattenfall', 'vattenfall[a-z ]*'], ['E.ON', 'e on(?: energie| energy| se| vertrieb)?|eon(?: energie| vertrieb)?|eprimo'], ['EnBW', 'enbw[a-z ]*'],
   ['Yello', 'yello(?: strom)?'], ['EWE', 'ewe(?: vertrieb| ag| netz)?'], ['Entega', 'entega'], ['Mainova', 'mainova'], ['RWE', 'rwe(?: energy| vertrieb| supply)?|innogy'],
-  ['Gasag', 'gasag'], ['Hamburger Energiewerke', 'hamburg energie|hamburger energiewerke|enercity|badenova|rhein ?energie|swm versorgung|suewag|thuega|n ergie|e wie einfach|maingau'],
+  ['Gasag', 'gasag'], ['Hamburger Energiewerke', 'stromnetz hamburg|hamburg energie|hamburger energiewerke|enercity|badenova|rhein ?energie|swm versorgung|suewag|thuega|n ergie|e wie einfach|maingau'],
   ['Naturstrom', 'naturstrom|polarstern|ostrom|1komma5|gruenwelt'], ['Lichtblick', 'lichtblick'], ['Tibber', 'tibber'], ['Octopus Energy', 'octopus(?: energy)?'],
   ['Stadtwerke', 'stadtwerke[a-z ]*|energieversorgung[a-z ]*|energie und wasser[a-z ]*|grundversorger'],
 ]);
+G('wohnen', 'wasser', { recurringHint: 'monthly' }, [
+  ['Hamburg Wasser', 'hamburg wasser|wasserwerke?[a-z ]*|wasserversorgung[a-z ]*|wasserverband[a-z ]*|wasserzweckverband[a-z ]*|abwasser[a-z ]*|stadtentwaesserung'],
+]);
 G('wohnen', 'nebenkosten', {}, [
-  ['Hamburg Wasser', 'hamburg wasser|wasserwerke[a-z ]*|wasserversorgung[a-z ]*|abwasser[a-z ]*|stadtentwaesserung'],
   ['Müllabfuhr', 'abfallwirtschaft[a-z ]*|stadtreinigung[a-z ]*|muellabfuhr|schornsteinfeger[a-z ]*'], ['Hausgeld', 'hausgeld|wohngeld|nebenkosten[a-z ]*|betriebskosten[a-z ]*'],
 ]);
 G('wohnen', 'rundfunk', { recurringHint: 'quarterly' }, [['Rundfunkbeitrag', 'ard zdf deutschlandradio|rundfunk(?:beitrag)?[a-z ]*|beitragsservice']]);
@@ -160,50 +241,67 @@ G('wohnen', 'handwerker', { cpOnly: true, conf: 0.8 }, [
 // ---------------------------------------------------------------- Abos & Medien
 G('abos_medien', 'streaming', { recurringHint: 'monthly' }, [
   ['Netflix', 'netflix[a-z ]*'], ['Disney+', 'disney ?\\+?|disney plus|disney streaming'], ['Amazon Prime', 'amazon prime[a-z ]*|prime video|prime mitgliedschaft|amzn prime'],
-  ['DAZN', 'dazn[a-z ]*'], ['Sky', 'sky (?:deutschland|ticket|q|abo|fernsehen|entertainment)|wow tv|sky de', {}], ['RTL+', 'rtl ?\\+|rtl plus|rtl deutschland'], ['Joyn', 'joyn(?: plus)?'],
+  ['DAZN', 'dazn[a-z ]*'], ['Sky', 'sky (?:deutschland|ticket|q|abo|fernsehen|entertainment|sport[a-z]*)|sky de', {}], ['WOW', 'wow ?tv|wow streaming|wow abo'], ['RTL+', 'rtl ?\\+|rtl plus|rtl deutschland'], ['Joyn', 'joyn(?: plus)?'],
   ['Paramount+', 'paramount ?\\+?|paramount plus'], ['waipu.tv', 'waipu(?: tv)?|zattoo'], ['Crunchyroll', 'crunchyroll'], ['MagentaTV', 'magenta ?tv'], ['Twitch', 'twitch(?: interactive)?'],
-  ['YouTube', 'youtube(?: premium| music)?|google youtube|youtubepremium'], ['Apple', 'apple ?com bill|apple services|itunes|apple tv\\+?|apple one|apple arcade|apple distribution'],
+  ['YouTube', 'youtube(?: premium| music)?|google youtube|youtubepremium'], ['Apple', 'apple ?com bill|apple services|itunes|apple tv\\+?|apple one|apple arcade|apple distribution', { noSingle: true }],
+  ['Mubi', 'mubi'], ['Discovery+', 'discovery ?\\+|discovery ?plus'], ['HBO Max', 'hbo ?max'], ['Eurosport', 'eurosport[a-z ]*'],
 ]);
 G('abos_medien', 'musik', { recurringHint: 'monthly' }, [
   ['Spotify', 'spotify[a-z ]*'], ['Apple Music', 'apple music'], ['Deezer', 'deezer'], ['Tidal', 'tidal'], ['SoundCloud', 'soundcloud'], ['Amazon Music', 'amazon music'], ['Qobuz', 'qobuz'],
+  ['Napster', 'napster'], ['Idagio', 'idagio'],
 ]);
 G('abos_medien', 'hoerbuch', { recurringHint: 'monthly' }, [
-  ['Audible', 'audible[a-z ]*'], ['Kindle Unlimited', 'kindle unlimited'], ['Storytel', 'storytel'], ['BookBeat', 'bookbeat'], ['Skoobe', 'skoobe'], ['Blinkist', 'blinkist'],
+  ['Audible', 'audible[a-z ]*'], ['Kindle Unlimited', 'kindle unlimited'], ['Storytel', 'storytel'], ['BookBeat', 'bookbeat'], ['Skoobe', 'skoobe'], ['Blinkist', 'blinkist'], ['Podimo', 'podimo'],
 ]);
 G('abos_medien', 'cloud', { recurringHint: 'monthly' }, [
   ['iCloud', 'icloud(?: storage| speicher)?|apple icloud'], ['Google One', 'google (?:one|storage|workspace|cloud)|gsuite|g suite'], ['Dropbox', 'dropbox[a-z ]*'], ['OneDrive', 'onedrive'],
   ['pCloud', 'pcloud|tresorit|mega limited|backblaze'], ['Proton', 'proton(?: ag| mail| drive| vpn| technologies)?'], ['Hetzner', 'hetzner(?: online)?'], ['IONOS', 'ionos|strato|netcup|host europe|all inkl|hostinger'],
   ['DigitalOcean', 'digitalocean|cloudflare|namecheap|godaddy|vercel|netlify|heroku|scaleway|ovh(?:cloud)?|contabo|amazon web services|aws emea'], ['Squarespace', 'squarespace|wix ?com|jimdo|webflow'],
+  ['Nextcloud', 'nextcloud'], ['Box', 'box (?:com|inc)', { cpOnly: true }],
 ]);
 G('abos_medien', 'software', { recurringHint: 'monthly' }, [
-  ['Adobe', 'adobe[a-z ]*'], ['Microsoft', 'microsoft[a-z ]*|msft|office 365|msbill|xbox(?: game pass| live)?'], ['Google', 'google(?: play| ireland| payment| llc| ads)?|google \\*[a-z ]*'],
+  ['Adobe', 'adobe[a-z ]*'], ['Microsoft', 'microsoft[a-z ]*|msft|office 365|msbill|xbox(?: game pass| live)?', { noSingle: true }], ['Google', 'google(?: play| ireland| payment| llc| ads)?|google \\*[a-z ]*', { noSingle: true }],
   ['ChatGPT', 'openai[a-z ]*|chat ?gpt[a-z ]*'], ['Claude', 'anthropic[a-z ]*|claude(?: ai| pro| max)?'], ['Perplexity', 'perplexity|midjourney|elevenlabs|deepl(?: se| pro)?|suno|runway'],
   ['GitHub', 'github[a-z ]*|jetbrains|replit|lovable|cursor(?: ai)?'], ['Notion', 'notion(?: labs)?'], ['Evernote', 'evernote|todoist|1password|lastpass|bitwarden|dashlane|grammarly'],
   ['NordVPN', 'nordvpn|expressvpn|surfshark|mullvad'], ['Canva', 'canva[a-z ]*'], ['Figma', 'figma'], ['Slack', 'slack technologies|slack com'], ['Zoom', 'zoom (?:video|us|communications)'],
-  ['Atlassian', 'atlassian|trello|asana|airtable|calendly|miro com'], ['Setapp', 'setapp|paddle(?: net)?|fastspring|readwise|raycast'], ['Tuta', 'tuta(?: com| nota)?|mailbox org|posteo|fastmail'],
+  ['Atlassian', 'atlassian|trello|asana|airtable|calendly|miro com'], ['Setapp', 'setapp|paddle(?: net)?|fastspring|readwise|raycast'], ['Tuta', 'tuta(?: com| nota)?|tutanota|mailbox org|posteo|fastmail'],
+  ['Mistral AI', 'mistral ai'], ['X Premium', 'x corp|twitter inc|x premium', { cpOnly: true }], ['XING', 'xing(?: premium| se)?|new work se'],
+  ['Norton', 'norton ?lifelock|norton 360|gen digital', { recurringHint: 'yearly' }], ['McAfee', 'mcafee', { recurringHint: 'yearly' }], ['Avira', 'avira', { recurringHint: 'yearly' }],
+  ['Bitdefender', 'bitdefender', { recurringHint: 'yearly' }], ['Kaspersky', 'kaspersky', { recurringHint: 'yearly' }], ['ESET', 'eset (?:gmbh|deutschland|spol)', { recurringHint: 'yearly' }],
+  ['Malwarebytes', 'malwarebytes', { recurringHint: 'yearly' }], ['Keeper', 'keeper ?security', { recurringHint: 'yearly' }], ['Affinity', 'affinity (?:photo|designer|publisher)|serif europe', { recurringHint: 'yearly' }],
+  ['Shopify', 'shopify'], ['Mailchimp', '(?:intuit )?mailchimp'], ['Typeform', 'typeform'], ['monday.com', 'monday com'], ['GMX/WEB.DE', 'gmx premium|web de (?:club|premium)'], ['Patreon', 'patreon|steady ?hq|steadyhq'],
+  ['Tinder', 'tinder'], ['Bumble', 'bumble'], ['Parship', 'parship'], ['ElitePartner', 'elite ?partner'], ['eHarmony', 'eharmony'], ['Lovoo', 'lovoo'], ['Badoo', 'badoo'], ['Happn', 'happn'],
 ]);
 G('abos_medien', 'gaming', { recurringHint: 'monthly' }, [
-  ['Steam', 'steam(?: games| purchase| community)?|steampowered|valve corp'], ['PlayStation', 'playstation(?: network| store| plus)?|sony interactive'],
-  ['Nintendo', 'nintendo(?: eshop| switch online)?'], ['Epic Games', 'epic games'], ['Ubisoft', 'ubisoft'], ['Electronic Arts', 'electronic arts|ea play'], ['Blizzard', 'blizzard|battle net'],
-  ['Riot Games', 'riot games'], ['Humble Bundle', 'humble bundle|gog com'], ['Roblox', 'roblox|supercell|minecraft|mojang'],
+  ['Steam', 'steam(?: games| purchase| community)?|steampowered|valve corp', { recurringHint: null, noSingle: true }],
+  ['PlayStation', 'playstation(?: network| store| plus)?|sony interactive', { noSingle: true }],
+  ['Nintendo', 'nintendo(?: eshop| switch online)?', { noSingle: true }], ['Epic Games', 'epic games', { recurringHint: null, noSingle: true }], ['Ubisoft', 'ubisoft', { noSingle: true }],
+  ['Electronic Arts', 'electronic arts|ea play', { noSingle: true }], ['Blizzard', 'blizzard|battle net', { noSingle: true }],
+  ['Riot Games', 'riot games', { noSingle: true }], ['Humble Bundle', 'humble bundle|gog com', { recurringHint: null, noSingle: true }], ['Roblox', 'roblox|supercell|minecraft|mojang', { noSingle: true }],
+  ['Discord Nitro', 'discord(?: nitro| inc)'], ['Chess.com', 'chess ?com'], ['GeForce NOW', 'geforce now|nvidia geforce'], ['Wargaming', 'wargaming', { noSingle: true }],
 ]);
 G('abos_medien', 'zeitung', { recurringHint: 'monthly' }, [
   ['Der Spiegel', 'spiegel(?: verlag| plus| gruppe)?|der spiegel'], ['Die Zeit', 'zeit online|zeit verlag|die zeit'], ['FAZ', 'faz(?: de| net)?|frankfurter allgemeine'],
   ['Süddeutsche Zeitung', 'sueddeutsche(?: zeitung)?|sz de'], ['Handelsblatt', 'handelsblatt'], ['WELT', 'welt (?:plus|de|online)|(?<!fuer )(?<!aerzte der )die welt'], ['taz', 'taz(?: verlagsgenossenschaft)?'],
   ['Bild', 'bild (?:plus|de)|axel springer'], ['stern', 'stern (?:plus|de)'], ['Hamburger Abendblatt', 'abendblatt|hamburger abendblatt|morgenpost|rheinische post|tagesspiegel'],
   ['t3n', 't3n|golem|heise|netzpolitik'], ['New York Times', 'new york times|nytimes|economist|financial times|substack'], ['Readly', 'readly|pressreader'],
+  ['Kölner Stadt-Anzeiger', 'koelner stadt anzeiger|ksta de'], ['Frankfurter Rundschau', 'frankfurter rundschau'], ['Berliner Zeitung', 'berliner zeitung'], ['Kieler Nachrichten', 'kieler nachrichten'],
+  ['WirtschaftsWoche', 'wirtschaftswoche|wiwo de'], ['FOCUS', 'focus (?:online|magazin)'], ['kicker', 'kicker (?:sportmagazin|online)'], ['Capital', 'capital (?:magazin|de)'], ['Brigitte', 'brigitte (?:abo|magazin)'],
+  ['Spektrum der Wissenschaft', 'spektrum der wissenschaft|spektrum verlag'], ['National Geographic', 'national geographic'], ['GEO', 'geo (?:epoche|magazin)'], ['brand eins', 'brand eins'],
   ['Verlag', 'verlag[a-z ]*|zeitungsverlag[a-z ]*', { cpOnly: true, conf: 0.7 }],
 ]);
 G('abos_medien', 'fitness', { recurringHint: 'monthly' }, [
   ['Urban Sports Club', 'urban sports(?: club)?'], ['McFit', 'mc ?fit'], ['FitX', 'fitx'], ['Clever Fit', 'clever fit'], ['John Reed', 'john reed'], ['Fitness First', 'fitness first'],
   ['EGYM Wellpass', 'egym(?: wellpass)?|wellpass|gympass'], ['Basic-Fit', 'basic fit'], ['Holmes Place', 'holmes place'], ['Kieser', 'kieser(?: training)?'], ['Peloton', 'peloton'],
   ['Strava', 'strava'], ['Freeletics', 'freeletics'], ['Headspace', 'headspace|calm com'],
+  ['Gold\'s Gym', 'golds? s? ?gym'], ['Fitness Park', 'fitness park'], ['Injoy', 'injoy', { cpOnly: true }], ['Anytime Fitness', 'anytime fitness'], ['PureGym', 'pure ?gym'],
+  ['komoot', 'komoot', { recurringHint: 'yearly' }], ['Runtastic', 'runtastic'], ['MyFitnessPal', 'myfitnesspal'],
   ['Fitnessstudio', 'fitnessstudio[a-z ]*|fitness studio[a-z ]*|sportstudio[a-z ]*|crossfit[a-z ]*|yoga[a-z ]*|sportverein[a-z ]*|turnverein[a-z ]*|schwimmbad[a-z ]*|therme[a-z ]*', { cpOnly: true, conf: 0.8 }],
 ]);
 
 // ---------------------------------------------------------------- Shopping
 G('shopping', 'online', {}, [
-  ['Amazon', 'amazon(?: payments(?: europe)?| eu s a r l| eu| de| marketplace| services| online| digital| com| web)?[a-z ]*|amzn(?: mktp(?: de)?| digital)?[a-z ]*', {}],
+  ['Amazon', 'amazon(?: payments(?: europe)?| eu s a r l| eu| de| marketplace| services| online| digital| com| web)?[a-z ]*|amzn(?: mktp(?: de)?| digital)?[a-z ]*', { platform: true }],
   ['Otto', 'otto(?: gmbh| versand)?|ottoversand', { cpOnly: true }], ['eBay', 'ebay(?: sarl| gmbh| com)?'], ['Kleinanzeigen', 'kleinanzeigen'],
   ['Etsy', 'etsy(?: ireland| inc)?'], ['AliExpress', 'ali ?express(?: com)?|alibaba'], ['Temu', 'temu|whaleco'], ['SHEIN', 'shein'], ['Rakuten', 'rakuten'], ['Vinted', 'vinted'],
   ['Momox', 'momox|rebuy|medimops|booklooker|zvab'], ['Baur', 'baur|witt weiden|klingel|bonprix|hessnatur|manufactum|mytoys|babymarkt', { cpOnly: true }], ['Tchibo', 'tchibo(?: gmbh)?', { cpOnly: true }],
@@ -228,7 +326,7 @@ G('shopping', 'buecher', { cpOnly: true }, [
   ['Thalia', 'thalia[a-z ]*'], ['Hugendubel', 'hugendubel|mayersche|osiander|weltbild'], ['Buchhandlung', 'buchhandlung[a-z ]*|buecher[a-z ]*|tolino'],
 ]);
 G('shopping', 'sonstiges', {}, [
-  ['Fressnapf', 'fressnapf|zooplus|das futterhaus|futterhaus', { cpOnly: true }], ['Action', 'action deutschland|woolworth|tedi|pepco|kik'], ['Douglas', 'douglas(?: parfuemerie)?|flaconi|notino|yves rocher|rituals|lush'],
+  ['Fressnapf', 'fressnapf|zooplus|das futterhaus|futterhaus', { cpOnly: true }], ['Parfümerie Pieper', 'parfuemerie pieper'], ['Action', 'action deutschland|woolworth|tedi|pepco|kik'], ['Douglas', 'douglas (?:parfuemerie[a-z]*|filiale|gmbh|de)|parfuemerie douglas|flaconi|notino|yves rocher|rituals|lush'],
   ['DHL', 'deutsche post(?: ag| dhl)?|dhl(?: paket| express| shop)?|dpd(?: deutschland)?|hermes(?: germany| paket)?|gls(?: germany)?|ups(?: deutschland)?|fedex|packstation|briefmarke[a-z ]*|internetmarke', { conf: 0.6 }],
   ['Tierarzt', 'tierarzt[a-z ]*|tierklinik[a-z ]*|tierbedarf[a-z ]*', { cpOnly: true, sub: 'sonstiges' }],
 ]);
@@ -251,7 +349,7 @@ G('versicherungen', null, { refine: 'insurance', recurringHint: 'monthly' }, [
 G('spenden', 'organisation', { recurringHint: 'monthly' }, [
   ['Ärzte ohne Grenzen', 'aerzte ohne grenzen[a-z ]*|medecins sans frontieres'], ['UNICEF', 'unicef[a-z ]*|deutsches komitee fuer unicef'], ['WWF', 'wwf[a-z ]*|world wide fund|world wildlife'],
   ['Greenpeace', 'greenpeace[a-z ]*'], ['NABU', 'nabu'], ['BUND', 'bund fuer umwelt[a-z ]*|bund naturschutz'], ['Deutsche Umwelthilfe', 'deutsche umwelthilfe'], ['Campact', 'campact'],
-  ['foodwatch', 'foodwatch'], ['Wikimedia', 'wikimedia[a-z ]*|wikipedia'], ['Mozilla Foundation', 'mozilla foundation|signal foundation|openstreetmap'], ['Amnesty International', 'amnesty[a-z ]*|human rights watch|reporter ohne grenzen'],
+  ['foodwatch', 'foodwatch'], ['Wikimedia', 'wikimedia[a-z ]*|wikipedia|lichess(?: org)?'], ['Mozilla Foundation', 'mozilla foundation|signal foundation|openstreetmap'], ['Amnesty International', 'amnesty[a-z ]*|human rights watch|reporter ohne grenzen'],
   ['Sea-Watch', 'sea ?watch|sos mediterranee|mission lifeline|seebruecke'], ['Ärzte der Welt', 'aerzte der welt|medico international|handicap international|sightsavers|christoffel blindenmission'],
   ['CARE', 'care deutschland'], ['Oxfam', 'oxfam'], ['Plan International', 'plan international'], ['Terre des Hommes', 'terre des hommes'], ['World Vision', 'world vision'],
   ['Save the Children', 'save the children'], ['SOS-Kinderdörfer', 'sos kinderdoerfer'], ['Kindernothilfe', 'kindernothilfe|deutsche kinderhilfe|deutsches kinderhilfswerk'], ['Caritas', 'caritas[a-z ]*'],
@@ -259,13 +357,20 @@ G('spenden', 'organisation', { recurringHint: 'monthly' }, [
   ['Arbeiter-Samariter-Bund', 'arbeiter samariter[a-z ]*'], ['Welthungerhilfe', 'welthungerhilfe'], ['Misereor', 'misereor|adveniat|missio'], ['Aktion Mensch', 'aktion mensch|aktion deutschland hilft'],
   ['Deutsche Krebshilfe', 'deutsche krebshilfe|krebsgesellschaft|deutsche herzstiftung|deutsche aids hilfe|dkms'], ['Lebenshilfe', 'lebenshilfe|bethel|von bodelschwingh'],
   ['betterplace', 'betterplace(?: org)?|startnext|gofundme'], ['Tierschutz', 'tierschutz[a-z ]*|tierheim[a-z ]*|vier pfoten|ein herz fuer tiere|tierhilfe[a-z ]*'], ['Tafel', 'tafel e v|die tafeln|tafel[a-z ]*', { cpOnly: true }],
+  ['Pro Asyl', 'pro asyl'], ['Deutsche Kinderkrebsstiftung', 'kinderkrebsstiftung'], ['Deutsche Stiftung Denkmalschutz', 'stiftung denkmalschutz', { recurringHint: 'yearly' }], ['Sternenbrücke', 'sternenbruecke'],
   ['Spendenkonto', 'spenden[a-z ]*|foerderverein[a-z ]*', { cpOnly: true, conf: 0.75 }],
+]);
+// Parteien (Beiträge/Spenden) – nur Zuordnung
+G('spenden', 'politik', { recurringHint: 'monthly', cpOnly: true, conf: 0.8 }, [
+  ['SPD', 'spd(?: [a-z]+verband[a-z ]*| parteivorstand)?|sozialdemokratische partei[a-z ]*'], ['CDU', 'cdu(?: [a-z]+verband[a-z ]*)?|christlich demokratische union[a-z ]*'],
+  ['Bündnis 90/Die Grünen', 'buendnis 90[a-z ]*|die gruenen[a-z ]*'], ['Die Linke', 'die linke[a-z ]*|partei die linke'], ['FDP', 'fdp(?: [a-z]+verband[a-z ]*)?|freie demokratische partei[a-z ]*'],
+  ['AfD', 'afd(?: [a-z]+verband[a-z ]*)?|alternative fuer deutschland'],
 ]);
 G('spenden', 'kirche', { conf: 0.8 }, [['Kirche', 'evangelische kirche[a-z ]*|katholische kirche[a-z ]*|ekd|kirchengemeinde[a-z ]*|kirchenkreis[a-z ]*|kirchgeld|kollekte|pfarramt|pfarrei[a-z ]*']]);
 
 // ---------------------------------------------------------------- Gesundheit
 G('gesundheit', 'apotheke', {}, [
-  ['Apotheke', 'apotheke[a-z ]*|apotheken[a-z ]*|pharmacie'], ['DocMorris', 'doc ?morris'], ['Shop Apotheke', 'shop apotheke|redcare|mycare|aponeo|medpex|sanicare'],
+  ['Apotheke', 'apotheke[a-z ]*|apotheken[a-z ]*|pharmacie'], ['DocMorris', 'doc ?morris'], ['Shop Apotheke', 'shop apotheke|redcare|mycare|aponeo|medpex|sanicare|linda apotheke|easy apotheke|apotal|vivesco|mediherz'],
   ['Sanitätshaus', 'sanitaetshaus[a-z ]*', { cpOnly: true }],
 ]);
 G('gesundheit', 'brille', {}, [
@@ -287,7 +392,7 @@ G('beruf', 'kinderbetreuung', { cpOnly: true, conf: 0.8 }, [
   ['Kita', 'kita[a-z ]*|kindergarten[a-z ]*|kindertagesstaette[a-z ]*|kindertagespflege|tagesmutter|hort[a-z ]*|krippe[a-z ]*|kinderladen|elterninitiative|betreuungsgebuehr[a-z ]*|schulgeld[a-z ]*|schulverein|schulessen|offener ganztag'],
 ]);
 G('beruf', 'fortbildung', { cpOnly: true, conf: 0.85 }, [
-  ['Udemy', 'udemy|coursera|edx|linkedin learning|linkedin premium|skillshare|masterclass|domestika|pluralsight|datacamp|codecademy|openclassrooms|udacity'], ['Duolingo', 'duolingo|babbel|busuu|preply|italki|lingoda'],
+  ['Udemy', 'udemy|coursera|edx|linkedin learning|linkedin premium|skillshare|masterclass|domestika|pluralsight|datacamp|codecademy|openclassrooms|udacity'], ['Duolingo', 'duolingo|babbel|busuu|preply|italki|lingoda|memrise', { recurringHint: 'monthly' }], ['Rosetta Stone', 'rosetta stone', { recurringHint: 'yearly' }],
   ['Akademie', 'akademie[a-z ]*|seminar[a-z ]*|fortbildung[a-z ]*|weiterbildung[a-z ]*|lehrgang[a-z ]*|schulung[a-z ]*|workshop[a-z ]*|fernstudium|fernuni[a-z ]*', { conf: 0.75 }],
   ['Hochschule', 'universitaet[a-z ]*|hochschule[a-z ]*|studierendenwerk|studentenwerk|semesterbeitrag|asta', { sub: 'schule', conf: 0.75 }],
 ]);
@@ -300,6 +405,7 @@ G('steuern_abgaben', 'einkommensteuer', { cpOnly: true, conf: 0.8 }, [
   ['Finanzamt', 'finanzamt[a-z ]*|finanzkasse[a-z ]*|bundeskasse|steueramt|oberfinanzdirektion|bundeszentralamt fuer steuern'],
   ['Steuerberater', 'steuerberater[a-z ]*|lohnsteuerhilfe[a-z ]*|wiso steuer|taxfix|smartsteuer|steuerkanzlei[a-z ]*', { sub: 'einkommensteuer' }],
 ]);
+G('sonstiges', 'behoerden', { conf: 0.8 }, [['ESTA', 'esta (?:gov|usa|application|travel authorization)'], ['eVisa', 'evisa|ivisa|visumservice']]);
 G('steuern_abgaben', 'kfz_steuer', { cpOnly: true, conf: 0.75 }, [
   ['Zoll (Kfz-Steuer)', 'hauptzollamt[a-z ]*|kfz ?steuer|zulassungsstelle[a-z ]*|strassenverkehrsamt|zulassungsdienst[a-z ]*'],
 ]);
@@ -308,6 +414,7 @@ G('steuern_abgaben', 'kfz_steuer', { cpOnly: true, conf: 0.75 }, [
 G('sonstiges', 'unbekannt', { intermediary: true }, [
   ['PayPal', 'paypal[a-z ]*|pp \\d+ pp'], ['Klarna', 'klarna[a-z ]*|sofort(?:ueberweisung)?(?: gmbh)?|ratepay|billpay|afterpay|riverty'], ['SumUp', 'sum ?up(?: payments)?'],
   ['Stripe', 'stripe[a-z ]*'], ['Adyen', 'adyen[a-z ]*'], ['Zettle', 'zettle|izettle|square inc|payone|computop|mollie|unzer|heidelpay|worldline|concardis|nexi'],
+  ['Square', 'sq(?= [a-z])|squareup', { cpOnly: true }],
 ]);
 
 // ---------------------------------------------------------------- Banken, Broker, Vorsorge
@@ -395,5 +502,18 @@ export const MERCHANTS = LIST;
 export function findMerchant(cpText, purposeText = '') {
   if (cpText) for (const i of candidates(cpText)) if (LIST[i].re.test(cpText)) return LIST[i];
   if (purposeText) for (const i of candidates(purposeText)) if (!LIST[i].cpOnly && LIST[i].re.test(purposeText)) return LIST[i];
+  return null;
+}
+
+/**
+ * Erster bekannter Abo-/Vertragsanbieter (Eintrag mit recurringHint, kein Zahlungsdienstleister, keine Plattform).
+ * Findet Audible & Co. auch hinter Amazon, PayPal oder einer Debitkarten-Buchung.
+ * @param {string} cpText gefaltete Gegenpartei (Name/Raw)
+ * @param {string} purposeText gefalteter Verwendungszweck/Buchungstext
+ */
+export function findSubscription(cpText, purposeText = '') {
+  const ok = (m) => m.recurringHint && !m.intermediary && !m.platform;
+  if (cpText) for (const i of candidates(cpText)) if (ok(LIST[i]) && LIST[i].re.test(cpText)) return LIST[i];
+  if (purposeText) for (const i of candidates(purposeText)) if (ok(LIST[i]) && !LIST[i].cpOnly && LIST[i].re.test(purposeText)) return LIST[i];
   return null;
 }

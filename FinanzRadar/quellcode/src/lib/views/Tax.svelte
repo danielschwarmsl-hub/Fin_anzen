@@ -1,7 +1,7 @@
 <script>
   import { app, live, setView, updateDocument, updateTransaction, getBlob, toast } from '../store/state.svelte.js';
   import { buildTaxZip } from '../export/zip.js';
-  import { typeLabel } from '../parsers/naming.js';
+  import { typeLabel, TYPE_LABELS } from '../parsers/naming.js';
   import { fmtDate } from '../util/format.js';
   import Stat from '../ui/Stat.svelte';
   import Seg from '../ui/Seg.svelte';
@@ -71,7 +71,7 @@
   const markedTxs = $derived(
     flaggedTxs.filter((t) => inYear(t.bookingDate)).sort((a, b) => (b.bookingDate || '').localeCompare(a.bookingDate || ''))
   );
-  const txWithoutReceipt = $derived(markedTxs.filter((t) => !t.receiptDocId).length);
+  const txWithoutReceipt = $derived(markedTxs.filter((t) => !t.receiptDocId && !t.receiptDocIds?.length).length);
   const groups = $derived(
     REASONS.map(([id, label]) => ({ id, label, docs: markedDocs.filter((d) => reasonOf(d) === id) })).filter((g) => g.docs.length)
   );
@@ -195,7 +195,10 @@
                       <button class="btn btn-sm btn-icon" title="Bestätigen" aria-label="Bestätigen" onclick={() => confirmDoc(d)}><Icon name="check" size={14} /></button>
                     {/if}
                     <button class="btn btn-sm btn-icon btn-ghost" title="Entfernen" aria-label="Entfernen" onclick={() => removeDoc(d)}><Icon name="x" size={14} /></button>
-                    <select class="input sel" value={reasonOf(d)} onchange={(e) => setReason(d, e)} aria-label="Grund ändern">
+                    <select class="input sel" value={d.type} onchange={(e) => updateDocument(d.id, { type: e.currentTarget.value })} aria-label="Dokumenttyp ändern" title="Dokumenttyp – Änderung liest die Datei neu ein">
+                      {#each Object.entries(TYPE_LABELS) as [v, t] (v)}<option value={v}>{t.name}</option>{/each}
+                    </select>
+                    <select class="input sel" value={reasonOf(d)} onchange={(e) => setReason(d, e)} aria-label="Steuergrund ändern" title="Steuergrund">
                       {#each REASONS as [v, l] (v)}<option value={v}>{l}</option>{/each}
                     </select>
                   </div>
@@ -225,8 +228,8 @@
                   <td><span class="ellipsis tx-name">{t.counterparty || t.counterpartyRaw || t.purpose || '–'}</span></td>
                   <td class="r"><Money value={t.amount} /></td>
                   <td>
-                    {#if t.receiptDocId}
-                      <span class="badge good">Beleg</span>
+                    {#if t.receiptDocId || t.receiptDocIds?.length}
+                      <span class="badge good">{(t.receiptDocIds?.length || 1) > 1 ? `${t.receiptDocIds.length} Belege` : 'Beleg'}</span>
                     {:else}
                       <Tip text="Kein Beleg verknüpft. Der Kontoauszug dient als Nachweis.">
                         <span class="hint"><Icon name="alert" size={15} /></span>

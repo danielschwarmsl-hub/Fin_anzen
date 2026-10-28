@@ -12,14 +12,14 @@ const LEGAL = [
 
 // Rauschen aus Kartenzahlungen u. Ä.
 const NOISE = [
-  /\bVISA\s+Debitkarte\b/gi, /\bMastercard(?:\s+Debitkarte)?\b/gi, /\bgirocard\b/gi, /\bDebitkarte\b/gi, /\bKreditkarte\b/gi, /\bKAUFUMSATZ\b/gi,
+  /\b(?:VISA\s+|Mastercard\s+)?(?:Debit|Kredit)kartenumsatz(?:\s+vom)?\b/gi, /\bVISA\s+Debitkarte\b/gi, /\bMastercard(?:\s+Debitkarte)?\b/gi, /\bgirocard\b/gi, /\bDebitkarte\b/gi, /\bKreditkarte\b/gi, /\bKAUFUMSATZ\b/gi,
   /\bKartenzahlung\b/gi, /\bKARTENZAHLUNG\b/g, /\bSAGT\s+DANKE\b/gi, /\bvielen\s+dank\b/gi, /\bNR\s*X{2,}\d*\b/gi, /\bX{4,}\d*\b/gi, /\*{2,}\d*/g,
   /\b(?:Terminal|TA|Trace|Beleg|Belegnr|Bon)\s*[-.:]?\s*(?:Nr\.?)?\s*\d+\b/gi, /\bEC[- ]?Karte\b/gi, /\bLastschrift\b/gi, /\bOnline[- ]?Shopping\b/gi,
   /(?<=\S\s)VISA\s*$/g, /\bKd\.?-?\s*Nr\.?\s*\S*/gi, /\bKundennummer\s*\S*/gi, /\bMandat(?:s(?:referenz)?)?\s*\S*/gi, /\bREF[:.]?\s*\S+/g,
 ];
 // Kartenzahlung bei comdirect/Sparkasse & Co.: "… KARTE 4999 2026-10-14 KURS 1,0000 …" – ab "KARTE <Nr>" folgt nur Rauschen
 const CARD_TAIL = /\s+KARTE\s+(?:NR\.?\s*)?[\dX*]{3,}\b.*$/i;
-const ISO_STAMP = /\b\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?)?\b|(?<!\d)\d{1,2}:\d{2}(?::\d{2})?(?!\d)|\bKURS\s+[\d.,]+|\bDebitk\.?\s*\d*/gi;
+const ISO_STAMP = /\b\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?)?\b|(?<!\d)\d{1,2}:\d{2}(?::\d{2})?(?!\d)|\bKURS\s+[\d.,]+|\bDebitk\.?(?![a-zäöü])\s*\d*/gi;
 const DATE = /(?<!\d)\d{1,2}\.\d{1,2}\.(?:\d{2,4})?(?!\d)/g;
 const LONGNUM = /\b\d{6,}\b/g;
 

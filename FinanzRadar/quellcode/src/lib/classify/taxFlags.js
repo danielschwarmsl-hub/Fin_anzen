@@ -1,6 +1,7 @@
 // Schlanke Steuer-Markierung: nur Flag + Grund, keine Steuerberechnung.
 // taxReason ∈ lohn | beruf | versicherung_vorsorge | kapitalertraege | haushalt_handwerker | spenden | gesundheit | kinder_bildung | sonstiges
 import { fold } from './merchants.de.js';
+import { isFirmTransfer } from '../analyze/transfers.js';
 
 export const TAX_REASONS = [
   { id: 'lohn', label: 'Lohn' },
@@ -16,7 +17,8 @@ export const TAX_REASONS = [
 
 const NO = { taxRelevant: false, taxReason: null };
 const yes = (taxReason) => ({ taxRelevant: true, taxReason });
-const isLocked = (x) => x?.taxSource === 'user' || x?.taxSource === 'rule';
+// 'ai': KI-Markierung bleibt, bis der Nutzer entscheidet (dann taxSource 'user')
+const isLocked = (x) => x?.taxSource === 'user' || x?.taxSource === 'rule' || x?.taxSource === 'ai';
 const keep = (x) => ({ taxRelevant: !!x.taxRelevant, taxReason: x.taxReason ?? null });
 
 // Stichworte (auf gefaltetem Text)
@@ -73,7 +75,9 @@ const BY_SUB = {
 export function flagTaxTransaction(tx) {
   if (!tx) return NO;
   if (isLocked(tx)) return keep(tx);
-  if (tx.isTransfer || tx.category === 'umbuchung') return NO;
+  // Unbestätigte Paare ohne Hinweis (medium) behalten ihren Steuerbezug, bis der Nutzer entscheidet
+  const unsurePair = tx.isTransfer && !isFirmTransfer(tx);
+  if (isFirmTransfer(tx) || (tx.category === 'umbuchung' && !unsurePair)) return NO;
   if (tx.category === 'spenden') return yes('spenden');
   const sub = BY_SUB[`${tx.category}.${tx.subcategory}`];
   if (sub) return yes(sub);

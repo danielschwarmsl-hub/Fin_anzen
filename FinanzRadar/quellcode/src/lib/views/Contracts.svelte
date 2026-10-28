@@ -46,6 +46,7 @@
     { value: 'wohnen', label: 'Wohnen' },
     { value: 'vorsorge', label: 'Vorsorge' },
     { value: 'einnahmen', label: 'Einnahmen' },
+    { value: 'ohne', label: 'Ohne Zahlung' },
     { value: 'beendet', label: 'Beendet' },
   ];
   const TAB_KINDS = { abo: ['abo'], versicherung: ['versicherung'], wohnen: ['miete'], vorsorge: ['vorsorge'], einnahmen: ['einkommen'] };
@@ -94,12 +95,18 @@
   const fixedMonthly = $derived(activeFixed.reduce((s, c) => s + monthlyOf(c), 0));
   const fixedYearly = $derived(activeFixed.reduce((s, c) => s + yearlyOf(c), 0));
 
+  // Vertrag aus einem Dokument, zu dem (noch) keine Zahlung gefunden wurde – nicht „beendet“
+  const noPay = (c) => !!c.noPayments;
   function inTab(c, t) {
+    if (t === 'ohne') return noPay(c);
+    if (noPay(c)) return t === 'alle';
     if (t === 'beendet') return c.active === false;
     if (c.active === false) return false;
     if (t === 'alle') return true;
     return (TAB_KINDS[t] || []).includes(c.kind);
   }
+  const tabs = $derived(all.some(noPay) ? TABS : TABS.filter((x) => x.value !== 'ohne'));
+  const noticeOf = (c) => c.cancellationPeriod || c.noticePeriod || c.kuendigungsfrist || null;
   const rows = $derived(all.filter((c) => inTab(c, tab)).sort((a, b) => yearlyOf(b) - yearlyOf(a)));
   const visibleRows = $derived(rows.filter((c) => !c.hidden));
   const hiddenRows = $derived(rows.filter((c) => c.hidden));
@@ -154,7 +161,7 @@
     untrack(() => {
       const c = all.find((x) => x.id === id);
       if (!c) return;
-      tab = c.active === false ? 'beendet' : 'alle';
+      tab = noPay(c) ? 'ohne' : c.active === false ? 'beendet' : 'alle';
       hiddenOpen = !!c.hidden;
       openId = id;
       tick().then(() => document.getElementById('ct-' + id)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
@@ -168,18 +175,20 @@
   {@const open = openId === c.id}
   {@const due = c.active === false ? null : c.nextDate || null}
   {@const days = due ? daysBetween(today, due) : null}
-  <article class="ct" class:open class:off={c.active === false} id={'ct-' + c.id}>
+  {@const notice = noticeOf(c)}
+  <article class="ct" class:open class:off={c.active === false && !noPay(c)} id={'ct-' + c.id}>
     <button class="head" aria-expanded={open} onclick={() => toggle(c.id)}>
       <span class="cdot" style="background:{cat?.color || 'var(--text-3)'}"></span>
       <span class="grow min0">
         <span class="row wrap gap-s">
           <strong class="ellipsis pname">{c.provider || 'Vertrag'}</strong>
           <span class="badge">{INTERVALS[intervalKey(c)].label}</span>
+          {#if noPay(c)}<span class="badge warn" title="Vertrag aus Dokument, keine passende Zahlung gefunden">ohne Zahlung</span>{/if}
           {#if pc}
             <span class="badge {pc.delta > 0 ? 'warn' : 'good'}">{pc.delta > 0 ? '+' : '−'}{fmtEUR(Math.abs(pc.delta))}{pc.date ? ' seit ' + monthYear(pc.date) : ''}</span>
           {/if}
         </span>
-        <span class="small muted ellipsis block">{cat?.label || 'Ohne Kategorie'} · {accountName(c.accountId)} · {c.count ?? c.txIds?.length ?? 0}× gebucht</span>
+        <span class="small muted ellipsis block">{noPay(c) ? (c.product || 'Aus Dokument') : `${cat?.label || 'Ohne Kategorie'} · ${accountName(c.accountId)} · ${c.count ?? c.txIds?.length ?? 0}× gebucht`}{#if notice} · Kündigungsfrist {notice}{/if}</span>
         {#if days != null}
           {#if days < -3}<span class="small faint block">Zuletzt erwartet {fmtDate(due)} <Tip text="Noch keine passende Buchung importiert – neuere Kontoauszüge hinzufügen oder Vertrag als beendet markieren." /></span>{:else}<span class="small faint block">Nächste Fälligkeit {fmtDate(due)} · {dueText(days)}</span>{/if}
         {/if}
@@ -210,7 +219,17 @@
           <div class="small faint">Keine Zahlungen verknüpft</div>
         {/if}
 
+        {#if c.contractNumber || notice || c.startDate || c.term || c.docId}
+          <dl class="kv small">
+            {#if c.contractNumber}<dt>Vertragsnummer</dt><dd class="mono">{c.contractNumber}</dd>{/if}
+            {#if notice}<dt>Kündigungsfrist</dt><dd>{notice}{#if c.docId} <Tip text="Aus dem Vertragsdokument übernommen" />{/if}</dd>{/if}
+            {#if c.startDate}<dt>Beginn</dt><dd>{fmtDate(c.startDate)}</dd>{/if}
+            {#if c.term}<dt>Laufzeit</dt><dd>{c.term}</dd>{/if}
+            {#if c.docId && c.docMatch}<dt>Zuordnung</dt><dd>{c.docMatch === 'nummer' ? 'über Vertragsnummer' : 'über Anbieter'}</dd>{/if}
+          </dl>
+        {/if}
         <div class="acts">
+          {#if c.docId}<button class="btn btn-sm" onclick={() => setView('documents', { open: c.docId })}><Icon name="file" size={14} />Vertrag öffnen</button>{/if}
           {#if kindEdit === c.id}
             <label class="field kind-field">
               <span>Art</span>
@@ -246,7 +265,7 @@
     </div>
   {:else}
     <div class="tabs">
-      <Seg bind:value={tab} options={TABS} size="sm" />
+      <Seg bind:value={tab} options={tabs} size="sm" />
     </div>
 
     <div class="card list">
@@ -298,6 +317,9 @@
   .pays { display: flex; flex-wrap: wrap; gap: 6px; }
   .pay { display: inline-flex; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 7px; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); font-size: 12px; }
   .pay b { color: var(--text); font-weight: 600; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+  .kv dt { color: var(--text-3); }
+  .kv dd { margin: 0; }
   .acts { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
   .kind-field { min-width: 200px; }
   @media (max-width: 520px) {

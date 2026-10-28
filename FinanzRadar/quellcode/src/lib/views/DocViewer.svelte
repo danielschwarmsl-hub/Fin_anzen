@@ -10,6 +10,8 @@
   import Toggle from '../ui/Toggle.svelte';
   import Money from '../ui/Money.svelte';
   import Collapsible from '../ui/Collapsible.svelte';
+  import DocFix from '../ui/DocFix.svelte';
+  import { isUnreadable, docReason } from './reviewModel.js';
 
   let { id, onclose = null } = $props();
 
@@ -109,15 +111,18 @@
   const linked = $derived.by(() => {
     if (!doc) return [];
     return app.data.transactions
-      .filter((t) => t.receiptDocId === doc.id || t.documentId === doc.id)
+      .filter((t) => t.receiptDocId === doc.id || t.documentId === doc.id || (Array.isArray(t.receiptDocIds) && t.receiptDocIds.includes(doc.id)))
       .sort((a, b) => (b.bookingDate || '').localeCompare(a.bookingDate || ''));
   });
   const payrollRows = $derived(
     doc?.payroll ? Object.entries(PAYROLL_LABELS).filter(([k]) => doc.payroll[k] != null).map(([k, label]) => ({ label, value: doc.payroll[k] })) : []
   );
   const fieldRows = $derived(
-    doc?.fields ? Object.entries(doc.fields).filter(([, v]) => v != null && v !== '').map(([k, v]) => [labelize(k), fmtVal(v)]) : []
+    doc?.fields ? Object.entries(doc.fields).filter(([k, v]) => v != null && v !== '' && k !== 'diagnostics').map(([k, v]) => [labelize(k), fmtVal(v)]) : []
   );
+
+  // Diagnose beim Einlesen von Kontoumsätzen: nur zeigen, wenn etwas hakt
+  const diag = $derived(doc?.fields?.diagnostics?.problems?.length ? doc.fields.diagnostics : null);
 
   // ---- Vorschau ----
   let pdf = $state(null);
@@ -302,6 +307,34 @@
 
       <section class="meta">
         <div class="mbody">
+          {#if (doc.needsReview && !doc.reviewed) || doc.typeSource === 'ai'}
+            <div class="notice">
+              {#if doc.needsReview && !doc.reviewed}<div class="small"><Icon name="alert" size={13} /> {docReason(doc)}</div>{/if}
+              {#if doc.typeSource === 'ai'}<div class="small muted"><Icon name="sparkles" size={13} /> Typ von der KI{doc.aiReason ? ': ' + doc.aiReason : ''}</div>{/if}
+              {#if isUnreadable(doc) || doc.alternatives?.length}<DocFix doc={doc} />{/if}
+            </div>
+          {/if}
+          {#if diag}
+            <div class="diag">
+              <div class="small diag-h"><Icon name="alert" size={13} /> Beim Einlesen hakt es</div>
+              <ul class="small">
+                {#each diag.problems as p (p)}<li>{p}</li>{/each}
+              </ul>
+              {#if diag.unparsed?.length}
+                <div class="small muted">Nicht gelesene Zeilen:</div>
+                <ul class="small mono">
+                  {#each diag.unparsed as u, i (i)}<li>{u.page ? `S. ${u.page}: ` : ''}{u.text}</li>{/each}
+                </ul>
+              {/if}
+              {#if !diag.bookings && diag.strayAmounts?.length}
+                <div class="small muted">Beträge ohne Datum in derselben Zeile:</div>
+                <ul class="small mono">
+                  {#each diag.strayAmounts as u, i (i)}<li>{u.page ? `S. ${u.page}: ` : ''}{u.text}</li>{/each}
+                </ul>
+              {/if}
+              <div class="small faint">{diag.pages} Seiten · {diag.dateLines} Zeilen mit Datum · {diag.bookings} Buchungen gelesen{diag.expectedCount != null ? ` von ${diag.expectedCount}` : ''} · Zahlenformat {diag.numberFormat === 'dot' ? '-75.00' : '-75,00'}</div>
+            </div>
+          {/if}
           <div class="fields">
             <label class="field wide"><span>Titel</span><input class="input" bind:value={form.title} /></label>
             <label class="field"><span>Typ</span>
@@ -317,7 +350,7 @@
 
           <div class="taxrow">
             <Toggle checked={!!doc.taxRelevant} label="Steuerrelevant" onchange={setTax} />
-            <Tip text="Landet im Steuer-Export, geordnet nach Grund." />
+            <Tip text={doc.aiTaxReason ? `KI: ${doc.aiTaxReason}` : 'Landet im Steuer-Export, geordnet nach Grund.'} />
             {#if doc.taxRelevant}
               <select class="input taxsel" value={doc.taxReason || 'sonstiges'} onchange={(e) => setTaxReason(e.currentTarget.value)} aria-label="Steuergrund">
                 {#each TAX_REASONS as [v, l] (v)}<option value={v}>{l}</option>{/each}
@@ -418,6 +451,8 @@
 {/if}
 
 <style>
+  .notice { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--warn-soft); }
+  .notice :global(svg) { vertical-align: -2px; }
   .back { position: fixed; inset: 0; background: rgba(8, 10, 18, .42); backdrop-filter: blur(2px); z-index: 90; animation: fade .2s ease both; }
   .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(1080px, 100vw); display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow-lg); z-index: 91; animation: slide .26s cubic-bezier(.2, .7, .2, 1) both; }
   @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
@@ -486,4 +521,8 @@
     .kv dt { margin-top: 4px; }
     .taxsel { margin-left: 0; }
   }
+  .diag { border: 1px solid var(--warn); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 12px; display: grid; gap: 6px; }
+  .diag-h { color: var(--warn); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .diag ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+  .diag .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 </style>

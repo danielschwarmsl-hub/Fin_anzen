@@ -1,7 +1,12 @@
 <script>
   // Seitenpanel mit allen Details einer Buchung
   import { untrack } from 'svelte';
-  import { app, updateTransaction, setView, getThumb, sourceOf, accountName, toast } from '../store/state.svelte.js';
+  import { app, updateTransaction, applyTxPatches, autoLearn, reload, setView, getThumb, sourceOf, accountName, toast } from '../store/state.svelte.js';
+  import { postProcess } from '../store/postprocess.js';
+  import {
+    CATEGORY_CONFIRM, TRANSFER_REJECT, CONFIDENCE_TEXT, categoryWhy, confirmPatches, rejectPatches, openChecks, isPendingTx, paymentChain,
+    findTransferCounterpart, linkTransferPatches, splitsFromSuggestion, isReceiptSuggestion, KIND_LABEL,
+  } from './reviewModel.js';
   import { CATEGORIES } from '../classify/categories.js';
   import { TYPE_LABELS } from '../parsers/naming.js';
   import CategoryPicker from '../ui/CategoryPicker.svelte';
@@ -61,22 +66,82 @@
     if (!v || v === tx.counterparty) { e.target.value = tx.counterparty || ''; return; }
     patch({ counterparty: v, counterpartyUser: true });
   }
-  function setCat(p) {
+  async function setCat(p) {
     if (!p?.category) return;
-    if (oncategory) oncategory(tx, p);
-    else patch({ category: p.category, subcategory: p.subcategory || null, categorySource: 'user', confidence: 1, needsReview: false });
+    if (oncategory) { oncategory(tx, p); return; }
+    const snap = $state.snapshot(tx);
+    await patch({ category: p.category, subcategory: p.subcategory || null, categorySource: 'user', confidence: 1, needsReview: false, reviewed: true });
+    await autoLearn(snap, p.category, p.subcategory || null);
   }
   function setTax(v) {
     patch({ taxRelevant: !!v, taxReason: v ? (tx.taxReason || 'sonstiges') : tx.taxReason, taxSource: 'user' });
   }
   function setReason(e) { patch({ taxReason: e.target.value, taxRelevant: true, taxSource: 'user' }); }
-  function setTransfer(v) {
-    if (v) patch({ isTransfer: true, category: 'umbuchung', subcategory: null, categorySource: 'user', confidence: 1, needsReview: false });
-    else patch({ isTransfer: false, transferPairId: null, category: tx.category === 'umbuchung' ? 'sonstiges' : tx.category, categorySource: 'user' });
+  // Einseitige Umbuchung: passende Gegenbuchung (gleicher Betrag, anderes Konto, ±5 Tage) anbieten
+  let offer = $state(null);
+  $effect(() => { void txId; offer = null; });
+  async function setTransfer(v) {
+    if (v) {
+      await patch({ isTransfer: true, transferSource: 'user', category: 'umbuchung', subcategory: null, categorySource: 'user', confidence: 1, needsReview: false });
+      const pair = tx.transferPairId ? null : findTransferCounterpart($state.snapshot(tx), app.data.transactions);
+      offer = pair || null;
+    } else {
+      // Beide Seiten lösen; Kategorie wird danach automatisch neu bestimmt
+      offer = null;
+      const reset = { ...TRANSFER_REJECT, categorySource: tx.categorySource === 'user' && tx.category !== 'umbuchung' ? 'user' : null, needsReview: false };
+      const list = [{ id: tx.id, patch: reset }];
+      if (tx.transferPairId) list.push({ id: tx.transferPairId, patch: { ...TRANSFER_REJECT } });
+      await applyTxPatches(list);
+      await postProcess();
+      await reload();
+    }
+  }
+  async function linkOffer() {
+    if (!offer || !tx) return;
+    await applyTxPatches(linkTransferPatches($state.snapshot(tx), $state.snapshot(offer)));
+    toast('Beide Seiten als Umbuchung verknüpft', { tone: 'good' });
+    offer = null;
   }
   function setNote(e) { patch({ note: e.target.value.trim() || null }); }
-  function unlinkReceipt() { patch({ receiptDocId: null }); }
-  function reviewed() { patch({ needsReview: false, reviewed: true }); }
+  const txById = $derived.by(() => { void app.dataVersion; return untrack(() => new Map(app.data.transactions.map(t => [t.id, t]))); });
+  /** Prüfung bestätigen/ablehnen (Paare: beide Seiten) */
+  async function act(kind, ok, refId) {
+    const snap = $state.snapshot(tx);
+    const aspect = { kind, refId: refId !== undefined ? refId : (snap.checks || []).find(c => c?.kind === kind)?.refId || null };
+    const list = ok ? confirmPatches(snap, aspect, { txById }) : rejectPatches(snap, aspect, { txById });
+    await applyTxPatches(list);
+    if (!ok && kind !== 'receipt') { await postProcess(); await reload(); }
+  }
+  // Lösen/Bestätigen gilt immer der bestehenden Verknüpfung (nicht einem offenen Vorschlag)
+  const unlinkReceipt = () => act('receipt', false, tx.receiptDocId || null);
+  const confirmReceipt = () => act('receipt', true, tx.receiptDocId || null);
+  const extraDocs = $derived((tx?.receiptDocIds || []).filter(id => id && id !== tx.receiptDocId).map(id => app.data.documents.find(d => d.id === id)).filter(Boolean));
+  function reviewed() { patch({ ...CATEGORY_CONFIRM }); }
+
+  // ---- Warum? ----
+  const ruleList = $derived(app.data.rules || []);
+  const pair = $derived(tx?.transferPairId ? txById.get(tx.transferPairId) || null : null);
+  const checks = $derived(tx ? openChecks(tx) : []);
+  const chain = $derived.by(() => {
+    if (!tx) return [];
+    void app.dataVersion;
+    return untrack(() => paymentChain(tx, { txById, accountById: new Map(app.data.accounts.map(a => [a.id, a])), docById: new Map(app.data.documents.map(d => [d.id, d])) }));
+  });
+  const suggestion = $derived(tx && !tx.splits?.length ? splitsFromSuggestion(tx) : []);
+  const suggestionOk = $derived(suggestion.length >= 2 && suggestion.reduce((a, s) => a + s.amount, 0) === tx?.amount);
+  const pct = (s) => (s == null ? null : Math.round(s <= 1 ? s * 100 : s));
+  const CHAIN = { doc: { icon: 'receipt', label: 'Beleg' }, paypal: { icon: 'wallet', label: 'PayPal' }, bank: { icon: 'bank', label: 'Bank' } };
+  function openChain(c) {
+    if (c.kind === 'doc') setView('documents', { open: c.id });
+    else if (c.id !== tx.id) setView('transactions', { focus: c.id });
+  }
+  async function takeSuggestion() {
+    if (!suggestionOk) return;
+    const aspect = { kind: 'split' };
+    await applyTxPatches(confirmPatches($state.snapshot(tx), aspect, { txById }));
+    parts = (tx.splits || []).map(s => ({ amt: cents2str(Math.abs(s.amount)), category: s.category, subcategory: s.subcategory || null }));
+    toast('Aufteilung übernommen', { tone: 'good' });
+  }
 
   // Aufteilen
   let parts = $state(null);
@@ -122,6 +187,7 @@
     ['End-to-End-ID', tx.endToEndId],
     ['GVC', tx.gvc],
     ['Gebühr', tx.fee ? fmtEUR(tx.fee) : null],
+    ['Originalbetrag', tx.originalAmount != null && tx.originalCurrency && tx.originalCurrency !== 'EUR' ? `${(tx.originalAmount / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${tx.originalCurrency}` : null],
     ['Originalname', tx.counterpartyRaw && tx.counterpartyRaw !== tx.counterparty ? tx.counterpartyRaw : null],
   ].filter(([, v]) => v) : []);
   const confColor = (c) => (c >= 0.75 ? 'var(--good)' : c >= 0.45 ? 'var(--warn)' : 'var(--bad)');
@@ -135,7 +201,7 @@
       <div class="grow row wrap" style="gap:8px">
         <span class="small muted num">{fmtDate(tx.bookingDate)}</span>
         <span class="badge ellipsis" style="max-width:160px">{accountName(tx.accountId)}</span>
-        {#if tx.needsReview && !tx.reviewed}<span class="badge warn">Prüfen</span>{/if}
+        {#if isPendingTx(tx)}<span class="badge warn">Prüfen</span>{/if}
       </div>
       <button class="btn btn-ghost btn-icon btn-sm" onclick={onprev} disabled={!onprev} aria-label="Vorherige Buchung"><Icon name="arrowUp" size={16} /></button>
       <button class="btn btn-ghost btn-icon btn-sm" onclick={onnext} disabled={!onnext} aria-label="Nächste Buchung"><Icon name="arrowDown" size={16} /></button>
@@ -173,6 +239,20 @@
           {/if}
         </div>
         <div class="frow"><Toggle checked={!!tx.isTransfer} label="Umbuchung" onchange={setTransfer} /><Tip text="Umbuchungen zwischen eigenen Konten zählen nicht als Einnahme oder Ausgabe." /></div>
+        {#if offer}
+          <div class="offer">
+            <span class="small muted">Gegenbuchung gefunden</span>
+            <button class="lrow mini" onclick={() => setView('transactions', { focus: offer.id })}>
+              <span class="grow ellipsis">{accountName(offer.accountId)} · {offer.counterparty || '–'}</span>
+              <span class="small muted num">{fmtDate(offer.bookingDate)}</span>
+              <Money value={offer.amount} sign color />
+            </button>
+            <div class="row" style="gap:8px">
+              <button class="btn btn-sm btn-primary" onclick={linkOffer}><Icon name="link" size={14} />Beide verknüpfen</button>
+              <button class="btn btn-sm btn-ghost" onclick={() => (offer = null)}>Nein</button>
+            </div>
+          </div>
+        {/if}
       </section>
 
       <section class="sec">
@@ -185,10 +265,82 @@
               <div class="small muted ellipsis">{typeLabel(doc.type)} · {fmtDate(doc.date)}{doc.amount != null ? ' · ' + fmtEUR(doc.amount) : ''}</div>
             </div>
             <button class="btn btn-sm" onclick={() => setView('documents', { open: doc.id })}>Öffnen</button>
+            {#if tx.receiptSource !== 'user'}<button class="btn btn-ghost btn-icon btn-sm" onclick={confirmReceipt} aria-label="Beleg bestätigen" title="Beleg bestätigen"><Icon name="check" size={14} /></button>{/if}
             <button class="btn btn-ghost btn-icon btn-sm" onclick={unlinkReceipt} aria-label="Verknüpfung lösen" title="Verknüpfung lösen"><Icon name="x" size={14} /></button>
           </div>
+          {#each extraDocs as d (d.id)}
+            <button class="lrow mini" onclick={() => setView('documents', { open: d.id })}>
+              <Icon name="receipt" size={14} /><span class="grow ellipsis">{d.title || d.issuer || 'Beleg'}</span>
+              <span class="small muted num">{fmtDate(d.date)}</span>{#if d.amount != null}<Money value={d.amount} />{/if}
+            </button>
+          {/each}
         {:else}<span class="faint">–</span>{/if}
       </section>
+
+      <Collapsible title="Warum?" open={checks.length > 0} badge={checks.length || null}>
+        <div class="why">
+          <div class="wrow"><span class="wk">Kategorie</span><span>{categoryWhy(tx, ruleList)}{#if tx.categorySource !== 'ai' && tx.aiReason} KI: {tx.aiReason}{/if}</span></div>
+          {#if tx.aiSuggestion?.category && catOf(tx.aiSuggestion.category) && tx.aiSuggestion.category !== tx.category}
+            <div class="wrow"><span class="wk">KI-Vorschlag</span>
+              <span class="grow">{catOf(tx.aiSuggestion.category)?.label}{#if tx.aiSuggestion.reason} – {tx.aiSuggestion.reason}{/if}</span>
+              <button class="btn btn-sm" onclick={() => setCat({ category: tx.aiSuggestion.category, subcategory: tx.aiSuggestion.subcategory || null })}>Übernehmen</button>
+            </div>
+          {/if}
+          {#if tx.aiTaxReason}<div class="wrow"><span class="wk">Steuer (KI)</span><span>{tx.aiTaxReason}</span></div>{/if}
+          {#if tx.aiHint?.reason}<div class="wrow"><span class="wk">KI-Hinweis</span><span>{tx.aiHint.reason}</span></div>{/if}
+          {#each checks as c (c.kind + (c.refId || ''))}
+            <div class="wrow"><span class="wk warnc">{KIND_LABEL[c.kind] || c.kind}</span><span>{c.reason || 'Bitte prüfen.'}</span></div>
+            {#if c.kind === 'receipt' && isReceiptSuggestion(tx, c)}
+              <div class="row" style="gap:8px">
+                <button class="btn btn-sm" onclick={() => act('receipt', true, c.refId)}><Icon name="link" size={14} />Verknüpfen</button>
+                <button class="btn btn-sm btn-ghost" onclick={() => act('receipt', false, c.refId)}><Icon name="x" size={14} />Ablehnen</button>
+              </div>
+            {/if}
+          {/each}
+          {#if tx.isTransfer || pair}
+            <div class="wrow">
+              <span class="wk">Umbuchung</span>
+              <span class="grow">
+                {#if pair || tx.transferAccountId}Gegenkonto {accountName(pair?.accountId || tx.transferAccountId)}{:else}Ohne Gegenbuchung{/if}{#if CONFIDENCE_TEXT[tx.transferConfidence]} · Sicherheit {CONFIDENCE_TEXT[tx.transferConfidence]}{/if}{#if tx.transferSource === 'user'} · von dir bestätigt{/if}
+              </span>
+            </div>
+            {#if pair}
+              <button class="lrow mini" onclick={() => setView('transactions', { focus: pair.id })}>
+                <span class="grow ellipsis">{accountName(pair.accountId)} · {pair.counterparty || '–'}</span>
+                <span class="small muted num">{fmtDate(pair.bookingDate)}</span>
+                <Money value={pair.amount} sign color />
+              </button>
+            {/if}
+            {#if tx.transferSource !== 'user' && (pair || tx.isTransfer)}
+              <div class="row" style="gap:8px">
+                <button class="btn btn-sm" onclick={() => act('transfer', true)}><Icon name="check" size={14} />Bestätigen</button>
+                <button class="btn btn-sm btn-ghost" onclick={() => act('transfer', false)}><Icon name="x" size={14} />Keine Umbuchung</button>
+              </div>
+            {/if}
+          {/if}
+          {#if doc}
+            <div class="wrow"><span class="wk">Beleg</span><span>{tx.receiptSource === 'user' ? 'Von dir bestätigt' : 'Automatisch zugeordnet'}{#if pct(tx.receiptScore) != null} · {pct(tx.receiptScore)} % Treffer{/if}{#if tx.receiptDocIds?.length > 1} · {tx.receiptDocIds.length} Belege{/if}</span></div>
+          {/if}
+          {#if chain.length}
+            <div class="wrow"><span class="wk">Zahlungskette</span>
+              <span class="chain">
+                {#each chain as c, i (c.kind + c.id)}
+                  {#if i}<Icon name="arrowRight" size={12} />{/if}
+                  <button class="chip" class:on={c.id === tx.id} onclick={() => openChain(c)}><Icon name={CHAIN[c.kind].icon} size={12} />{CHAIN[c.kind].label}</button>
+                {/each}
+              </span>
+            </div>
+          {/if}
+          {#if suggestion.length}
+            <div class="wrow"><span class="wk">Aufteilung</span>
+              <span class="grow stack tight">
+                {#each suggestion as sp, i (i)}<span class="row small" style="gap:6px"><span class="dot" style="background:{catOf(sp.category)?.color}"></span><span class="grow ellipsis">{catOf(sp.category)?.label || sp.category}</span><Money value={sp.amount} /></span>{/each}
+              </span>
+            </div>
+            <div><button class="btn btn-sm" onclick={takeSuggestion} disabled={!suggestionOk}><Icon name="split" size={14} />Übernehmen</button></div>
+          {/if}
+        </div>
+      </Collapsible>
 
       {#if contract}
         <section class="sec">
@@ -291,5 +443,14 @@
   .restbtn { border: 0; background: var(--warn-soft); color: var(--warn); padding: 3px 10px; border-radius: 999px; cursor: pointer; font-weight: 600; }
   .restbtn.ok { background: var(--good-soft); color: var(--good); cursor: default; }
   textarea.input { resize: vertical; width: 100%; }
+  .offer { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+  .lrow.mini { width: 100%; padding: 6px 8px; background: var(--surface); color: inherit; cursor: pointer; text-align: left; font-size: 13px; }
+  .lrow.mini:hover { border-color: var(--accent); }
+  .why { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  .wrow { display: flex; gap: 10px; align-items: baseline; }
+  .wk { flex: none; width: 96px; color: var(--text-3); font-size: 12px; }
+  .warnc { color: var(--warn); }
+  .chain { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .chain .chip { height: 24px; font-size: 12px; }
   @media (prefers-reduced-motion: reduce) { .drawer, .back { animation: none; } }
 </style>

@@ -8,9 +8,12 @@ import { parse } from '../parsers/index.js';
 import { displayName } from '../parsers/naming.js';
 import { postProcess } from './postprocess.js';
 import { aiHooks } from '../ai/hooks.js';
+import { detectStatementFormat } from '../parsers/docs/_statements.js';
 
 const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', tif: 'image/tiff', tiff: 'image/tiff', csv: 'text/csv', tsv: 'text/tab-separated-values', txt: 'text/plain', md: 'text/plain', xml: 'application/xml', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel', sta: 'text/plain', mt940: 'text/plain' };
 
+const STATEMENT_TYPES = new Set(['kontoauszug', 'paypal', 'depot', 'kreditkarte']);
+const AI_KEEP = ['aiHint', 'aiAt', 'aiReason', 'aiSuggestion']; // KI-Felder, die ein Neu-Lesen überleben
 const MAX_LINE_ITEMS = 500; // Obergrenze je Dokument (Schutz vor Textdateien mit Hunderttausenden „Positionen“)
 
 let controller = null;
@@ -38,6 +41,11 @@ const isQuota = (e) => e?.name === 'QuotaExceededError' || e?.inner?.name === 'Q
 /** Schlüssel „bekannte Datei“: gleicher Pfad, gleiche Größe, gleicher Zeitstempel (0/null/'' gelten als „unbekannt“) */
 const fileKey = (path, size, mtime) => `${path}|${size ?? ''}|${mtime || ''}`;
 
+/** Früher wegen fehlendem/unsicherem OCR-Text ignoriert → beim nächsten Import erneut versuchen */
+const ignoredForOcr = (f) => f?.status === 'ignored' && (f.detection?.subtype === 'kein_text' || !!f.detection?.ocrLow);
+/** Datei gilt als erledigt (kein erneutes Lesen) */
+const isSettled = (f) => f?.status === 'done' || (f?.status === 'ignored' && !ignoredForOcr(f));
+
 /** Quelle anlegen oder vorhandene zurückgeben */
 export async function ensureSource({ kind, name, root = '', config = {} }) {
   const existing = (await db.sources.toArray()).find(s => s.kind === kind && s.name === name && s.root === root);
@@ -56,7 +64,7 @@ export async function runImport(items, source, { concurrency = 2 } = {}) {
   controller = new AbortController();
   const signal = controller.signal;
   const p = app.progress;
-  Object.assign(p, { running: true, paused: false, total: 0, done: 0, current: 'Dateien werden gesammelt …', phase: 'collect', errors: [], counts: {}, startedAt: Date.now(), log: [], skipped: 0, newDocs: 0, newTx: 0 });
+  Object.assign(p, { running: true, paused: false, total: 0, done: 0, current: 'Dateien werden gesammelt …', phase: 'collect', errors: [], counts: {}, startedAt: Date.now(), log: [], skipped: 0, newDocs: 0, newTx: 0, dupTx: 0, enrichedTx: 0 });
   pauseWaiters = [];
 
   try {
@@ -71,7 +79,7 @@ export async function runImport(items, source, { concurrency = 2 } = {}) {
     // Bekannte Dateien für schnellen Skip: gleicher Pfad + Größe + mtime in gleicher Quelle (auch Pfade von Dubletten)
     const known = new Set();
     await db.files.each(f => {
-      if (f.status !== 'done' && f.status !== 'ignored') return;
+      if (!isSettled(f)) return;
       if (f.sourceId === source.id) known.add(fileKey(f.path, f.size, f.mtime));
       for (const o of f.origins || []) if (o.sourceId === source.id) known.add(fileKey(o.path, o.size ?? f.size, o.mtime ?? f.mtime));
     });
@@ -124,6 +132,26 @@ export async function runImport(items, source, { concurrency = 2 } = {}) {
 }
 
 /** Daten einer früher abgebrochenen/fehlgeschlagenen Verarbeitung entfernen (Dokumente, Buchungen …) */
+// Nutzerentscheidungen an Buchungen, die ein Neu-Einlesen überstehen (Zuordnung über dedupeKey bzw. Datum+Betrag+Text)
+const USER_TX_FIELDS = {
+  category: (t) => t.categorySource === 'user', subcategory: (t) => t.categorySource === 'user', categorySource: (t) => t.categorySource === 'user',
+  confidence: (t) => t.categorySource === 'user', ruleId: (t) => t.categorySource === 'user',
+  taxRelevant: (t) => t.taxSource === 'user', taxReason: (t) => t.taxSource === 'user', taxSource: (t) => t.taxSource === 'user',
+  isTransfer: (t) => t.transferSource === 'user', transferPairId: (t) => t.transferSource === 'user', transferAccountId: (t) => t.transferSource === 'user',
+  transferSource: (t) => t.transferSource === 'user',
+  receiptDocId: (t) => t.receiptSource === 'user', receiptDocIds: (t) => t.receiptSource === 'user', receiptSource: (t) => t.receiptSource === 'user',
+  receiptRejected: () => true, stornoSource: (t) => t.stornoSource === 'user', stornoPairId: (t) => t.stornoSource === 'user',
+  counterparty: (t) => !!t.counterpartyUser, counterpartyUser: (t) => !!t.counterpartyUser,
+  reviewed: () => true, needsReview: (t) => !!t.reviewed, splits: () => true, note: () => true, tags: () => true, checksAck: () => true,
+  aiHint: () => true, aiReason: () => true, aiAt: () => true, aiSuggestion: () => true,
+};
+const txMatchKey = (t) => `${t.bookingDate}|${t.amount}|${String(t.counterpartyRaw || '').toLowerCase().replace(/\s+/g, ' ').trim()}`;
+function userDecisions(t) {
+  const out = {};
+  for (const [k, keep] of Object.entries(USER_TX_FIELDS)) if (t[k] != null && keep(t)) out[k] = t[k];
+  return Object.keys(out).length ? out : null;
+}
+
 async function purgeFileData(fileId, existingKeys) {
   const docIds = await db.documents.where('fileId').equals(fileId).primaryKeys();
   if (!docIds.length) return;
@@ -160,7 +188,7 @@ async function processItem(item, source, ctx) {
 
 async function processContent(item, source, { signal, existingKeys }, { file, buf, hash, ext, origin }) {
   const dup = await db.files.get(hash);
-  if (dup && (dup.status === 'done' || dup.status === 'ignored')) {
+  if (dup && isSettled(dup)) {
     // Gleicher Inhalt schon importiert → nur Herkunft ergänzen (je Quelle und Pfad einmal)
     const origins = dup.origins || [];
     const same = origins.find(o => o.sourceId === origin.sourceId && o.path === origin.path);
@@ -192,19 +220,179 @@ async function processContent(item, source, { signal, existingKeys }, { file, bu
   }
 }
 
-async function readAndSave(meta, blob, hash, { signal, existingKeys }) {
-  const extracted = await extract(meta, blob, {
-    signal,
-    onProgress: (v, label) => { app.progress.current = `${meta.name} – ${label || ''} ${v ? Math.round(v * 100) + ' %' : ''}`; },
+/**
+ * Eine bereits importierte Datei neu verarbeiten (z. B. „Neu prüfen“ bei unlesbarem Beleg oder Typ korrigieren).
+ * Liest den gespeicherten Inhalt aus db.blobs, löscht die alten Daten der Datei, speichert neu und ruft danach die
+ * Nachverarbeitung (ohne aiHooks.afterImport). forceType: vom Nutzer gewählter Dokumenttyp (ohne erneute Erkennung);
+ * ocrBoost: OCR gleich mit höherer Auflösung. KI-Felder (aiHint, aiAt, aiReason, aiSuggestion) bleiben erhalten.
+ */
+export async function reprocessFile(fileId, { forceType = null, ocrBoost = false, skipPost = false } = {}) {
+  const rec = await db.files.get(fileId);
+  if (!rec) throw new Error('Datei nicht gefunden');
+  const stored = await db.blobs.get(fileId);
+  if (!stored?.blob) throw new Error('Dateiinhalt nicht gespeichert – bitte erneut importieren');
+  const existingKeys = new Set();
+  await db.transactions.each(t => { if (t.dedupeKey && t.fileId !== fileId) existingKeys.add(t.dedupeKey); });
+  // KI-Hinweise der alten Dokumente merken; bei vom Nutzer gewähltem Typ ist ein KI-Typvorschlag/-grund überholt
+  const keep = {};
+  for (const d of await db.documents.where('fileId').equals(fileId).toArray()) {
+    for (const k of AI_KEEP) if (d[k] != null && keep[k] == null && !(forceType && (k === 'aiSuggestion' || k === 'aiReason'))) keep[k] = d[k];
+  }
+  // Nutzerentscheidungen der Buchungen dieser Datei merken (Kategorie, Steuer, Umbuchung, Beleg, Notizen …)
+  const oldDocIds = await db.documents.where('fileId').equals(fileId).primaryKeys();
+  const oldTxs = oldDocIds.length ? await db.transactions.where('documentId').anyOf(oldDocIds).toArray() : [];
+  const decided = [];
+  for (const t of oldTxs) { const d = userDecisions(t); if (d) decided.push({ id: t.id, dedupeKey: t.dedupeKey, mk: txMatchKey(t), d }); }
+  await purgeFileData(fileId, existingKeys);
+  const meta = { name: rec.name, path: rec.path, ext: rec.ext || extOf(rec.name), mime: rec.mime || stored.blob.type || MIME[rec.ext] || 'application/octet-stream', size: rec.size };
+  const signal = new AbortController().signal;
+  await db.files.update(fileId, { status: 'processing', error: null });
+  try {
+    await readAndSave(meta, stored.blob, fileId, { signal, existingKeys, forceType, ocrBoost });
+    if (decided.length) await restoreDecisions(fileId, decided);
+    if (Object.keys(keep).length) {
+      for (const d of await db.documents.where('fileId').equals(fileId).toArray()) {
+        const patch = {};
+        for (const [k, v] of Object.entries(keep)) if (d[k] == null) patch[k] = v;
+        if (Object.keys(patch).length) await db.documents.update(d.id, patch);
+      }
+    }
+  } catch (e) {
+    await db.files.update(fileId, { status: 'error', error: errorText(e) }).catch(() => {});
+    throw e;
+  } finally {
+    if (!app.progress.running) await terminateOcr().catch(() => {});
+  }
+  if (skipPost) return db.files.get(fileId);
+  try { await postProcess(); } catch (e) { console.error(e); }
+  await reload();
+  return db.files.get(fileId);
+}
+
+/** Gemerkte Nutzerentscheidungen auf die neu gelesenen Buchungen übertragen; Verweise anderer Buchungen umhängen. */
+async function restoreDecisions(fileId, decided) {
+  const docIds = await db.documents.where('fileId').equals(fileId).primaryKeys();
+  const fresh = docIds.length ? await db.transactions.where('documentId').anyOf(docIds).toArray() : [];
+  const byKey = new Map(), byMk = new Map();
+  for (const t of fresh) { if (t.dedupeKey) byKey.set(t.dedupeKey, t); if (!byMk.has(txMatchKey(t))) byMk.set(txMatchKey(t), t); }
+  const idMap = new Map();
+  const updates = [];
+  for (const o of decided) {
+    const t = (o.dedupeKey && byKey.get(o.dedupeKey)) || byMk.get(o.mk);
+    if (!t || idMap.has(o.id)) continue;
+    idMap.set(o.id, t.id);
+    updates.push({ key: t.id, changes: o.d });
+  }
+  if (updates.length) await db.transactions.bulkUpdate(updates);
+  // Andere Buchungen, die auf alte IDs zeigten (Umbuchungs-/Storno-Partner), auf die neuen IDs umstellen
+  if (idMap.size) {
+    const refs = [];
+    await db.transactions.each(t => {
+      const ch = {};
+      if (t.transferPairId && idMap.has(t.transferPairId)) ch.transferPairId = idMap.get(t.transferPairId);
+      if (t.stornoPairId && idMap.has(t.stornoPairId)) ch.stornoPairId = idMap.get(t.stornoPairId);
+      if (Object.keys(ch).length) refs.push({ key: t.id, changes: ch });
+    });
+    if (refs.length) await db.transactions.bulkUpdate(refs);
+  }
+}
+
+/**
+ * Stand der Lese-Logik. Erhöhen, wenn Erkennung/Parser sich so ändern, dass alte Importe falsch sein können;
+ * beim nächsten Start werden verdächtige Dateien dann automatisch neu gelesen (reprocessStale).
+ */
+export const PARSER_VERSION = 3;
+const STATEMENT_DOC_TYPES = new Set(['kontoauszug', 'kreditkarte', 'paypal', 'depot']);
+
+/** Dateien neu lesen (Nutzerwahl des Typs bleibt erhalten); Fortschritt in app.progress. → { done, failed } */
+async function reprocessMany(fileIds, label) {
+  let done = 0, failed = 0;
+  Object.assign(app.progress, { running: true, phase: 'process', total: fileIds.length, done: 0, current: label });
+  try {
+    for (const id of fileIds) {
+      const f = await db.files.get(id);
+      const forceType = f?.detection?.forced ? f.detection.type : null;
+      app.progress.current = `${label}: ${f?.name || id}`;
+      try { await reprocessFile(id, { forceType, skipPost: true }); done++; } catch (e) { console.warn('Neu lesen', f?.name, e); failed++; }
+      app.progress.done++;
+    }
+    try { await postProcess(); } catch (e) { console.error(e); }
+  } finally {
+    Object.assign(app.progress, { running: false, phase: 'done', current: '' });
+    if (fileIds.length) await terminateOcr().catch(() => {});
+    await reload();
+  }
+  return { done, failed };
+}
+
+/** Alle importierten Dateien neu einlesen (Einstellungen → „Alle Dateien neu einlesen“). */
+export async function reprocessAll() {
+  const ids = (await db.files.toArray()).filter(f => f.status === 'done' || f.status === 'ignored' || f.status === 'error').map(f => f.id);
+  return reprocessMany(ids, 'Neu einlesen');
+}
+
+/**
+ * Nach einem Update: nur verdächtige Altimporte neu lesen – Kontoumsatz-Dokumente ohne Buchungen und lange Dokumente
+ * (mehr als 3 Seiten), die nicht als Kontoumsatz erkannt wurden (z. B. 69-seitiger DKB-Auszug als „Lohnabrechnung“),
+ * ab Version 3 außerdem alle PDF-Kontoauszüge.
+ * Läuft einmal je PARSER_VERSION.
+ */
+export async function reprocessStale({ getSetting, setSetting }) {
+  const seen = await getSetting('parserVersion', 1);
+  if (seen >= PARSER_VERSION) return { done: 0, failed: 0 };
+  const [docs, txs] = await Promise.all([db.documents.toArray(), db.transactions.toArray()]);
+  const withTx = new Set(txs.map(t => t.fileId));
+  const ids = new Set();
+  for (const d of docs) {
+    if (!d.fileId) continue;
+    if (STATEMENT_DOC_TYPES.has(d.type) && !withTx.has(d.fileId)) ids.add(d.fileId);
+    else if (!STATEMENT_DOC_TYPES.has(d.type) && (d.pages || 0) > 3) ids.add(d.fileId);
+    // Version 3: PDF-Kontoauszüge (Empfänger/IBAN/Zweck bei DKB & Co.) – Nutzerentscheidungen bleiben erhalten
+    else if (seen < 3 && STATEMENT_DOC_TYPES.has(d.type) && (d.fields?.format === 'pdf_statement' || d.format === 'pdf_statement')) ids.add(d.fileId);
+  }
+  const res = ids.size ? await reprocessMany([...ids], 'Nach Update neu einlesen') : { done: 0, failed: 0 };
+  await setSetting('parserVersion', PARSER_VERSION);
+  return res;
+}
+
+async function readAndSave(meta, blob, hash, { signal, existingKeys, forceType = null, ocrBoost = false }) {
+  const read = (boost) => extract(meta, blob, {
+    signal, ocrBoost: boost,
+    onProgress: (v, label) => { app.progress.current = `${meta.name} – ${boost ? 'zweiter Versuch: ' : ''}${label || ''} ${v ? Math.round(v * 100) + ' %' : ''}`; },
   });
+  let extracted = await read(ocrBoost);
   if (extracted.thumbnail) await db.blobs.put({ id: 'thumb:' + hash, blob: extracted.thumbnail });
 
-  let detection = detectType(extracted, meta);
-  if (aiHooks.detect && detection.confidence < 0.55 && extracted.text?.length > 40) {
-    detection = (await aiHooks.detect(extracted, meta, detection, { signal })) || detection;
+  let detection;
+  if (forceType) {
+    // Vom Nutzer gewählter Typ: direkt übernehmen, ohne erneute Erkennung und ohne KI. Nur Kontoumsatz-Typen brauchen
+    // das erkannte Format (Parser) – das wird übernommen, wenn die Erkennung denselben Typ liefert.
+    // Kontoumsatz-Typen: Format direkt aus dem Kontoumsatz-Modul (ohne Abgleich mit Dokument-Stichwörtern); findet es
+    // nichts, entscheidet die Dateiart (PDF/Bild → PDF-Auszug, Tabelle → generische CSV).
+    let st = null;
+    if (STATEMENT_TYPES.has(forceType)) {
+      st = detectStatementFormat(extracted, meta) || { format: extracted.rows ? 'generic_csv' : 'pdf_statement', institution: null, lenient: true };
+    }
+    detection = {
+      type: forceType, subtype: null, institution: st?.institution ?? null, format: st?.format ?? null, lenient: !!st?.lenient,
+      confidence: 1, signals: ['vom Nutzer gewählt'], alternatives: [], uncertain: false, forced: true, typeSource: 'user',
+    };
+  } else {
+    detection = detectType(extracted, meta);
+    // Unlesbarer Beleg: automatisch ein zweiter OCR-Versuch mit höherer Auflösung
+    if (detection.unreadable && !ocrBoost) {
+      signal.throwIfAborted();
+      const again = await read(true);
+      const second = detectType(again, meta);
+      if (!second.unreadable || (again.ocrConfidence ?? -1) > (extracted.ocrConfidence ?? -1)) { extracted = again; detection = second; }
+    }
+    if (aiHooks.detect && detection.confidence < 0.55 && extracted.text?.length > 40) {
+      detection = (await aiHooks.detect(extracted, meta, detection, { signal })) || detection;
+    }
   }
   if (detection.type === 'irrelevant') {
-    await db.files.update(hash, { status: 'ignored', detection });
+    const ocrLow = !!extracted.ocr && typeof extracted.ocrConfidence === 'number' && extracted.ocrConfidence < 55;
+    await db.files.update(hash, { status: 'ignored', detection: { ...detection, ocrLow } });
     count('irrelevant');
     return;
   }
@@ -213,10 +401,22 @@ async function readAndSave(meta, blob, hash, { signal, existingKeys }) {
     result = (await aiHooks.parse(detection, extracted, meta, result, { signal })) || result;
   }
   signal.throwIfAborted();
+  if (detection.typeSource === 'ai' && result.document) {
+    // Typ von der KI bestimmt: kenntlich machen, Begründung/Alternativen übernehmen
+    const doc = result.document;
+    doc.typeSource = 'ai';
+    doc.aiReason ??= detection.aiReason;
+    if (!doc.alternatives?.length) doc.alternatives = detection.alternatives || [];
+    if (detection.needsReview) {
+      const why = 'KI hat den Dokumenttyp bestimmt – bitte prüfen';
+      doc.needsReview = true;
+      doc.reviewReason = doc.reviewReason ? `${doc.reviewReason}; ${why}` : why;
+    }
+  }
   await saveResult(result, { fileId: hash, meta, extracted, detection, existingKeys });
   // Mehrere Konten/Abschnitte in einer Datei (z. B. comdirect Giro + Visa, mehrere camt-Statements)
   for (const extra of result.additional || []) await saveResult(extra, { fileId: hash, meta, extracted, detection, existingKeys });
-  await db.files.update(hash, { status: 'done', error: null, detection: { type: detection.type, format: detection.format, institution: detection.institution, confidence: detection.confidence } });
+  await db.files.update(hash, { status: 'done', error: null, detection: { type: detection.type, subtype: detection.subtype ?? null, format: detection.format, institution: detection.institution, confidence: detection.confidence, forced: !!detection.forced, typeSource: detection.typeSource ?? null } });
   count(detection.type);
 }
 
@@ -229,38 +429,54 @@ function upsertAccount(acc) {
   accountLock = run.catch(() => null);
   return run;
 }
+const sameText = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+const REVIEW_ACCOUNT = 'Konto zugeordnet? bitte prüfen';
+
+/**
+ * Konto suchen oder anlegen → { id, review }. IBAN gleich → dasselbe Konto. Ohne IBAN auf einer Seite nur
+ * zusammenführen, wenn Kontonummer oder Name passen und kein IBAN-Konflikt besteht; gibt es nur unsichere
+ * Kandidaten derselben Bank/Art, wird ein eigenes Konto angelegt und das Dokument zur Prüfung markiert.
+ */
 async function upsertAccountUnsafe(acc) {
-  if (!acc) return null;
+  if (!acc) return { id: null, review: null };
   const all = await db.accounts.toArray();
   const iban = normalizeIban(acc.iban);
+  const noConflict = (a) => !iban || !a.iban || normalizeIban(a.iban) === iban;
+  const matches = (a) => (acc.number && sameText(a.number, acc.number)) || sameText(a.name, acc.name);
   let found = iban ? all.find(a => normalizeIban(a.iban) === iban) : null;
-  if (!found && acc.number) found = all.find(a => a.number && a.number === acc.number && a.institution === acc.institution);
+  if (!found && acc.number) found = all.find(a => a.number && a.number === acc.number && a.institution === acc.institution && noConflict(a));
   const sameBank = all.filter(a => a.kind === acc.kind && a.institution && a.institution === acc.institution);
-  // Kein IBAN im neuen Dokument (z. B. PDF): eindeutiges Konto derselben Bank und Art übernehmen
-  if (!found && !iban) found = sameBank.length === 1 ? sameBank[0] : sameBank.find(a => (a.name || '') === (acc.name || '') && !a.iban) || null;
-  // Neues Dokument hat IBAN, bisher genau ein Konto derselben Bank/Art ohne IBAN → zusammenführen
-  if (!found && iban) { const noIban = sameBank.filter(a => !a.iban); if (noIban.length === 1 && sameBank.length === 1) found = noIban[0]; }
+  let review = null;
+  if (!found) {
+    // Kein IBAN im neuen Dokument (z. B. PDF) → passendes Konto derselben Bank/Art; neues Dokument mit IBAN → nur Konten ohne IBAN
+    const pool = iban ? sameBank.filter(a => !a.iban) : sameBank;
+    const hits = pool.filter(a => matches(a) && noConflict(a));
+    if (hits.length === 1) found = hits[0];
+    else if (hits.length > 1) { found = hits.find(a => !a.iban) || hits[0]; review = REVIEW_ACCOUNT; }
+    else if (pool.length) review = REVIEW_ACCOUNT; // Kandidaten ohne Treffer: eigenes Konto, aber nachfragen
+  }
   if (found) {
     const patch = {};
     for (const k of ['iban', 'name', 'number', 'currency', 'owner']) if (!found[k] && acc[k]) patch[k] = acc[k];
     if (Object.keys(patch).length) await db.accounts.update(found.id, patch);
-    return found.id;
+    return { id: found.id, review };
   }
   const id = uid('acc_');
   await db.accounts.put({ id, own: true, currency: 'EUR', ...acc, iban: iban || null, createdAt: new Date().toISOString() });
-  return id;
+  return { id, review };
 }
 
 const OWNER_RE = /(?:Kontoinhaber(?:in)?|Kunde|Inhaber(?:in)?|Depotinhaber)\s*[:;]\s*([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\- ]{2,40}?)(?=\s*(?:[,;\n]|$))/m;
 
-async function saveResult(result, { fileId, meta, extracted, existingKeys }) {
+export async function saveResult(result, { fileId, meta, extracted, existingKeys }) {
   if (result.account && !result.account.owner) {
     const m = OWNER_RE.exec((extracted.rawText || extracted.text || '').slice(0, 4000));
     if (m) result.account.owner = m[1].trim();
   }
-  const accountId = await upsertAccount(result.account);
+  const { id: accountId, review: accountReview } = await upsertAccount(result.account);
   const docId = uid('doc_');
-  const d = result.document || {};
+  const d = { ...(result.document || {}) };
+  if (accountReview) { d.needsReview = true; d.reviewReason = d.reviewReason ? `${d.reviewReason}; ${accountReview}` : accountReview; }
   const doc = {
     ...d,
     id: docId, fileId, accountId,
@@ -297,12 +513,18 @@ async function saveResult(result, { fileId, meta, extracted, existingKeys }) {
   const txs = [];
   for (const t of result.transactions || []) {
     const key = t.dedupeKey;
-    if (key && existingKeys.has(key)) continue;
     const dk = t.bookingDate + '|' + t.amount;
-    if ((existingCount.get(dk) || 0) > 0) {
-      existingCount.set(dk, existingCount.get(dk) - 1);
-      const ex = existingByKey.get(dk)?.shift();
-      if (ex) { const patch = {}; for (const f of ENRICH) if (!ex[f] && t[f]) patch[f] = t[f]; if (Object.keys(patch).length) enrich.push({ key: ex.id, changes: patch }); }
+    const sameKey = !!key && existingKeys.has(key);
+    if (sameKey || (existingCount.get(dk) || 0) > 0) {
+      // Gleicher Schlüssel: genau diese Buchung ergänzen; sonst die nächste gleich datierte mit gleichem Betrag
+      const list = existingByKey.get(dk) || [];
+      const i = sameKey ? list.findIndex(x => x.dedupeKey === key) : 0;
+      const ex = i >= 0 ? list.splice(i, 1)[0] : null;
+      if (ex) existingCount.set(dk, Math.max(0, (existingCount.get(dk) || 0) - 1));
+      const patch = {};
+      if (ex) for (const f of ENRICH) if (!ex[f] && t[f]) patch[f] = t[f];
+      // Dublette: entweder ergänzt sie eine bestehende Buchung oder sie wird übersprungen
+      if (Object.keys(patch).length) { enrich.push({ key: ex.id, changes: patch }); app.progress.enrichedTx++; } else app.progress.dupTx++;
       continue;
     }
     if (key) existingKeys.add(key);

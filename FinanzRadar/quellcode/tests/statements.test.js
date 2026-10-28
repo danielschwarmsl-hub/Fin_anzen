@@ -379,16 +379,17 @@ describe('PDF-Kontoauszüge', () => {
       mkLine(620, [[50, '30.04.'], [100, 'Kontoführung'], [380, '5,90+', 30]]),
       mkLine(600, [[50, 'Kontostand am 30.04.2026'], [400, '2.183,66']]),
     ];
-    // Schlusszeile oben ist absichtlich ohne Fehler: 1000 - 45 + 1234,56 + 5,90 = 2195,46 → soll Review auslösen
+    // 1000 - 45 + 1234,56 + 5,90 = 2195,46 ≠ 2183,66: Differenz -11,80 = 2 × 5,90 → genau diese Buchung hat das falsche
+    // Vorzeichen. Bewusst geändert: früher nur „Saldo stimmt nicht“, jetzt wird sie gedreht und zur Prüfung genannt.
     const ex = { kind: 'pdf', pages: [{ n: 1, text: lines.map(l => l.text).join('\n'), lines }], text: lines.map(l => l.text).join('\n') };
     const det = detectStatementFormat(ex, {});
     expect(det).toMatchObject({ type: 'kontoauszug', format: 'pdf_statement', institution: 'Sparkasse' });
     const res = await parseStatement(det, ex, {});
-    expect(res.transactions.map(t => t.amount)).toEqual([-4500, 123456, 590]);
+    expect(res.transactions.map(t => t.amount)).toEqual([-4500, 123456, -590]);
     expect(res.transactions[0]).toMatchObject({ bookingDate: '2026-04-03', purpose: 'Strom April' });
-    expect(res.balance).toMatchObject({ opening: 100000, closing: 218366, check: false });
+    expect(res.balance).toMatchObject({ opening: 100000, closing: 218366, check: true });
     expect(res.document.needsReview).toBe(true);
-    expect(res.document.reviewReason).toBe('Saldo stimmt nicht');
+    expect(res.document.reviewReason).toMatch(/^Vorzeichen einer Buchung korrigiert \(30\.04\.2026, -5,90\s€\) – bitte prüfen$/);
   });
   it('Saldo-Format "1.150,00-" und S/H, Jahreswechsel', async () => {
     const lines = [

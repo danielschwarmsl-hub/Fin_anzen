@@ -1,0 +1,15 @@
+Umsatzanzeige;Datei erstellt am: 28.02.2026 10:00
+
+IBAN;DE02 5001 0517 0000 0471 10
+Kontoname;Girokonto
+Bank;ING
+Kunde;Erika Beispiel
+Zeitraum;01.01.2026 - 28.02.2026
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung
+20.02.2026;20.02.2026;Stadtwerke Beispiel;Lastschrift;Abschlag Strom 02/2026;822,90;EUR;-60,00;EUR
+14.02.2026;14.02.2026;EDEKA Markt;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 14.02;882,90;EUR;-42,10;EUR
+05.02.2026;05.02.2026;Bäckerei Beispiel;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 05.02;925,00;EUR;-5,00;EUR
+05.02.2026;05.02.2026;Bäckerei Beispiel;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 05.02;930,00;EUR;-5,00;EUR
+20.01.2026;20.01.2026;Stadtwerke Beispiel;Lastschrift;Abschlag Strom 01/2026;935,00;EUR;-60,00;EUR
+05.01.2026;05.01.2026;Bäckerei Beispiel;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 05.01;995,00;EUR;-5,00;EUR

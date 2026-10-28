@@ -1,5 +1,6 @@
 <script>
   import { app, live, setView, saveSettings, effectiveRange } from '../store/state.svelte.js';
+  import ProgressBar from './ProgressBar.svelte';
   import { computeInsights } from '../analyze/insights.js';
   import { CATEGORIES, getCategory } from '../classify/categories.js';
   import { fmtEUR } from '../util/format.js';
@@ -56,7 +57,11 @@
   const rateTxt = (d) => (d == null ? '' : `${d >= 0 ? '▲' : '▼'} ${Math.abs(d * 100).toFixed(1).replace('.', ',')} Pp. ggü. Vorperiode`);
 
   // ---- Prüfen-Hinweis ----
-  const needsReview = $derived(ins?.flags?.needsReview || 0);
+  // gleiches Kriterium wie die Prüfliste (Kategorie unsicher oder offene Prüfungen, Dokumente)
+  const needsReview = $derived(live.reviewCount || 0);
+  // Importbericht nach dem letzten Lauf, bis er weggeklickt wird
+  const showReport = $derived(!app.progress.running && app.progress.phase === 'done' && !!app.progress.startedAt && app.progress.reportSeenAt !== app.progress.startedAt);
+  const hideReport = () => { app.progress.reportSeenAt = app.progress.startedAt; };
 
   // ---- Steuern-Toggle persistieren ----
   let firstRun = true;
@@ -123,7 +128,9 @@
   </div>
 {:else}
   <div class="stack ov">
-    {#if needsReview > 0}
+    {#if showReport}
+      <div class="card report fade-up"><ProgressBar report ondismiss={hideReport} /></div>
+    {:else if needsReview > 0}
       <div class="attn fade-up" role="status">
         <span class="ai"><Icon name="alert" size={16} /></span>
         <span class="grow"><b class="num">{needsReview}</b> {needsReview === 1 ? 'Eintrag' : 'Einträge'} prüfen</span>
@@ -213,6 +220,7 @@
 {/if}
 
 <style>
+  .report { padding: 12px 16px; }
   .ov { padding-bottom: 24px; }
   .attn { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); }
   .attn .ai { color: var(--warn); display: inline-flex; }

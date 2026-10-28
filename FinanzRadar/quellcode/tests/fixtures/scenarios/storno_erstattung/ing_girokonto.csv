@@ -1,0 +1,14 @@
+Umsatzanzeige;Datei erstellt am: 31.03.2026 10:00
+
+IBAN;DE02 5001 0517 0000 0471 10
+Kontoname;Girokonto
+Bank;ING
+Kunde;Erika Beispiel
+Zeitraum;01.03.2026 - 31.03.2026
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung
+19.03.2026;19.03.2026;Modehaus Beispiel GmbH;Gutschrift;Erstattung Retoure Bestellung 4711;970,00;EUR;120,00;EUR
+10.03.2026;10.03.2026;Supermarkt Beispiel;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 10.03;850,00;EUR;-30,00;EUR
+05.03.2026;05.03.2026;Modehaus Beispiel GmbH;Lastschrift;Bestellung 4711 Kundennr. 99887;880,00;EUR;-120,00;EUR
+03.03.2026;03.03.2026;Sportshop Muster;Gutschrift;Storno Kartenzahlung vom 02.03.2026;1.000,00;EUR;59,99;EUR
+02.03.2026;02.03.2026;Sportshop Muster;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 02.03;940,01;EUR;-59,99;EUR

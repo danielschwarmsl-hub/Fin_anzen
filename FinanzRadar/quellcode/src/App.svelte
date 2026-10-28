@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { app, init, setView, saveSettings, effectiveRange, toast } from './lib/store/state.svelte.js';
+  import { app, live, init, setView, saveSettings, effectiveRange, toast } from './lib/store/state.svelte.js';
   import Icon from './lib/ui/Icon.svelte';
   import Seg from './lib/ui/Seg.svelte';
   import SearchPalette from './lib/views/SearchPalette.svelte';
@@ -33,7 +33,7 @@
   let bootError = $state(null);
   let topH = $state(66);
   const View = $derived(VIEWS[app.view] || Overview);
-  const reviewCount = $derived(app.data.transactions.filter(t => t.needsReview && !t.reviewed).length + app.data.documents.filter(d => d.needsReview && !d.reviewed && d.type !== 'irrelevant').length);
+  const reviewCount = $derived(live.reviewCount);
   const hasData = $derived(app.data.files.length > 0);
   const range = $derived.by(() => { void app.dataVersion; return effectiveRange(); });
   const showFilter = $derived(['overview', 'transactions'].includes(app.view));

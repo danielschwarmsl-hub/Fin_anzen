@@ -1,5 +1,5 @@
 // Gemeinsame Helfer der Kontoumsatz-Parser (DOM-frei).
-import { parseGermanAmount, parseGermanDate, normalizeIban, slug, fmtDate, extOf } from '../../util/format.js';
+import { parseGermanAmount, parseGermanDate, normalizeIban, slug, fmtDate, fmtEUR, extOf } from '../../util/format.js';
 import { parseCsv } from '../../extract/decode.js';
 
 // ---------------------------------------------------------------- Kontext
@@ -350,6 +350,25 @@ export function buildResult(o) {
     balance,
     payroll: null,
     vat: null,
+  };
+}
+
+/**
+ * Saldo-Differenz d = Endsaldo − (Anfangssaldo + Summe): Liegt genau eine Buchung mit Betrag −d/2 vor, hat sie
+ * vermutlich das falsche Vorzeichen (Soll/Haben falsch gelesen). Dreht das Vorzeichen und gibt den Prüfgrund zurück.
+ */
+export function fixSignByBalance(transactions, opening, closing) {
+  if (opening == null || closing == null || !transactions.length) return null;
+  const d = closing - (opening + sum(transactions));
+  if (d === 0 || d % 2 !== 0) return null;
+  const hits = transactions.filter(t => t.amount === -d / 2);
+  if (hits.length !== 1) return null;
+  const t = hits[0];
+  const before = t.amount;
+  t.amount = -t.amount;
+  return {
+    signal: `Vorzeichen korrigiert: ${fmtDate(t.bookingDate)} ${fmtEUR(before)} → ${fmtEUR(t.amount)}`,
+    reason: `Vorzeichen einer Buchung korrigiert (${fmtDate(t.bookingDate)}, ${fmtEUR(t.amount)}) – bitte prüfen`,
   };
 }
 

@@ -1,0 +1,10 @@
+Umsatzanzeige;Datei erstellt am: 31.03.2026 10:00
+
+IBAN;DE02 5001 0517 0000 0471 10
+Kontoname;Girokonto
+Bank;ING
+Kunde;Erika Beispiel
+Zeitraum;01.03.2026 - 31.03.2026
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung
+17.03.2026;17.03.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;1040987654330 PP.7788.PP . Elektronik Beispiel, Ihr Einkauf bei Elektronik Beispiel;970,00;EUR;-30,00;EUR

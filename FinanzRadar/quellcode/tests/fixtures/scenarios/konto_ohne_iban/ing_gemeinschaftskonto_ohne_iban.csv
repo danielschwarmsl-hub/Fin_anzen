@@ -1,0 +1,10 @@
+Umsatzanzeige;Datei erstellt am: 31.03.2026 10:05
+
+Kontoname;Gemeinschaftskonto
+Bank;ING
+Kunde;Erika und Paul Beispiel
+Zeitraum;01.03.2026 - 31.03.2026
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung
+12.03.2026;12.03.2026;Baumarkt Beispiel;Kartenzahlung;VISA Debitkarte KAUFUMSATZ 12.03;765,00;EUR;-35,00;EUR
+02.03.2026;02.03.2026;Hausverwaltung Beispiel;Dauerauftrag;Mietanteil 03/2026 Wohnung 3 OG;800,00;EUR;-500,00;EUR

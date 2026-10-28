@@ -4,6 +4,7 @@
 import { getCategory } from '../classify/categories.js';
 import { computeNetWorth } from './networth.js';
 import { estimateVat } from './vat.js';
+import { isFirmTransfer, isSecuritiesTrade } from './transfers.js';
 
 const SAVING_KINDS = new Set(['depot', 'tagesgeld', 'festgeld', 'sparen', 'rente', 'bausparen', 'sparkonto']);
 const isSavingsAccount = (a) => !!a && (SAVING_KINDS.has(a.kind) || /tagesgeld|festgeld|sparkonto|depot|bausparen/i.test(a.name || ''));
@@ -102,9 +103,20 @@ export function computeInsights(data, opts = {}) {
   let needsReview = 0, taxFlagged = 0, uncategorized = 0;
 
   for (const t of txs) {
-    if (t.needsReview && !t.reviewed && !t.isTransfer) needsReview++;
+    if ((t.needsReview && !t.reviewed && !t.isTransfer) || t.checks?.length > 0) needsReview++;
     if (t.taxRelevant) taxFlagged++;
+    // Storno/Erstattung: Zahlung und Gutschrift heben sich auf – weder Einnahme noch Ausgabe
+    if (t.stornoPairId && txById.has(t.stornoPairId)) continue;
     const mi = monthIdx.get(monthKey(t.bookingDate));
+    // Wertpapierkauf/-verkauf ohne erkannte Gegenbuchung: im Spar-/Depotkonto neutral, sonst Sparen (bzw. Entnahme) statt Konsum
+    if (!t.isTransfer && t.category !== 'umbuchung' && isSecuritiesTrade(t) && getCategory(t.category)?.kind !== 'saving') {
+      if (isSavingsAccount(accById.get(t.accountId))) continue;
+      const v = -t.amount;
+      saving += v;
+      if (mi != null) byMonth[mi].saving += v;
+      addNested(accSaving, t.accountId, 'saving', v);
+      continue;
+    }
     if (t.isTransfer || t.category === 'umbuchung') {
       if (t.amount < 0) transfers += -t.amount;
       // Sparen: Überweisung von normalem Konto auf Spar-/Depot-/Rentenkonto
@@ -192,7 +204,7 @@ export function computeInsights(data, opts = {}) {
   // ---------------------------------------------------------------- Steuern
   const docsInPeriod = documents.filter(d => d.date && d.date >= from && d.date <= to);
   const payroll = payrollFor(documents, salaryMonths, months, from, to);
-  const vatTxs = txs.filter(t => !t.isTransfer);
+  const vatTxs = txs.filter(t => !isFirmTransfer(t));
   const vatEstimate = estimateVat(vatTxs, documents.filter(d => !accIds || !d.accountId || accIds.has(d.accountId)), { from, to });
   // Kapitalertragsteuer aus Jahresbescheinigungen (anteilig für Monate des Zeitraums im Bescheinigungsjahr)
   let capitalGainsTax = 0;

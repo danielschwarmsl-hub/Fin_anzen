@@ -1,11 +1,13 @@
 <script>
-  import { app, setView, saveSettings, toast } from '../store/state.svelte.js';
+  import { app, live, setView, saveSettings, toast } from '../store/state.svelte.js';
   import { db } from '../store/db.js';
   import { runImport, ensureSource } from '../store/importer.js';
   import * as local from '../sources/local.js';
   import * as dropbox from '../sources/dropbox.js';
   import * as gdrive from '../sources/gdrive.js';
+  import * as outlook from '../sources/outlook.js';
   import SourceSetup from '../sources/SourceSetup.svelte';
+  import OutlookSetup from '../sources/OutlookSetup.svelte';
   import Icon from '../ui/Icon.svelte';
   import Tip from '../ui/Tip.svelte';
   import Modal from '../ui/Modal.svelte';
@@ -22,7 +24,7 @@
 
   const hasData = $derived(app.data.files.length > 0);
   const step = $derived(app.progress.running ? 2 : lastRun ? 3 : 1);
-  const reviewCount = $derived(app.data.transactions.filter(t => t.needsReview && !t.reviewed).length + app.data.documents.filter(d => d.needsReview && !d.reviewed && d.type !== 'irrelevant').length);
+  const reviewCount = $derived(live.reviewCount);
   const fileCount = (sid) => app.data.files.filter(f => f.sourceId === sid || (f.origins || []).some(o => o.sourceId === sid)).length;
 
   async function start(items, src) {
@@ -71,6 +73,8 @@
         await start(local.enumerateHandle(s.config.handle, { basePath: s.name }), s);
       } else if (s.kind === 'local' || s.kind === 'upload') {
         dirInput.click();
+      } else if (s.kind === 'outlook' && s.config?.folders?.length) {
+        await start(outlook.enumerate(s.config), s);
       } else { cloudKind = s.kind; cloudOpen = true; }
     } catch (e) { toast(e.message, { tone: 'bad' }); }
   }
@@ -89,6 +93,13 @@
     const it = kind === 'dropbox' ? dropbox.enumerate({ token: token.accessToken || token, path: config.path || '' }) : gdrive.enumerate({ token: token.accessToken || token, folderId: config.folderId || 'root' });
     await start(it, src);
   }
+  async function onOutlook({ kind, name, config }) {
+    cloudOpen = false;
+    const src = await ensureSource({ kind, name, root: '', config });
+    src.config = config; // vorhandene Quelle: neue Ordner-/Zeitraumwahl übernehmen
+    await db.sources.update(src.id, { config });
+    await start(outlook.enumerate(config), src);
+  }
   async function loadSamples() {
     const base = new URL('samples/', document.baseURI).href;
     const manifest = await (await fetch(base + 'manifest.json')).json();
@@ -99,7 +110,8 @@
     const src = await ensureSource({ kind: 'local', name: 'Beispieldaten', root: 'samples' });
     await start(items, src);
   }
-  const KIND = { local: { icon: 'folder', label: 'Ordner' }, upload: { icon: 'upload', label: 'Dateien' }, dropbox: { icon: 'dropbox', label: 'Dropbox' }, gdrive: { icon: 'cloud', label: 'Google Drive' } };
+  const KIND = { local: { icon: 'folder', label: 'Ordner' }, upload: { icon: 'upload', label: 'Dateien' }, dropbox: { icon: 'dropbox', label: 'Dropbox' }, gdrive: { icon: 'cloud', label: 'Google Drive' }, outlook: { icon: 'inbox', label: 'Outlook' } };
+  const CLOUD_TITLE = { dropbox: 'Dropbox verbinden', gdrive: 'Google Drive verbinden', outlook: 'Outlook verbinden' };
 </script>
 
 <input type="file" webkitdirectory multiple class="hidden" bind:this={dirInput} onchange={onDirInput} />
@@ -153,6 +165,7 @@
       <button class="btn btn-lg" onclick={() => fileInput.click()} disabled={app.progress.running}><Icon name="file" />Dateien</button>
       <button class="btn btn-lg" onclick={() => { cloudKind = 'dropbox'; cloudOpen = true; }} disabled={app.progress.running}><Icon name="dropbox" />Dropbox</button>
       <button class="btn btn-lg" onclick={() => { cloudKind = 'gdrive'; cloudOpen = true; }} disabled={app.progress.running}><Icon name="cloud" />Google Drive</button>
+      <button class="btn btn-lg" onclick={() => { cloudKind = 'outlook'; cloudOpen = true; }} disabled={app.progress.running}><Icon name="inbox" />Outlook</button>
     </div>
     <div class="row center small faint">
       PDF · Scans & Fotos · CSV · Excel · camt/MT940 · E-Rechnung
@@ -192,8 +205,9 @@
   </Collapsible>
 </div>
 
-<Modal bind:open={cloudOpen} title={cloudKind === 'dropbox' ? 'Dropbox verbinden' : 'Google Drive verbinden'} width={620}>
-  {#if cloudKind}<SourceSetup kind={cloudKind} initialKey={cloudKind === 'dropbox' ? app.settings.dropboxAppKey : app.settings.gdriveClientId} onconnected={onCloud} />{/if}
+<Modal bind:open={cloudOpen} title={CLOUD_TITLE[cloudKind] || ''} width={620}>
+  {#if cloudKind === 'outlook'}<OutlookSetup initial={app.data.sources.find(x => x.kind === 'outlook')?.config} onconnected={onOutlook} />
+  {:else if cloudKind}<SourceSetup kind={cloudKind} initialKey={cloudKind === 'dropbox' ? app.settings.dropboxAppKey : app.settings.gdriveClientId} onconnected={onCloud} />{/if}
 </Modal>
 
 <style>

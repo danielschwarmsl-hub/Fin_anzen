@@ -13,6 +13,8 @@ const LABOR_RE = /(arbeitskosten|arbeitslohn|lohnanteil|lohnkosten|arbeitsleistu
 const CRAFT_RE = /(handwerk|elektro|sanit[aä]r|installat|maler|reinigung|dachdeck|schreiner|tischler|klempner|heizung|schornstein|gartenbau|meisterbetrieb|fliesen|gebäudereinigung|monteur)/i;
 const META_RE = /^\W*(rechnungs|rechnung\s*(?:nr|nummer)|datum|kunde|bestell|steuernummer|ust|zahlungs|zahlbar|leistungszeitraum|lieferung|kundennummer|iban|bic|tel|seite|fax|e-?mail|www|empf[aä]nger|zahlart|verwendungszweck)/i;
 const HEADER_RE = /^\W*(pos\.?|position|artikel|bezeichnung|leistung|beschreibung|menge)\b/i;
+// Summen-/Steuerzeilen beenden die Positionsliste und sind nie Positionen
+const SUM_RE = /^\W*(?:gesamt\w*|summe\w*|zwischensumme|netto\w*|nettobetrag|brutto\w*|mwst\.?|ust\.?|umsatzsteuer|mehrwertsteuer|zzgl\.?|inkl\.?|enthaltene|zu zahlen|zahlbetrag|rechnungsbetrag|endbetrag|\d{1,2}(?:[.,]\d+)?\s*%\s*(?:mwst|ust|umsatzsteuer|mehrwertsteuer))\b/i;
 
 const xmlParser = new XMLParser({ ignoreAttributes: true, removeNSPrefix: true, parseTagValue: false, trimValues: true });
 const arr = (x) => (x == null ? [] : Array.isArray(x) ? x : [x]);
@@ -78,6 +80,13 @@ export function parseEInvoiceXml(xml) {
   return null;
 }
 
+/** Summenbetrag: erster Betrag nach dem Label („Rechnungsbetrag 249,00 (inkl. 39,76 MwSt)“ → 249,00). */
+function amountAfter(line, re) {
+  const m = re.exec(line);
+  const after = m ? amountsIn(line.slice(m.index + m[0].length)) : [];
+  return after.length ? after[0] : lastAmount(line);
+}
+
 function parseText(lines) {
   const joined = lines.join('\n');
   const out = {};
@@ -104,9 +113,9 @@ function parseText(lines) {
   // Beträge
   const grossLines = lines.filter((l) => GROSS_RE.test(l) && hasAmount(l) && !/(netto|zwischensumme)/i.test(l.replace(/brutto/gi, '')));
   const prefer = grossLines.find((l) => /(rechnungsbetrag|gesamtbetrag|endbetrag|zahlbetrag|zu zahlen|gesamtsumme)/i.test(l)) || grossLines[grossLines.length - 1];
-  out.gross = prefer ? lastAmount(prefer) : null;
+  out.gross = prefer ? amountAfter(prefer, GROSS_RE) : null;
   const netLine = lines.find((l) => NET_RE.test(l) && hasAmount(l));
-  out.net = netLine ? lastAmount(netLine) : null;
+  out.net = netLine ? amountAfter(netLine, NET_RE) : null;
 
   const vat = [];
   for (const l of lines) {
@@ -124,14 +133,46 @@ function parseText(lines) {
   return out;
 }
 
+// Menge mit Einheit („2 Stk“, „3,5 h“, „1x“ …) – gilt als echte Mengenangabe
+const QTY_UNIT_RE = /^(\d+(?:[.,]\d+)?)\s*(?:x|stk\.?|st\.?|st[uü]ck|h|std\.?|stunden?|kg|g|l|m|m[²2]|qm|lfm|psch\.?|pausch\.?|pauschal)$/i;
+const QTY_PLAIN_RE = /^\d{1,4}(?:[.,](?:\d|\d{3}))?$/; // „2“, „2,5“, „0,512“ – nicht „34,50“ (Betrag)
+const near = (a, b) => Math.abs(a - b) <= 1; // ±1 ct
+
+/**
+ * Menge/Einzelpreis einer Position. Menge nur aus echter Mengenspalte (Einheit oder Kopfzeile „Menge“) oder wenn
+ * Menge × Einzelpreis = Gesamt; sonst Menge 1 und Einzelpreis = Gesamt (Beträge sind nie Mengen).
+ */
+function qtyOf(cells, total, hasQtyColumn) {
+  const amounts = cells.map((c) => (QTY_PLAIN_RE.test(c) || QTY_UNIT_RE.test(c) ? null : amountsIn(c)[0] ?? null));
+  const prices = amounts.filter((v) => v != null);
+  const unit = prices.length ? prices[0] : null; // cells ohne Gesamtspalte
+  const fits = (q) => unit != null && near(Math.round(q * unit), total);
+  for (const c of cells) {
+    const mu = QTY_UNIT_RE.exec(c);
+    const plain = !mu && QTY_PLAIN_RE.test(c) ? c : null;
+    const q = Number(String(mu ? mu[1] : plain || '').replace(',', '.'));
+    if (!(q > 0)) continue;
+    if (mu || fits(q) || (hasQtyColumn && Number.isInteger(q))) {
+      return { qty: q, unitPrice: fits(q) ? unit : Math.round(total / q) };
+    }
+  }
+  // Menge als Betrag geschrieben („2,00   12,50   25,00“): nur bei exakt passendem Produkt
+  if (prices.length >= 2) {
+    const q = prices[0] / 100;
+    if (q > 0 && near(Math.round(q * prices[1]), total)) return { qty: q, unitPrice: prices[1] };
+  }
+  return { qty: 1, unitPrice: total };
+}
+
 function parseItems(lines, stopIdx) {
-  // Positionsbereich: nach Kopfzeile (falls vorhanden), sonst ab Beginn bis Nettobetrag
+  // Positionsbereich: nach Kopfzeile (falls vorhanden), sonst ab Beginn bis zur ersten Summenzeile
   const h = findIdx(lines, HEADER_RE);
   const start = h >= 0 && h < stopIdx ? h + 1 : 0;
+  const hasQtyColumn = h >= 0 && /\b(menge|anzahl|anz\.?|stk|st[uü]ck)\b/i.test(lines[h]);
   const items = [];
   for (const raw of lines.slice(start, stopIdx)) {
     const line = cleanOcr(raw);
-    if (META_RE.test(line) || HEADER_RE.test(line)) continue;
+    if (META_RE.test(line) || HEADER_RE.test(line) || SUM_RE.test(line)) continue;
     const c = cols(line);
     let rest = c;
     if (rest.length >= 3 && /^\d{1,3}$/.test(rest[0])) rest = rest.slice(1);
@@ -146,11 +187,10 @@ function parseItems(lines, stopIdx) {
     } else {
       if (!amts.length) continue;
       total = amts[amts.length - 1];
-      const q = rest.slice(1).find((x) => /^\d+(?:[.,]\d+)?$/.test(x) || /^\d+\s*(?:x|stk|h|st\.?)$/i.test(x));
-      if (q) qty = Number(String(q).replace(/[^\d.,]/g, '').replace(',', '.')) || 1;
       const pr = rest.slice(1).find((x) => /^\d{1,2}(?:[.,]\d+)?\s*%$/.test(x));
       if (pr) vatRate = Number(pr.replace('%', '').replace(',', '.'));
-      if (amts.length >= 2) unitPrice = amts[0];
+      const cells = rest.slice(1, -1).filter((x) => x !== pr);
+      ({ qty, unitPrice } = qtyOf(cells, total, hasQtyColumn));
     }
     if (!text || !/[A-Za-zÄÖÜäöü]{2}/.test(text)) continue;
     items.push({ text, qty, unitPrice: unitPrice ?? total, total, vatRate });
@@ -182,7 +222,7 @@ export function parse(extracted, fileMeta, detection) {
   // Positionen
   let lineItems = xml?.lineItems?.length ? xml.lineItems : null;
   if (!lineItems) {
-    const stop = (() => { const i = lines.findIndex((l) => NET_RE.test(l) && hasAmount(l)); return i >= 0 ? i : lines.length; })();
+    const stop = (() => { const i = lines.findIndex((l) => (SUM_RE.test(l) || NET_RE.test(l)) && hasAmount(l)); return i >= 0 ? i : lines.length; })();
     lineItems = parseItems(lines, stop);
   }
 
@@ -200,6 +240,8 @@ export function parse(extracted, fileMeta, detection) {
   const isCraftsman = CRAFT_RE.test(`${issuer || ''}\n${joined.slice(0, 600)}`) || laborCost != null;
   if (materialCost == null && laborCost != null && net != null) materialCost = net - laborCost;
   const mainRate = vat.length ? vat[0].rate : 19;
+  // Genau ein Steuersatz im Dokument: gilt für alle Positionen ohne eigenen Satz
+  if (vat.length === 1 && vat[0].rate != null) lineItems = lineItems.map((i) => (i.vatRate == null ? { ...i, vatRate: vat[0].rate } : i));
 
   doc.issuer = issuer;
   doc.institution = issuer;

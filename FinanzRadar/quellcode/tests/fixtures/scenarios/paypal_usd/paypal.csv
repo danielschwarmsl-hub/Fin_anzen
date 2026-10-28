@@ -1,0 +1,5 @@
+"Datum","Uhrzeit","Zeitzone","Name","Typ","Status","Währung","Brutto","Gebühr","Netto","Absender E-Mail-Adresse","Empfänger E-Mail-Adresse","Transaktionscode","Zugehöriger Transaktionscode","Guthaben"
+"20.03.2026","19:59:58","CET","","Bankgutschrift auf PayPal-Konto","Abgeschlossen","EUR","46,20","0,00","46,20","","erika@example.com","S3BANK0000000001","S3PAY00000000001","46,20"
+"20.03.2026","20:00:00","CET","US Gadget Store","Allgemeine Zahlung","Abgeschlossen","USD","-50,00","0,00","-50,00","erika@example.com","sales@usgadget.example","S3PAY00000000001","","-50,00"
+"20.03.2026","20:00:01","CET","","Allgemeine Währungsumrechnung","Abgeschlossen","USD","50,00","0,00","50,00","","","S3CONV0000000001","S3PAY00000000001","0,00"
+"20.03.2026","20:00:02","CET","","Allgemeine Währungsumrechnung","Abgeschlossen","EUR","-46,20","0,00","-46,20","","","S3CONV0000000002","S3PAY00000000001","0,00"
