@@ -3,7 +3,7 @@ import { db } from './db.js';
 import { normalizeCounterparty } from '../classify/normalize.js';
 import { classifyTransactions } from '../classify/rules.js';
 import { flagTaxDocument, flagTaxTransaction } from '../classify/taxFlags.js';
-import { detectTransfers } from '../analyze/transfers.js';
+import { detectTransfers, detectStornos, computeFlowChecks } from '../analyze/transfers.js';
 import { detectRecurring, linkContracts } from '../analyze/recurring.js';
 import { matchReceipts } from '../analyze/receipts.js';
 
@@ -76,12 +76,15 @@ async function runPostProcess() {
   // (macht das Ergebnis unabhängig davon, ob CSV, PDF oder camt zuerst importiert wurde)
   const KIND_BY_HINT = { 'Eigenes Konto · Tagesgeld': ['tagesgeld'], 'Eigenes Konto · Depot': ['depot'] };
   txs = txs.map(t => {
-    if (!t.ownTransfer || t.isTransfer || t.categorySource === 'user') return t;
+    if (!t.ownTransfer || t.isTransfer || t.categorySource === 'user' || t.transferSource === 'user') return t;
     const kinds = KIND_BY_HINT[t.counterparty];
     if (!kinds) return t;
     const cands = accounts.filter(a => kinds.includes(a.kind) && a.id !== t.accountId);
-    return cands.length === 1 ? { ...t, isTransfer: true, transferAccountId: cands[0].id, transferSource: 'auto' } : t;
+    return cands.length === 1 ? { ...t, isTransfer: true, transferAccountId: cands[0].id, transferSource: 'auto', transferConfidence: 'high' } : t;
   });
+  // Storno-/Erstattungspaare; danach Prüfliste für Geldfluss (Umbuchung, PayPal, Depot, Storno) neu berechnen
+  txs = detectStornos(txs);
+  txs = computeFlowChecks(txs, accounts);
   // 3. Kategorisieren
   txs = classifyTransactions(txs, { rules, accounts });
   // 4. Wiederkehrende Zahlungen → Verträge/Abos
