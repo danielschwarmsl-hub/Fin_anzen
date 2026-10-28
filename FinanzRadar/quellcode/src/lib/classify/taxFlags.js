@@ -16,7 +16,8 @@ export const TAX_REASONS = [
 
 const NO = { taxRelevant: false, taxReason: null };
 const yes = (taxReason) => ({ taxRelevant: true, taxReason });
-const isLocked = (x) => x?.taxSource === 'user' || x?.taxSource === 'rule';
+// 'ai': KI-Markierung bleibt, bis der Nutzer entscheidet (dann taxSource 'user')
+const isLocked = (x) => x?.taxSource === 'user' || x?.taxSource === 'rule' || x?.taxSource === 'ai';
 const keep = (x) => ({ taxRelevant: !!x.taxRelevant, taxReason: x.taxReason ?? null });
 
 // Stichworte (auf gefaltetem Text)

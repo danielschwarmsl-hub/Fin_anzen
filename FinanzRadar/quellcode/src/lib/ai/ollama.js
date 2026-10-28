@@ -1,8 +1,19 @@
 // Schlanker Ollama-Client (nur localhost). Keine Streams, klare Timeouts, Abbruch per AbortSignal.
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+export const NOT_LOCAL_MSG = 'Nur lokale Ollama-Adressen sind erlaubt (localhost, 127.0.0.1 oder [::1]) – Daten verlassen dieses Gerät nicht.';
+
+/** Nur http(s) auf diesem Gerät, beliebiger Port, keine Zugangsdaten in der Adresse */
+export function isLocalUrl(url) {
+  let u;
+  try { u = new URL(String(url || '').trim()); } catch { return false; }
+  return (u.protocol === 'http:' || u.protocol === 'https:') && LOCAL_HOSTS.has(u.hostname.toLowerCase()) && !u.username && !u.password;
+}
+
 export class Ollama {
-  constructor(baseUrl = 'http://localhost:11434') { this.base = baseUrl.replace(/\/+$/, ''); }
+  constructor(baseUrl = 'http://localhost:11434') { this.base = String(baseUrl || '').trim().replace(/\/+$/, ''); this.local = isLocalUrl(this.base); }
 
   async #req(path, { method = 'GET', body, signal, timeout = 8000 } = {}) {
+    if (!this.local) throw new Error(NOT_LOCAL_MSG); // kein fetch an fremde Rechner
     const ctl = new AbortController();
     const onAbort = () => ctl.abort(signal?.reason);
     signal?.addEventListener('abort', onAbort, { once: true });
