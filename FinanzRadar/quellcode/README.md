@@ -34,6 +34,14 @@ Steuerrelevante Belege werden als „ggf. steuerrelevant“ markiert und unter *
 
 Die KI klärt nur unsichere Fälle, eine kleine Aufgabe pro Aufruf. Dauert ein Lauf länger als 6 Minuten, schlägt FinanzRadar ein kleineres Modell vor. „No Thinking“ ist standardmäßig aktiv (schneller).
 
+**Nur lokal:** Als Ollama-Adresse sind ausschließlich `localhost`, `127.0.0.1` und `[::1]` erlaubt (http/https, beliebiger Port). Andere Adressen werden nicht aufgerufen.
+
+Was die KI automatisch tut (mit „Nach Import automatisch“):
+- beim Import: unsicher erkannte Belege einordnen und fehlende Felder (Datum, Betrag, Aussteller, MwSt) ergänzen – Vorhandenes wird nie überschrieben,
+- danach: unsichere Buchungen kategorisieren, Steuer-Hinweise geben, Bon-Positionen lesen (Bild-Modell) und Belegtreffer einschätzen (nur Hinweis, bestätigt wird nie automatisch).
+
+Jede KI-Antwort wird geprüft: Beträge müssen im Belegtext stehen, Datum muss gültig sein, Positionen müssen zur Summe passen (±2 ct), MwSt nur 0/7/19 %, keine Umbuchungen, Einnahme/Ausgabe passend zum Vorzeichen. Jedes Ergebnis trägt eine kurze Begründung. Hohe Sicherheit wird übernommen, mittlere landet zusätzlich in der Prüfliste, niedrige bleibt ein Vorschlag. KI-Steuermarkierungen bleiben, bis du entscheidest.
+
 ## Dropbox / Google Drive (optional)
 
 Unter Quellen → Dropbox bzw. Google Drive den eigenen App-Key / die Client-ID eintragen. Die Schritt-für-Schritt-Anleitung steht aufklappbar im Dialog.
