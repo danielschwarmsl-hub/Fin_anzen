@@ -118,8 +118,11 @@
     doc?.payroll ? Object.entries(PAYROLL_LABELS).filter(([k]) => doc.payroll[k] != null).map(([k, label]) => ({ label, value: doc.payroll[k] })) : []
   );
   const fieldRows = $derived(
-    doc?.fields ? Object.entries(doc.fields).filter(([, v]) => v != null && v !== '').map(([k, v]) => [labelize(k), fmtVal(v)]) : []
+    doc?.fields ? Object.entries(doc.fields).filter(([k, v]) => v != null && v !== '' && k !== 'diagnostics').map(([k, v]) => [labelize(k), fmtVal(v)]) : []
   );
+
+  // Diagnose beim Einlesen von Kontoumsätzen: nur zeigen, wenn etwas hakt
+  const diag = $derived(doc?.fields?.diagnostics?.problems?.length ? doc.fields.diagnostics : null);
 
   // ---- Vorschau ----
   let pdf = $state(null);
@@ -311,6 +314,27 @@
               {#if isUnreadable(doc) || doc.alternatives?.length}<DocFix doc={doc} />{/if}
             </div>
           {/if}
+          {#if diag}
+            <div class="diag">
+              <div class="small diag-h"><Icon name="alert" size={13} /> Beim Einlesen hakt es</div>
+              <ul class="small">
+                {#each diag.problems as p (p)}<li>{p}</li>{/each}
+              </ul>
+              {#if diag.unparsed?.length}
+                <div class="small muted">Nicht gelesene Zeilen:</div>
+                <ul class="small mono">
+                  {#each diag.unparsed as u, i (i)}<li>{u.page ? `S. ${u.page}: ` : ''}{u.text}</li>{/each}
+                </ul>
+              {/if}
+              {#if !diag.bookings && diag.strayAmounts?.length}
+                <div class="small muted">Beträge ohne Datum in derselben Zeile:</div>
+                <ul class="small mono">
+                  {#each diag.strayAmounts as u, i (i)}<li>{u.page ? `S. ${u.page}: ` : ''}{u.text}</li>{/each}
+                </ul>
+              {/if}
+              <div class="small faint">{diag.pages} Seiten · {diag.dateLines} Zeilen mit Datum · {diag.bookings} Buchungen gelesen{diag.expectedCount != null ? ` von ${diag.expectedCount}` : ''} · Zahlenformat {diag.numberFormat === 'dot' ? '-75.00' : '-75,00'}</div>
+            </div>
+          {/if}
           <div class="fields">
             <label class="field wide"><span>Titel</span><input class="input" bind:value={form.title} /></label>
             <label class="field"><span>Typ</span>
@@ -497,4 +521,8 @@
     .kv dt { margin-top: 4px; }
     .taxsel { margin-left: 0; }
   }
+  .diag { border: 1px solid var(--warn); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 12px; display: grid; gap: 6px; }
+  .diag-h { color: var(--warn); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .diag ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+  .diag .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 </style>

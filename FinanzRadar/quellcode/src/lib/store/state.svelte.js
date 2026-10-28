@@ -144,7 +144,10 @@ export async function updateDocument(id, patch) {
     if (['kontoauszug', 'kreditkarte', 'paypal', 'depot'].includes(type)) {
       const n = await db.transactions.filter(t => t.fileId === cur.fileId).count();
       if (n) toast(`Als ${label} neu eingelesen: ${n} Buchungen`, { tone: 'good', ms: 6000 });
-      else toast(`Als ${label} eingelesen, aber keine Buchungen gefunden – das Format dieser Datei wird noch nicht verstanden. Bitte eine Beispielzeile melden.`, { tone: 'bad', ms: 12000 });
+      else {
+        const why = docs.map(d => d.fields?.diagnostics?.problems?.[0] || d.reviewReason).find(Boolean);
+        toast(`Als ${label} eingelesen, aber keine Buchungen gefunden${why ? ` – ${why}` : ''} Details im Dokument unter „Beim Einlesen hakt es“.`, { tone: 'bad', ms: 15000 });
+      }
     } else toast(`Als ${label} neu eingelesen`, { tone: 'good' });
     // Felder, die der Parser liefert (Titel, Datum, Betrag …), nicht mit Werten des alten Typs überschreiben
     const keep = {};

@@ -198,6 +198,49 @@ function yearFor(_day, month, period, fallbackYear) {
   return fallbackYear;
 }
 
+const fmtCent = (c) => (c < 0 ? '-' : '') + (Math.abs(c) / 100).toFixed(2).replace('.', ',') + ' €';
+const clip = (s, n = 140) => { const t = cleanText(s); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+
+/**
+ * Diagnose für die Anzeige im Dokument: was gefunden wurde und wo das Einlesen hakt – in Sätzen, mit Seite und Zeile.
+ * → { pages, lines, numberFormat, header, dateLines, bookings, unparsed: [{ page, text }], strayAmounts: [{ page, text }],
+ *     expectedCount, readCount, balance, problems: string[] }
+ */
+function diagnose({ lines, fmt, blocks, transactions, readCount, expectedCount, bal, sum }) {
+  const isHeader = (t) => HEADER_LINE.test(t);
+  const dateLines = lines.filter(l => { const t = l.text.trim(); return BOOKING_START.test(t) && !isHeader(t); });
+  const amountLines = new Set(blocks.filter(b => !b.loose).map(b => b.amountLine));
+  const unparsed = blocks.filter(b => b.loose && BOOKING_START.test(b.text) && !isHeader(b.text)).map(b => ({ page: b.line.n ?? null, text: clip(b.text) }));
+  const otherStyle = fmt.style === 'dot' ? AMOUNT_END : AMOUNT_END_DOT;
+  const strayAmounts = lines.filter(l => {
+    const t = l.text.trim();
+    return !amountLines.has(l) && (fmt.re.test(t) || otherStyle.test(t)) && !OPEN_RE.test(t) && !CLOSE_RE.test(t) && !AMBIG_RE.test(t) && !BOOKING_START.test(t);
+  }).map(l => ({ page: l.n ?? null, text: clip(l.text.trim()) }));
+  const header = lines.find(l => isHeader(l.text.trim()))?.text.trim() || null;
+  const pages = new Set(lines.map(l => l.n)).size;
+  const fmtName = fmt.style === 'dot' ? 'Dezimalpunkt (-75.00)' : 'Dezimalkomma (-75,00)';
+  const where = (list) => { const ps = [...new Set(list.map(x => x.page).filter(Boolean))]; return ps.length ? ` (Seite ${ps.slice(0, 6).join(', ')}${ps.length > 6 ? ' …' : ''})` : ''; };
+  const problems = [];
+  if (!lines.length) problems.push('Kein Text im PDF gefunden – vermutlich ein Scan ohne Textebene.');
+  else if (!dateLines.length) problems.push(`Keine Zeile beginnt mit einem Datum (TT.MM.JJJJ) – die Buchungsspalten wurden nicht erkannt${header ? ` (Spaltenkopf: „${clip(header, 80)}“)` : ', auch kein Spaltenkopf „Datum … Betrag“'}.`);
+  else if (!transactions.length) {
+    problems.push(`${dateLines.length} Zeilen mit Datum gefunden, aber zu keiner ein Betrag am Zeilenende (erwartetes Format: ${fmtName}).`);
+    if (strayAmounts.length) problems.push(`Beträge stehen in eigenen Zeilen ohne Datum, z. B. Seite ${strayAmounts[0].page}: „${strayAmounts[0].text}“.`);
+  }
+  if (unparsed.length && transactions.length) problems.push(`${unparsed.length} Datumszeile${unparsed.length === 1 ? '' : 'n'} ohne erkennbaren Betrag${where(unparsed)} – z. B. „${unparsed[0].text}“.`);
+  if (expectedCount != null && readCount !== expectedCount) problems.push(`Laut Auszug ${expectedCount} Transaktionen, gelesen ${readCount} (${readCount < expectedCount ? `${expectedCount - readCount} fehlen` : `${readCount - expectedCount} zu viel`}).`);
+  let balance = null;
+  if (bal.opening != null && bal.closing != null) {
+    const diff = bal.closing - (bal.opening + sum);
+    balance = { opening: bal.opening, closing: bal.closing, sum, diff };
+    if (diff) problems.push(`Saldo geht nicht auf: Anfang ${fmtCent(bal.opening)} + Buchungen ${fmtCent(sum)} = ${fmtCent(bal.opening + sum)}, laut Auszug ${fmtCent(bal.closing)} (Differenz ${fmtCent(diff)}).`);
+  }
+  return {
+    pages, lines: lines.length, numberFormat: fmt.style, header, dateLines: dateLines.length, bookings: transactions.length,
+    unparsed: unparsed.slice(0, 8), strayAmounts: strayAmounts.slice(0, 5), expectedCount, readCount, balance, problems,
+  };
+}
+
 const OWN_PERSON_PREFIX = /^(?:Überweisung|Gutschrift|Lastschrift|Zahlung)\s+(?:von|an)\s+/i;
 
 export function parsePdfStatement(det, ctx) {
@@ -304,7 +347,8 @@ export function parsePdfStatement(det, ctx) {
   const countOk = expectedCount != null && readCount === expectedCount;
   if (expectedCount != null && !countOk) reasons.push(`${readCount} von ${expectedCount} Transaktionen gelesen – bitte prüfen`);
   else if ((bal.opening == null || bal.closing == null) && !countOk) reasons.push('Salden nicht gefunden');
-  if (!transactions.length) reasons.push('Keine Buchungen erkannt');
+  const diagnostics = diagnose({ lines, fmt, blocks: bookingBlocks(lines, fmt), transactions, readCount, expectedCount, bal, sum: transactions.reduce((a, t) => a + t.amount, 0) });
+  if (!transactions.length) reasons.unshift(`Keine Buchungen erkannt${diagnostics.problems[0] ? ': ' + diagnostics.problems[0] : ''}`);
   const periodFrom = period?.from || bal.openingDate || null;
   const periodTo = period?.to || bal.closingDate || null;
   const hasBoth = bal.opening != null && bal.closing != null;
@@ -315,6 +359,6 @@ export function parsePdfStatement(det, ctx) {
     format: 'pdf_statement', institution, account, transactions,
     opening: bal.opening, closing: bal.closing, openingDate: bal.openingDate || periodFrom, closingDate: bal.closingDate || periodTo,
     periodFrom, periodTo, style: 'auszug', confidence: ok || (countOk && !hasBoth) ? (flip ? 0.7 : 0.85) : 0.5, reviewReasons: reasons,
-    fields: { signals, ...(expectedCount != null ? { expectedCount, readCount } : {}) },
+    fields: { signals, ...(expectedCount != null ? { expectedCount, readCount } : {}), diagnostics },
   });
 }

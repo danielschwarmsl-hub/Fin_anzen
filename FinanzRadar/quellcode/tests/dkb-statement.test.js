@@ -178,3 +178,30 @@ describe('DKB-Umsatzexport mit Dezimalpunkt (Layout wie im Screenshot)', () => {
     expect(res.document.reviewReason).toMatch(/40 von 733 Transaktionen gelesen/);
   });
 });
+
+describe('Diagnose, wenn das Einlesen hakt', () => {
+  it('Anzahl weicht ab: Satz mit Soll/Ist in der Diagnose', async () => {
+    const { ex } = buildDkbExport({ countOverride: 733 });
+    const res = await parseStatement(detectType(ex, { name: 'x.pdf', ext: 'pdf' }), ex, { name: 'x.pdf', ext: 'pdf' });
+    const d = res.document.fields.diagnostics;
+    expect(d.problems.join(' ')).toMatch(/Laut Auszug 733 Transaktionen, gelesen 40 \(693 fehlen\)/);
+    expect(d).toMatchObject({ numberFormat: 'dot', dateLines: 40, expectedCount: 733, readCount: 40 });
+  });
+
+  it('kein Betrag lesbar: sagt, was gefunden wurde, was fehlt und zeigt Beispielzeilen mit Seite', async () => {
+    const { ex } = buildDkbExport();
+    // Beträge unlesbar machen (z. B. unbekanntes Format „EUR 75“)
+    for (const p of ex.pages) for (const l of p.lines) {
+      l.items = l.items.map((i) => (/^-?\d+\.\d{2}$/.test(i.str) ? { ...i, str: 'EUR ' + i.str.replace(/\.\d{2}$/, '') } : i));
+      l.text = l.items.map((i) => i.str).join('   ');
+    }
+    ex.text = ex.pages.map((p) => p.lines.map((l) => l.text).join('\n')).join('\n\f\n');
+    const res = await parseStatement({ type: 'kontoauszug', format: 'pdf_statement', institution: 'DKB' }, ex, { name: 'x.pdf', ext: 'pdf' });
+    expect(res.transactions).toHaveLength(0);
+    const d = res.document.fields.diagnostics;
+    expect(d.problems[0]).toMatch(/^40 Zeilen mit Datum gefunden, aber zu keiner ein Betrag am Zeilenende/);
+    expect(d.unparsed[0]).toMatchObject({ page: 1 });
+    expect(d.unparsed[0].text).toMatch(/^28\.12\.2025 Kartenzahlung/);
+    expect(res.document.reviewReason).toMatch(/^Keine Buchungen erkannt: 40 Zeilen mit Datum gefunden/);
+  });
+});
