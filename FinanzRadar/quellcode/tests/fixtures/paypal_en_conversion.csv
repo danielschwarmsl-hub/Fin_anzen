@@ -1,0 +1,7 @@
+﻿"Date","Time","TimeZone","Name","Type","Status","Currency","Gross","Fee","Net","From Email Address","To Email Address","Transaction ID","Reference Txn ID","Balance"
+"14/01/2026","09:12:41","CET","","Bank Deposit to PP Account","Completed","EUR","89.90","0.00","89.90","","me@x.com","B1","","89.90"
+"14/01/2026","09:13:05","CET","ABC Shop","Express Checkout Payment","Completed","EUR","-89.90","0.00","-89.90","me@x.com","shop@abc.com","P1","","0.00"
+"03/02/2026","10:00:00","CET","","Bank Deposit to PP Account","Completed","EUR","18.40","0.00","18.40","","me@x.com","B2","","18.40"
+"03/02/2026","10:00:30","CET","US Seller Inc","Express Checkout Payment","Completed","USD","-20.00","0.00","-20.00","me@x.com","s@us.com","P2","","0.00"
+"03/02/2026","10:00:30","CET","","General Currency Conversion","Completed","EUR","-18.40","0.00","-18.40","me@x.com","","C1","P2","0.00"
+"03/02/2026","10:00:30","CET","","General Currency Conversion","Completed","USD","20.00","0.00","20.00","","me@x.com","C2","P2","0.00"

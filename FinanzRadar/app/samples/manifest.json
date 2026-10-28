@@ -1,0 +1,90 @@
+[
+ {
+  "path": "Banken/ING/camt053_ing_2026-05.xml",
+  "size": 14854
+ },
+ {
+  "path": "Banken/ING/ing_girokonto_2026H1.csv",
+  "size": 15178
+ },
+ {
+  "path": "Banken/ING/ing_kontoauszug_2026-03.pdf",
+  "size": 58682
+ },
+ {
+  "path": "Banken/PayPal/paypal_aktivitaeten_2026H1.csv",
+  "size": 3775
+ },
+ {
+  "path": "Banken/Renault/renaultbank_tagesgeld_2026-06.pdf",
+  "size": 56143
+ },
+ {
+  "path": "Banken/comdirect/comdirect_depot_2026-06-30.csv",
+  "size": 421
+ },
+ {
+  "path": "Banken/comdirect/comdirect_girokonto_2026H1.csv",
+  "size": 2906
+ },
+ {
+  "path": "Belege/kassenbon_edeka_2026-05-03.jpg",
+  "size": 95601
+ },
+ {
+  "path": "Belege/kassenbon_rewe_2026-04-12.png",
+  "size": 106326
+ },
+ {
+  "path": "Belege/lohnabrechnung_2026-03.pdf",
+  "size": 56459
+ },
+ {
+  "path": "Belege/rechnung_amazon_monitor_2026-04.pdf",
+  "size": 56156
+ },
+ {
+  "path": "Belege/rechnung_elektro_meyer_2026-02.pdf",
+  "size": 56307
+ },
+ {
+  "path": "Belege/scan_rechnung_optiker.png",
+  "size": 575927
+ },
+ {
+  "path": "Belege/vertrag_netflix_bestaetigung.pdf",
+  "size": 55874
+ },
+ {
+  "path": "Privat/irrelevant_rezept.txt",
+  "size": 328
+ },
+ {
+  "path": "Privat/irrelevant_urlaubsfoto.jpg",
+  "size": 20133
+ },
+ {
+  "path": "Steuer/comdirect_jahressteuerbescheinigung_2025.pdf",
+  "size": 56050
+ },
+ {
+  "path": "Steuer/lohnsteuerbescheinigung_2025.pdf",
+  "size": 56128
+ },
+ {
+  "path": "Steuer/spendenquittung_aerzte_ohne_grenzen_2026.pdf",
+  "size": 55948
+ },
+ {
+  "path": "Versicherungen/allianz_privatrente_standmitteilung_2025.pdf",
+  "size": 56017
+ },
+ {
+  "path": "Versicherungen/bu_beitragsbescheinigung_2025.pdf",
+  "size": 55980
+ },
+ {
+  "path": "einkaufszettel_handschrift.txt",
+  "size": 111
+ }
+]

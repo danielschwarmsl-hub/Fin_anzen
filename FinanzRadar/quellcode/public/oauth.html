@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Anmeldung</title>
+</head>
+<body>
+  <p>Anmeldung abgeschlossen. Dieses Fenster kann geschlossen werden.</p>
+  <script>
+    // Ergebnis (code/state bzw. error) an das öffnende Fenster übergeben, dann schließen.
+    if (window.opener) {
+      window.opener.postMessage(
+        { type: 'finanzradar-oauth', search: location.search, hash: location.hash },
+        location.origin
+      );
+    }
+    window.close();
+  </script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+Umsatzanzeige;Datei erstellt am: 30.06.2026 10:15
+
+IBAN;DE12 5001 0517 0000 0000 01
+Kontoname;Girokonto
+Bank;ING
+Kunde;Max Mustermann
+Zeitraum;01.01.2026 - 30.06.2026
+Saldo;6.116,20;EUR
+
+Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Saldo;Währung;Betrag;Währung
+26.06.2026;26.06.2026;Frigotechnik GmbH;Eingang;Gehalt 06/2026;6.116,20;EUR;3.290,98;EUR
+19.06.2026;19.06.2026;Penny Markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 19.06;2.825,22;EUR;-25,72;EUR
+19.06.2026;19.06.2026;Adobe Systems Software Ireland Ltd;Lastschrift;Adobe Creative Cloud Abo;2.850,94;EUR;-24,39;EUR
+18.06.2026;18.06.2026;OpenAI Ireland Ltd.;Lastschrift;ChatGPT Plus Abo;2.875,33;EUR;-20,00;EUR
+15.06.2026;15.06.2026;Telekom Deutschland GmbH;Lastschrift;Rechnung 2026-06 Kd.-Nr. 88310042;2.895,33;EUR;-49,95;EUR
+12.06.2026;12.06.2026;Vattenfall Europe Sales GmbH;Lastschrift;Abschlag Strom Kd.-Nr. 5009123 Monat 06/2026;2.945,28;EUR;-84,50;EUR
+12.06.2026;12.06.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;PP.1234.PP . Reisebüro Probe, Ihr Einkauf bei Reisebüro Probe;3.029,78;EUR;-180,00;EUR
+12.06.2026;12.06.2026;Geldautomat Hamburg-Eimsbüttel;Auszahlung Geldautomat;Bargeldauszahlung;3.209,78;EUR;-100,00;EUR
+10.06.2026;10.06.2026;Tankstelle Shell;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 10.06;3.309,78;EUR;-46,77;EUR
+10.06.2026;10.06.2026;Alte Leipziger Versicherung AG;Lastschrift;BU-Vertrag 55-778899 Beitrag;3.356,55;EUR;-62,30;EUR
+09.06.2026;09.06.2026;Netflix International B.V.;Lastschrift;Netflix Standard 2026-06;3.418,85;EUR;-13,99;EUR
+05.06.2026;05.06.2026;Urban Sports Club GmbH;Lastschrift;Mitgliedschaft Club 2026-06;3.432,84;EUR;-49,00;EUR
+05.06.2026;05.06.2026;Spotify AB;Lastschrift;Spotify Premium 1 Konto;3.481,84;EUR;-10,99;EUR
+05.06.2026;05.06.2026;Max Mustermann;Überweisung;Tagesgeld Sparen 06/2026;3.492,83;EUR;-500,00;EUR
+04.06.2026;04.06.2026;Penny Markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 04.06;3.992,83;EUR;-39,51;EUR
+04.06.2026;04.06.2026;Max Mustermann;Überweisung;Umbuchung Verrechnungskonto comdirect Sparplan;4.032,34;EUR;-300,00;EUR
+03.06.2026;03.06.2026;Hausverwaltung Elbblick;Dauerauftrag;Miete 06/2026 Musterstraße 1;4.332,34;EUR;-1.150,00;EUR
+02.06.2026;02.06.2026;Verkehrsgesellschaft Musterstadt GmbH;Lastschrift;Deutschlandticket Abo 2026-06 Kd. 7788;5.482,34;EUR;-58,00;EUR
+02.06.2026;02.06.2026;Allianz Lebensversicherungs-AG;Lastschrift;Vertragsnr. 4711-0815 Beitrag Privatrente;5.540,34;EUR;-150,00;EUR
+27.05.2026;27.05.2026;Frigotechnik GmbH;Eingang;Gehalt 05/2026;5.690,34;EUR;3.290,98;EUR
+20.05.2026;20.05.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;PP.1234.PP . ABC Shop, Ihr Einkauf bei ABC Shop;2.399,36;EUR;-59,99;EUR
+20.05.2026;20.05.2026;Adobe Systems Software Ireland Ltd;Lastschrift;Adobe Creative Cloud Abo;2.459,35;EUR;-24,39;EUR
+18.05.2026;18.05.2026;OpenAI Ireland Ltd.;Lastschrift;ChatGPT Plus Abo;2.483,74;EUR;-20,00;EUR
+15.05.2026;15.05.2026;Telekom Deutschland GmbH;Lastschrift;Rechnung 2026-05 Kd.-Nr. 88310042;2.503,74;EUR;-49,95;EUR
+14.05.2026;14.05.2026;Ärzte ohne Grenzen e.V.;Überweisung;Spende Projekte weltweit;2.553,69;EUR;-50,00;EUR
+14.05.2026;14.05.2026;Geldautomat Hamburg-Eimsbüttel;Auszahlung Geldautomat;Bargeldauszahlung;2.603,69;EUR;-100,00;EUR
+13.05.2026;13.05.2026;dm drogerie markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 13.05;2.703,69;EUR;-23,07;EUR
+12.05.2026;12.05.2026;Vattenfall Europe Sales GmbH;Lastschrift;Abschlag Strom Kd.-Nr. 5009123 Monat 05/2026;2.726,76;EUR;-84,50;EUR
+08.05.2026;08.05.2026;Rossmann Filiale;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 08.05;2.811,26;EUR;-16,88;EUR
+08.05.2026;08.05.2026;Netflix International B.V.;Lastschrift;Netflix Standard 2026-05;2.828,14;EUR;-13,99;EUR
+08.05.2026;08.05.2026;Alte Leipziger Versicherung AG;Lastschrift;BU-Vertrag 55-778899 Beitrag;2.842,13;EUR;-62,30;EUR
+06.05.2026;06.05.2026;Urban Sports Club GmbH;Lastschrift;Mitgliedschaft Club 2026-05;2.904,43;EUR;-49,00;EUR
+06.05.2026;06.05.2026;Spotify AB;Lastschrift;Spotify Premium 1 Konto;2.953,43;EUR;-10,99;EUR
+05.05.2026;05.05.2026;Max Mustermann;Überweisung;Tagesgeld Sparen 05/2026;2.964,42;EUR;-500,00;EUR
+04.05.2026;04.05.2026;dm drogerie markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 04.05;3.464,42;EUR;-24,55;EUR
+04.05.2026;04.05.2026;Max Mustermann;Überweisung;Umbuchung Verrechnungskonto comdirect Sparplan;3.488,97;EUR;-300,00;EUR
+04.05.2026;04.05.2026;Edeka Eimsbüttel;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 03.05;3.788,97;EUR;-47,38;EUR
+01.05.2026;01.05.2026;Verkehrsgesellschaft Musterstadt GmbH;Lastschrift;Deutschlandticket Abo 2026-05 Kd. 7788;3.836,35;EUR;-58,00;EUR
+01.05.2026;01.05.2026;Hausverwaltung Elbblick;Dauerauftrag;Miete 05/2026 Musterstraße 1;3.894,35;EUR;-1.150,00;EUR
+01.05.2026;01.05.2026;Allianz Lebensversicherungs-AG;Lastschrift;Vertragsnr. 4711-0815 Beitrag Privatrente;5.044,35;EUR;-150,00;EUR
+27.04.2026;27.04.2026;Frigotechnik GmbH;Eingang;Gehalt 04/2026;5.194,35;EUR;3.290,98;EUR
+24.04.2026;24.04.2026;dm drogerie markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 24.04;1.903,37;EUR;-15,52;EUR
+22.04.2026;22.04.2026;ARD ZDF Deutschlandradio Beitragsservice;Lastschrift;Rundfunkbeitrag Quartal;1.918,89;EUR;-55,08;EUR
+20.04.2026;20.04.2026;Penny Markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 20.04;1.973,97;EUR;-38,28;EUR
+20.04.2026;20.04.2026;Adobe Systems Software Ireland Ltd;Lastschrift;Adobe Creative Cloud Abo;2.012,25;EUR;-24,39;EUR
+17.04.2026;17.04.2026;OpenAI Ireland Ltd.;Lastschrift;ChatGPT Plus Abo;2.036,64;EUR;-20,00;EUR
+15.04.2026;15.04.2026;Telekom Deutschland GmbH;Lastschrift;Rechnung 2026-04 Kd.-Nr. 88310042;2.056,64;EUR;-49,95;EUR
+14.04.2026;14.04.2026;Geldautomat Hamburg-Eimsbüttel;Auszahlung Geldautomat;Bargeldauszahlung;2.106,59;EUR;-100,00;EUR
+10.04.2026;10.04.2026;Vattenfall Europe Sales GmbH;Lastschrift;Abschlag Strom Kd.-Nr. 5009123 Monat 04/2026;2.206,59;EUR;-84,50;EUR
+10.04.2026;10.04.2026;Penny Markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 10.04;2.291,09;EUR;-38,26;EUR
+10.04.2026;10.04.2026;Alte Leipziger Versicherung AG;Lastschrift;BU-Vertrag 55-778899 Beitrag;2.329,35;EUR;-62,30;EUR
+09.04.2026;09.04.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;PP.1234.PP . Gartenmarkt Testhof, Ihr Einkauf bei Gartenmarkt Testhof;2.391,65;EUR;-74,30;EUR
+09.04.2026;09.04.2026;Netflix International B.V.;Lastschrift;Netflix Standard 2026-04;2.465,95;EUR;-13,99;EUR
+06.04.2026;06.04.2026;Urban Sports Club GmbH;Lastschrift;Mitgliedschaft Club 2026-04;2.479,94;EUR;-49,00;EUR
+06.04.2026;06.04.2026;Spotify AB;Lastschrift;Spotify Premium 1 Konto;2.528,94;EUR;-10,99;EUR
+03.04.2026;03.04.2026;Max Mustermann;Überweisung;Umbuchung Verrechnungskonto comdirect Sparplan;2.539,93;EUR;-300,00;EUR
+03.04.2026;03.04.2026;Max Mustermann;Überweisung;Tagesgeld Sparen 04/2026;2.839,93;EUR;-500,00;EUR
+03.04.2026;03.04.2026;Hausverwaltung Elbblick;Dauerauftrag;Miete 04/2026 Musterstraße 1;3.339,93;EUR;-1.150,00;EUR
+03.04.2026;03.04.2026;Gewerkschaft ver.di;Lastschrift;Mitgliedsbeitrag Quartal;4.489,93;EUR;-38,50;EUR
+02.04.2026;02.04.2026;Verkehrsgesellschaft Musterstadt GmbH;Lastschrift;Deutschlandticket Abo 2026-04 Kd. 7788;4.528,43;EUR;-58,00;EUR
+02.04.2026;02.04.2026;Allianz Lebensversicherungs-AG;Lastschrift;Vertragsnr. 4711-0815 Beitrag Privatrente;4.586,43;EUR;-150,00;EUR
+30.03.2026;30.03.2026;Optik Muster GmbH;Kartenzahlung;VISA Debitkarte Rechnung OPT-2026-0327;4.736,43;EUR;-389,00;EUR
+27.03.2026;27.03.2026;Frigotechnik GmbH;Eingang;Gehalt 03/2026;5.125,43;EUR;3.290,98;EUR
+24.03.2026;24.03.2026;Rossmann Filiale;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 24.03;1.834,45;EUR;-23,29;EUR
+20.03.2026;20.03.2026;Adobe Systems Software Ireland Ltd;Lastschrift;Adobe Creative Cloud Abo;1.857,74;EUR;-24,39;EUR
+18.03.2026;18.03.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;PP.1234.PP . Buchhandlung Muster, Ihr Einkauf bei Buchhandlung Muster;1.882,13;EUR;-22,40;EUR
+18.03.2026;18.03.2026;OpenAI Ireland Ltd.;Lastschrift;ChatGPT Plus Abo;1.904,53;EUR;-20,00;EUR
+13.03.2026;13.03.2026;Telekom Deutschland GmbH;Lastschrift;Rechnung 2026-03 Kd.-Nr. 88310042;1.924,53;EUR;-49,95;EUR
+13.03.2026;13.03.2026;Tankstelle Shell;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 13.03;1.974,48;EUR;-54,02;EUR
+13.03.2026;13.03.2026;Geldautomat Hamburg-Eimsbüttel;Auszahlung Geldautomat;Bargeldauszahlung;2.028,50;EUR;-100,00;EUR
+12.03.2026;12.03.2026;Vattenfall Europe Sales GmbH;Lastschrift;Abschlag Strom Kd.-Nr. 5009123 Monat 03/2026;2.128,50;EUR;-84,50;EUR
+10.03.2026;10.03.2026;Alte Leipziger Versicherung AG;Lastschrift;BU-Vertrag 55-778899 Beitrag;2.213,00;EUR;-62,30;EUR
+09.03.2026;09.03.2026;Netflix International B.V.;Lastschrift;Netflix Standard 2026-03;2.275,30;EUR;-13,99;EUR
+06.03.2026;06.03.2026;Urban Sports Club GmbH;Lastschrift;Mitgliedschaft Club 2026-03;2.289,29;EUR;-49,00;EUR
+06.03.2026;06.03.2026;Spotify AB;Lastschrift;Spotify Premium 1 Konto;2.338,29;EUR;-10,99;EUR
+06.03.2026;06.03.2026;Elektro Meyer GmbH;Überweisung;RE-2026-0213 Elektroinstallation Küche;2.349,28;EUR;-412,30;EUR
+05.03.2026;05.03.2026;Max Mustermann;Überweisung;Tagesgeld Sparen 03/2026;2.761,58;EUR;-500,00;EUR
+04.03.2026;04.03.2026;Max Mustermann;Überweisung;Umbuchung Verrechnungskonto comdirect Sparplan;3.261,58;EUR;-300,00;EUR
+03.03.2026;03.03.2026;Hausverwaltung Elbblick;Dauerauftrag;Miete 03/2026 Musterstraße 1;3.561,58;EUR;-1.150,00;EUR
+02.03.2026;02.03.2026;Verkehrsgesellschaft Musterstadt GmbH;Lastschrift;Deutschlandticket Abo 2026-03 Kd. 7788;4.711,58;EUR;-58,00;EUR
+02.03.2026;02.03.2026;Tankstelle Shell;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 02.03;4.769,58;EUR;-67,98;EUR
+02.03.2026;02.03.2026;Allianz Lebensversicherungs-AG;Lastschrift;Vertragsnr. 4711-0815 Beitrag Privatrente;4.837,56;EUR;-150,00;EUR
+27.02.2026;27.02.2026;Frigotechnik GmbH;Eingang;Gehalt 02/2026;4.987,56;EUR;3.290,98;EUR
+20.02.2026;20.02.2026;dm drogerie markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 20.02;1.696,58;EUR;-26,27;EUR
+20.02.2026;20.02.2026;Adobe Systems Software Ireland Ltd;Lastschrift;Adobe Creative Cloud Abo;1.722,85;EUR;-24,39;EUR
+18.02.2026;18.02.2026;OpenAI Ireland Ltd.;Lastschrift;ChatGPT Plus Abo;1.747,24;EUR;-20,00;EUR
+16.02.2026;16.02.2026;Haftpflicht Musterversicherung AG;Lastschrift;Jahresbeitrag Privathaftpflicht Vertr.-Nr. 77-112233;1.767,24;EUR;-126,90;EUR
+13.02.2026;13.02.2026;Telekom Deutschland GmbH;Lastschrift;Rechnung 2026-02 Kd.-Nr. 88310042;1.894,14;EUR;-49,95;EUR
+13.02.2026;13.02.2026;Geldautomat Hamburg-Eimsbüttel;Auszahlung Geldautomat;Bargeldauszahlung;1.944,09;EUR;-100,00;EUR
+12.02.2026;12.02.2026;Vattenfall Europe Sales GmbH;Lastschrift;Abschlag Strom Kd.-Nr. 5009123 Monat 02/2026;2.044,09;EUR;-84,50;EUR
+11.02.2026;11.02.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;PP.1234.PP . ABC Shop, Ihr Einkauf bei ABC Shop;2.128,59;EUR;-129,00;EUR
+10.02.2026;10.02.2026;Alte Leipziger Versicherung AG;Lastschrift;BU-Vertrag 55-778899 Beitrag;2.257,59;EUR;-62,30;EUR
+09.02.2026;09.02.2026;Rossmann Filiale;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 09.02;2.319,89;EUR;-20,33;EUR
+09.02.2026;09.02.2026;Netflix International B.V.;Lastschrift;Netflix Standard 2026-02;2.340,22;EUR;-13,99;EUR
+06.02.2026;06.02.2026;Urban Sports Club GmbH;Lastschrift;Mitgliedschaft Club 2026-02;2.354,21;EUR;-49,00;EUR
+06.02.2026;06.02.2026;Spotify AB;Lastschrift;Spotify Premium 1 Konto;2.403,21;EUR;-10,99;EUR
+05.02.2026;05.02.2026;Max Mustermann;Überweisung;Tagesgeld Sparen 02/2026;2.414,20;EUR;-500,00;EUR
+04.02.2026;04.02.2026;Max Mustermann;Überweisung;Umbuchung Verrechnungskonto comdirect Sparplan;2.914,20;EUR;-300,00;EUR
+03.02.2026;03.02.2026;Hausverwaltung Elbblick;Dauerauftrag;Miete 02/2026 Musterstraße 1;3.214,20;EUR;-1.150,00;EUR
+02.02.2026;02.02.2026;dm drogerie markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 02.02;4.364,20;EUR;-12,82;EUR
+02.02.2026;02.02.2026;Verkehrsgesellschaft Musterstadt GmbH;Lastschrift;Deutschlandticket Abo 2026-02 Kd. 7788;4.377,02;EUR;-58,00;EUR
+02.02.2026;02.02.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;PP.1234.PP . Aufladung PayPal-Guthaben;4.435,02;EUR;-100,00;EUR
+02.02.2026;02.02.2026;Allianz Lebensversicherungs-AG;Lastschrift;Vertragsnr. 4711-0815 Beitrag Privatrente;4.535,02;EUR;-150,00;EUR
+27.01.2026;27.01.2026;Frigotechnik GmbH;Eingang;Gehalt 01/2026;4.685,02;EUR;3.290,98;EUR
+23.01.2026;23.01.2026;dm drogerie markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 23.01;1.394,04;EUR;-31,32;EUR
+22.01.2026;22.01.2026;ARD ZDF Deutschlandradio Beitragsservice;Lastschrift;Rundfunkbeitrag Quartal;1.425,36;EUR;-55,08;EUR
+21.01.2026;21.01.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;PP.1234.PP . Sportartikel Beispiel, Ihr Einkauf bei Sportartikel Beispiel;1.480,44;EUR;-34,95;EUR
+20.01.2026;20.01.2026;Adobe Systems Software Ireland Ltd;Lastschrift;Adobe Creative Cloud Abo;1.515,39;EUR;-24,39;EUR
+16.01.2026;16.01.2026;OpenAI Ireland Ltd.;Lastschrift;ChatGPT Plus Abo;1.539,78;EUR;-20,00;EUR
+15.01.2026;15.01.2026;Telekom Deutschland GmbH;Lastschrift;Rechnung 2026-01 Kd.-Nr. 88310042;1.559,78;EUR;-49,95;EUR
+14.01.2026;14.01.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;PP.1234.PP . ABC Shop, Ihr Einkauf bei ABC Shop;1.609,73;EUR;-89,90;EUR
+14.01.2026;14.01.2026;Geldautomat Hamburg-Eimsbüttel;Auszahlung Geldautomat;Bargeldauszahlung;1.699,63;EUR;-100,00;EUR
+12.01.2026;12.01.2026;Vattenfall Europe Sales GmbH;Lastschrift;Abschlag Strom Kd.-Nr. 5009123 Monat 01/2026;1.799,63;EUR;-84,50;EUR
+09.01.2026;09.01.2026;Rossmann Filiale;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 09.01;1.884,13;EUR;-12,84;EUR
+09.01.2026;09.01.2026;Netflix International B.V.;Lastschrift;Netflix Standard 2026-01;1.896,97;EUR;-13,99;EUR
+09.01.2026;09.01.2026;Alte Leipziger Versicherung AG;Lastschrift;BU-Vertrag 55-778899 Beitrag;1.910,96;EUR;-62,30;EUR
+06.01.2026;06.01.2026;Urban Sports Club GmbH;Lastschrift;Mitgliedschaft Club 2026-01;1.973,26;EUR;-49,00;EUR
+06.01.2026;06.01.2026;Spotify AB;Lastschrift;Spotify Premium 1 Konto;2.022,26;EUR;-10,99;EUR
+05.01.2026;05.01.2026;Max Mustermann;Überweisung;Tagesgeld Sparen 01/2026;2.033,25;EUR;-500,00;EUR
+05.01.2026;05.01.2026;Gewerkschaft ver.di;Lastschrift;Mitgliedsbeitrag Quartal;2.533,25;EUR;-38,50;EUR
+02.01.2026;02.01.2026;dm drogerie markt;Kartenzahlung;VISA Debitkarte NR XXXX HAMBURG KAUFUMSATZ 02.01;2.571,75;EUR;-20,25;EUR
+02.01.2026;02.01.2026;Verkehrsgesellschaft Musterstadt GmbH;Lastschrift;Deutschlandticket Abo 2026-01 Kd. 7788;2.592,00;EUR;-58,00;EUR
+02.01.2026;02.01.2026;Max Mustermann;Überweisung;Umbuchung Verrechnungskonto comdirect Sparplan;2.650,00;EUR;-300,00;EUR
+02.01.2026;02.01.2026;Hausverwaltung Elbblick;Dauerauftrag;Miete 01/2026 Musterstraße 1;2.950,00;EUR;-1.150,00;EUR
+02.01.2026;02.01.2026;Allianz Lebensversicherungs-AG;Lastschrift;Vertragsnr. 4711-0815 Beitrag Privatrente;4.100,00;EUR;-150,00;EUR

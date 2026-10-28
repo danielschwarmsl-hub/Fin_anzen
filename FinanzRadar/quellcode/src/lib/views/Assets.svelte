@@ -1,0 +1,583 @@
+<script>
+  import { app, live, setView, putRecord, deleteRecord, toast, accountName } from '../store/state.svelte.js';
+  import { fmtEUR, fmtDate, maskIban, uid, daysBetween, parseGermanAmount } from '../util/format.js';
+  import NetWorthLine from '../charts/NetWorthLine.svelte';
+  import Sparkline from '../charts/Sparkline.svelte';
+  import Icon from '../ui/Icon.svelte';
+  import Tip from '../ui/Tip.svelte';
+  import Empty from '../ui/Empty.svelte';
+  import Money from '../ui/Money.svelte';
+  import Modal from '../ui/Modal.svelte';
+  import Toggle from '../ui/Toggle.svelte';
+
+  // ---- Konstanten ----
+  const ACCOUNT_KINDS = [
+    { value: 'giro', label: 'Girokonto' },
+    { value: 'tagesgeld', label: 'Tagesgeld' },
+    { value: 'depot', label: 'Depot' },
+    { value: 'paypal', label: 'PayPal' },
+    { value: 'kreditkarte', label: 'Kreditkarte' },
+    { value: 'rente', label: 'Altersvorsorge' },
+    { value: 'bu', label: 'Versicherung (BU)' },
+    { value: 'sonstiges', label: 'Sonstiges' },
+  ];
+  const GROUPS = [
+    { key: 'giro', label: 'Girokonten', kinds: ['giro'] },
+    { key: 'tagesgeld', label: 'Tagesgeld', kinds: ['tagesgeld'] },
+    { key: 'depot', label: 'Depots', kinds: ['depot'] },
+    { key: 'paypal', label: 'PayPal', kinds: ['paypal'] },
+    { key: 'kreditkarte', label: 'Kreditkarten', kinds: ['kreditkarte'] },
+    { key: 'rente', label: 'Altersvorsorge', kinds: ['rente'] },
+    { key: 'bu', label: 'Versicherungen', kinds: ['bu', 'versicherung'] },
+    { key: 'sonstiges', label: 'Sonstiges', kinds: [] },
+  ];
+  const ASSET_CATS = [
+    { id: 'elektronik', label: 'Elektronik', icon: 'cpu' },
+    { id: 'schmuck', label: 'Schmuck', icon: 'gem' },
+    { id: 'uhren', label: 'Uhren', icon: 'clock' },
+    { id: 'kunst', label: 'Kunst', icon: 'sparkles' },
+    { id: 'fahrzeug', label: 'Fahrzeug', icon: 'tag' },
+    { id: 'moebel', label: 'Möbel', icon: 'tag' },
+    { id: 'instrumente', label: 'Instrumente', icon: 'zap' },
+    { id: 'sonstiges', label: 'Sonstiges', icon: 'tag' },
+  ];
+
+  // ---- Helfer ----
+  const today = (() => {
+    const d = new Date();
+    return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+  })();
+  const groupOf = (kind) => GROUPS.find((g) => g.kinds.includes(kind))?.key || 'sonstiges';
+  const kindKey = (kind) => (ACCOUNT_KINDS.some((k) => k.value === kind) ? kind : 'sonstiges');
+  const catLabel = (id) => ASSET_CATS.find((c) => c.id === id)?.label || 'Sonstiges';
+  const catIcon = (id) => ASSET_CATS.find((c) => c.id === id)?.icon || 'tag';
+  const assetValue = (a) => a.currentValue ?? a.purchasePrice ?? 0;
+  const centsStr = (c) => (c == null ? '' : (c / 100).toFixed(2).replace('.', ','));
+  const pct = (x) => (x * 100).toFixed(1).replace('.', ',') + ' %';
+  const fmtQty = (q) => (q == null ? '–' : Number(q).toLocaleString('de-DE', { maximumFractionDigits: 4 }));
+
+  function warranty(a) {
+    if (!a.warrantyUntil) return null;
+    const d = daysBetween(today, a.warrantyUntil);
+    if (d < 0) return { cls: '', text: 'abgelaufen' };
+    if (d === 0) return { cls: 'warn', text: 'läuft heute ab' };
+    return { cls: d <= 90 ? 'warn' : 'good', text: `läuft ab in ${d} Tagen` };
+  }
+
+  function focusOnMount(node) {
+    node.focus();
+    node.select();
+  }
+
+  // ---- Hero / Nettovermögen ----
+  const ins = $derived(live.insights);
+  const nwSeries = $derived(ins?.netWorth?.series || []);
+  const nwSorted = $derived([...nwSeries].sort((a, b) => a.date.localeCompare(b.date)));
+  const nwChange = $derived(nwSorted.length > 1 ? nwSorted.at(-1).value - nwSorted[0].value : null);
+
+  // ---- Konten ----
+  const valsByAcc = $derived.by(() => {
+    const m = new Map();
+    for (const v of app.data.valuations || []) {
+      if (!v.accountId) continue;
+      if (!m.has(v.accountId)) m.set(v.accountId, []);
+      m.get(v.accountId).push(v);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    return m;
+  });
+  const nwByAcc = $derived(new Map((ins?.netWorth?.byAccount || []).map((x) => [x.accountId, x])));
+  const accRows = $derived(
+    (app.data.accounts || []).map((a) => {
+      const vs = valsByAcc.get(a.id) || [];
+      const last = vs.at(-1);
+      const bya = nwByAcc.get(a.id);
+      return {
+        a,
+        value: bya ? bya.value : last ? last.value : null,
+        date: bya ? bya.date : last ? last.date : null,
+        spark: vs.map((v) => v.value),
+      };
+    })
+  );
+  const accGroups = $derived(
+    GROUPS.map((g) => {
+      const rows = accRows.filter((r) => groupOf(r.a.kind) === g.key);
+      return { ...g, rows, sum: rows.reduce((s, r) => s + (r.value ?? 0), 0) };
+    }).filter((g) => g.rows.length)
+  );
+  const netTotal = $derived(ins?.netWorth?.total ?? accRows.reduce((s, r) => s + (r.value ?? 0), 0));
+
+  let editingId = $state(null);
+  let draft = $state('');
+  function startRename(a) {
+    editingId = a.id;
+    draft = a.name || a.institution || '';
+  }
+  async function commitRename(a) {
+    const n = draft.trim();
+    editingId = null;
+    if (n && n !== a.name) await saveAccount(a, { name: n });
+  }
+  async function saveAccount(a, patch) {
+    await putRecord('accounts', { ...a, ...patch });
+  }
+
+  // ---- Depot ----
+  let depotSel = $state(null);
+  // Pro Depot nur der jüngste Bestand (Stichtag, bei gleichem Tag das zuletzt importierte Dokument) – wie in networth.js
+  const holdings = $derived.by(() => {
+    const latest = new Map();
+    const docOrder = new Map((app.data.documents || []).map((d, i) => [d.id, d.createdAt || String(i).padStart(8, '0')]));
+    for (const h of app.data.holdings || []) {
+      const key = (h.date || '') + '|' + (docOrder.get(h.documentId) || '');
+      const cur = latest.get(h.accountId || '');
+      if (!cur || key > cur.key) latest.set(h.accountId || '', { key, documentId: h.documentId, date: h.date });
+    }
+    return (app.data.holdings || [])
+      .filter((h) => { const l = latest.get(h.accountId || ''); return l && h.documentId === l.documentId && h.date === l.date; })
+      .sort((a, b) => (b.value || 0) - (a.value || 0));
+  });
+  const depotIds = $derived([...new Set(holdings.map((h) => h.accountId).filter(Boolean))]);
+  const shownHoldings = $derived(depotSel ? holdings.filter((h) => h.accountId === depotSel) : holdings);
+  const holdingsTotal = $derived(shownHoldings.reduce((s, h) => s + (h.value || 0), 0));
+
+  // ---- Altersvorsorge & BU ----
+  const docValMap = $derived.by(() => {
+    const m = new Map();
+    for (const v of app.data.valuations || []) {
+      if (!v.documentId) continue;
+      if (!m.has(v.documentId)) m.set(v.documentId, []);
+      m.get(v.documentId).push(v);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    return m;
+  });
+  const vorsorge = $derived(
+    (app.data.documents || [])
+      .filter((d) => (d.type === 'rente' || d.type === 'versicherung') && d.type !== 'irrelevant')
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  );
+  function valsOf(d) {
+    return docValMap.get(d.id) || (d.accountId ? valsByAcc.get(d.accountId) : null) || [];
+  }
+  function vorsorgeFields(d) {
+    const f = d.fields || {};
+    return [
+      ['Fondsguthaben', f.fondsguthaben, ''],
+      ['Rückkaufswert', f.rueckkaufswert, ''],
+      ['Garantierte Rente', f.garantierteRente, ' / Monat'],
+      ['BU-Rente', f.buRente, ' / Monat'],
+      ['Beitrag / Monat', f.premiumMonthly, ''],
+      ['Beitrag / Jahr', f.premiumYearly, ''],
+      ['Beiträge gesamt', f.beitraegeGezahlt, ''],
+    ].filter(([, v]) => Number.isFinite(v) && v !== 0);
+  }
+
+  // ---- Wertgegenstände ----
+  const assets = $derived([...(app.data.assets || [])].sort((a, b) => assetValue(b) - assetValue(a)));
+  const assetsTotal = $derived(assets.reduce((s, a) => s + assetValue(a), 0));
+  const receiptDocs = $derived(
+    (app.data.documents || [])
+      .filter((d) => d.type === 'rechnung' || d.type === 'kassenbon')
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  );
+  const docTitle = (id) => {
+    if (!id) return '';
+    const d = (app.data.documents || []).find((x) => x.id === id);
+    return d ? d.title || d.institution || 'Beleg' : '';
+  };
+
+  let formOpen = $state(false);
+  let formId = $state(null);
+  let form = $state(blankForm());
+  function blankForm() {
+    return { name: '', category: 'elektronik', purchaseDate: '', purchase: '', current: '', warranty: '', documentId: '', note: '' };
+  }
+  function openNew() {
+    formId = null;
+    form = blankForm();
+    formOpen = true;
+  }
+  function openEdit(a) {
+    formId = a.id;
+    form = {
+      name: a.name || '',
+      category: a.category || 'sonstiges',
+      purchaseDate: a.purchaseDate || '',
+      purchase: centsStr(a.purchasePrice),
+      current: centsStr(a.currentValue),
+      warranty: a.warrantyUntil || '',
+      documentId: a.documentId || '',
+      note: a.note || '',
+    };
+    formOpen = true;
+  }
+  function parseAmt(s) {
+    const t = (s || '').trim();
+    if (!t) return { v: null, ok: true };
+    const v = parseGermanAmount(t);
+    return { v, ok: v != null };
+  }
+  async function saveAsset() {
+    const name = form.name.trim();
+    if (!name) return;
+    const p = parseAmt(form.purchase);
+    const c = parseAmt(form.current);
+    if (!p.ok || !c.ok) {
+      toast('Betrag bitte prüfen', { tone: 'bad' });
+      return;
+    }
+    const rec = {
+      id: formId || uid('as_'),
+      name,
+      category: form.category,
+      purchaseDate: form.purchaseDate || null,
+      purchasePrice: p.v,
+      currentValue: c.v,
+      warrantyUntil: form.warranty || null,
+      documentId: form.documentId || null,
+      note: form.note.trim() || null,
+      currency: 'EUR',
+    };
+    await putRecord('assets', rec);
+    formOpen = false;
+    toast('Gespeichert');
+  }
+  async function removeAsset() {
+    if (!formId || !confirm(`„${form.name || 'Wertgegenstand'}“ löschen?`)) return;
+    await deleteRecord('assets', formId);
+    formOpen = false;
+    toast('Gelöscht');
+  }
+</script>
+
+<div class="stack">
+  <!-- Hero -->
+  {#if accRows.length || nwSeries.length}
+    <section class="card hero">
+      <div class="hero-top">
+        <div class="stack tight">
+          <div class="row small muted lbl">
+            <span>Nettovermögen</span>
+            <Tip text="Summe aller Konten und Depots zum jeweils letzten bekannten Stand" />
+          </div>
+          <div class="big num">{fmtEUR(netTotal)}</div>
+        </div>
+        {#if nwChange != null}
+          <div class="small num change" class:pos={nwChange >= 0} class:negc={nwChange < 0}>
+            {nwChange >= 0 ? '▲' : '▼'} {fmtEUR(Math.abs(nwChange))} seit {fmtDate(nwSorted[0].date)}
+          </div>
+        {/if}
+      </div>
+      <NetWorthLine series={nwSeries} height={200} />
+    </section>
+  {:else}
+    <div class="card">
+      <Empty icon="wallet" title="Noch kein Vermögen erfasst">
+        {#snippet action()}
+          <button class="btn btn-primary" onclick={() => setView('sources')}><Icon name="plus" size={16} />Dateien hinzufügen</button>
+        {/snippet}
+      </Empty>
+    </div>
+  {/if}
+
+  <!-- Konten -->
+  {#each accGroups as g (g.key)}
+    <section class="card">
+      <div class="card-head">
+        <h2>{g.label}<span class="badge">{g.rows.length}</span></h2>
+        <Money value={g.sum} class="small strong" />
+      </div>
+      <div class="acc-grid">
+        {#each g.rows as r (r.a.id)}
+          <article class="acc">
+            <div class="row between top">
+              <div class="grow min0">
+                <div class="small muted ellipsis">{r.a.institution || '–'}</div>
+                {#if editingId === r.a.id}
+                  <input
+                    class="input name-in"
+                    aria-label="Kontoname"
+                    bind:value={draft}
+                    use:focusOnMount
+                    onblur={() => commitRename(r.a)}
+                    onkeydown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                      if (e.key === 'Escape') {
+                        draft = r.a.name || '';
+                        e.currentTarget.blur();
+                      }
+                    }}
+                  />
+                {:else}
+                  <button class="rename" onclick={() => startRename(r.a)} title="Umbenennen">
+                    <span class="ellipsis">{r.a.name || r.a.institution || 'Konto'}</span>
+                    <Icon name="edit" size={13} />
+                  </button>
+                {/if}
+              </div>
+              <div class="val num">{r.value != null ? fmtEUR(r.value) : '–'}</div>
+            </div>
+            {#if r.spark.length > 1}
+              <Sparkline values={r.spark} height={34} />
+            {/if}
+            <div class="row between small faint">
+              <span class="mono ellipsis">{maskIban(r.a.iban) || r.a.number || ''}</span>
+              <span class="num">{r.date ? fmtDate(r.date) : ''}</span>
+            </div>
+            <div class="row between wrap foot">
+              <select class="input sel" aria-label="Kontoart" value={kindKey(r.a.kind)} onchange={(e) => saveAccount(r.a, { kind: e.currentTarget.value })}>
+                {#each ACCOUNT_KINDS as k (k.value)}<option value={k.value}>{k.label}</option>{/each}
+              </select>
+              <span class="row small">
+                <Toggle checked={r.a.own !== false} label="Eigenes Konto" onchange={(v) => saveAccount(r.a, { own: v })} />
+                <Tip text="Markiert Konten, die dir gehören. Fremde Konten bleiben sichtbar." />
+              </span>
+            </div>
+          </article>
+        {/each}
+      </div>
+    </section>
+  {/each}
+
+  <!-- Depot -->
+  {#if holdings.length}
+    <section class="card">
+      <div class="card-head">
+        <h2>Depot<Tip text="Jeweils der neueste Bestand je Wertpapier und Depot" /></h2>
+        <Money value={holdingsTotal} class="small strong" />
+      </div>
+      {#if depotIds.length > 1}
+        <div class="row wrap chips">
+          <button class="chip" class:on={depotSel === null} onclick={() => (depotSel = null)}>Alle</button>
+          {#each depotIds as id (id)}
+            <button class="chip" class:on={depotSel === id} onclick={() => (depotSel = id)}>{accountName(id)}</button>
+          {/each}
+        </div>
+      {/if}
+      <div class="scroll hold">
+        <table class="tbl hold-tbl">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>ISIN</th>
+              <th class="r">Stück</th>
+              <th class="r">Kurs</th>
+              <th class="r">Wert</th>
+              <th class="r">Anteil</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each shownHoldings as h (h.id)}
+              <tr>
+                <td class="ellipsis name-cell">{h.name || '–'}</td>
+                <td class="mono faint">{h.isin || '–'}</td>
+                <td class="r num">{fmtQty(h.qty)}</td>
+                <td class="r"><Money value={h.price} /></td>
+                <td class="r"><Money value={h.value} /></td>
+                <td class="r num muted">{holdingsTotal ? pct((h.value || 0) / holdingsTotal) : '–'}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {/if}
+
+  <!-- Altersvorsorge & BU -->
+  {#if vorsorge.length}
+    <section class="stack tight">
+      <h2 class="sec">Altersvorsorge &amp; BU</h2>
+      <div class="vgrid">
+        {#each vorsorge as d (d.id)}
+          {@const vals = valsOf(d)}
+          <article class="card vcard">
+            <div class="row between top">
+              <div class="grow min0">
+                <div class="row wrap gap-s">
+                  <span class="badge accent">{d.fields?.productKindLabel || d.subtype || 'Vertrag'}</span>
+                  {#if d.needsReview && !d.reviewed}<span class="badge warn">Prüfen</span>{/if}
+                </div>
+                <div class="strong ellipsis vtitle">{d.title || d.institution || 'Vertrag'}</div>
+                <div class="small faint ellipsis">{d.institution || d.issuer || ''}{d.date ? ' · ' + fmtDate(d.date) : ''}</div>
+              </div>
+            </div>
+            {#if vals.length > 1}
+              <Sparkline values={vals.map((v) => v.value)} height={40} />
+            {/if}
+            <dl class="kv">
+              {#each vorsorgeFields(d) as [label, val, suffix] (label)}
+                <dt>{label}</dt>
+                <dd><span class="num">{fmtEUR(val)}{suffix}</span></dd>
+              {/each}
+              {#if !vorsorgeFields(d).length}
+                <dt class="faint">Keine Werte erkannt</dt>
+                <dd></dd>
+              {/if}
+            </dl>
+          </article>
+        {/each}
+      </div>
+    </section>
+  {/if}
+
+  <!-- Wertgegenstände -->
+  <section class="card">
+    <div class="card-head">
+      <h2>Wertgegenstände<Tip text="Eigene Gegenstände mit Wert und Garantie. Belege lassen sich verknüpfen." /></h2>
+      {#if assets.length}
+        <Money value={assetsTotal} class="small strong" />
+        <button class="btn btn-primary btn-sm" onclick={openNew}><Icon name="plus" size={15} />Hinzufügen</button>
+      {/if}
+    </div>
+    {#if !assets.length}
+      <Empty icon="tag" title="Noch keine Wertgegenstände">
+        {#snippet action()}
+          <button class="btn btn-primary" onclick={openNew}><Icon name="plus" size={16} />Wertgegenstand hinzufügen</button>
+        {/snippet}
+      </Empty>
+    {:else}
+      <ul class="alist">
+        {#each assets as a (a.id)}
+          {@const w = warranty(a)}
+          <li>
+            <button class="arow" onclick={() => openEdit(a)}>
+              <span class="aic"><Icon name={catIcon(a.category)} size={16} /></span>
+              <span class="min0">
+                <span class="row wrap gap-s">
+                  <strong class="ellipsis">{a.name}</strong>
+                  {#if w}<span class="badge {w.cls}">{w.text}</span>{/if}
+                </span>
+                <span class="small muted ellipsis">
+                  {catLabel(a.category)}{a.purchaseDate ? ' · gekauft ' + fmtDate(a.purchaseDate) : ''}{docTitle(a.documentId) ? ' · ' + docTitle(a.documentId) : ''}
+                </span>
+              </span>
+              <span class="amt">
+                <span class="num strong">{fmtEUR(assetValue(a))}</span>
+                {#if a.purchasePrice != null && a.currentValue != null && a.currentValue !== a.purchasePrice}
+                  <span class="small faint num">Kauf {fmtEUR(a.purchasePrice)}</span>
+                {/if}
+              </span>
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
+</div>
+
+<Modal bind:open={formOpen} title={formId ? 'Wertgegenstand bearbeiten' : 'Wertgegenstand hinzufügen'} width={540}>
+  <form class="form" onsubmit={(e) => { e.preventDefault(); saveAsset(); }}>
+    <div class="grid g2">
+      <label class="field full">
+        <span>Name</span>
+        <input class="input" bind:value={form.name} placeholder="z. B. MacBook Pro 14" required />
+      </label>
+      <label class="field">
+        <span>Kategorie</span>
+        <select class="input" bind:value={form.category}>
+          {#each ASSET_CATS as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
+        </select>
+      </label>
+      <label class="field">
+        <span>Kaufdatum</span>
+        <input class="input" type="date" bind:value={form.purchaseDate} />
+      </label>
+      <label class="field">
+        <span>Kaufpreis (€)</span>
+        <input class="input num" inputmode="decimal" placeholder="0,00" bind:value={form.purchase} />
+      </label>
+      <label class="field">
+        <span>Aktueller Wert (€)</span>
+        <input class="input num" inputmode="decimal" placeholder="0,00" bind:value={form.current} />
+      </label>
+      <label class="field">
+        <span>Garantie bis</span>
+        <input class="input" type="date" bind:value={form.warranty} />
+      </label>
+      <label class="field">
+        <span>Beleg verknüpfen</span>
+        <select class="input" bind:value={form.documentId}>
+          <option value="">Kein Beleg</option>
+          {#each receiptDocs as d (d.id)}
+            <option value={d.id}>{(d.title || d.institution || 'Beleg') + ' · ' + fmtDate(d.date)}</option>
+          {/each}
+        </select>
+      </label>
+      <label class="field full">
+        <span>Notiz</span>
+        <textarea class="input" rows="2" bind:value={form.note}></textarea>
+      </label>
+    </div>
+  </form>
+
+  {#snippet footer()}
+    {#if formId}
+      <button class="btn btn-ghost btn-danger" type="button" onclick={removeAsset}><Icon name="trash" size={15} />Löschen</button>
+    {/if}
+    {#if form.documentId}
+      <button class="btn btn-ghost" type="button" onclick={() => { const id = form.documentId; formOpen = false; setView('documents', { open: id }); }}><Icon name="external" size={15} />Beleg öffnen</button>
+    {/if}
+    <span class="grow"></span>
+    <button class="btn" type="button" onclick={() => (formOpen = false)}>Abbrechen</button>
+    <button class="btn btn-primary" type="button" disabled={!form.name.trim()} onclick={saveAsset}>Speichern</button>
+  {/snippet}
+</Modal>
+
+<style>
+  .lbl { font-weight: 550; }
+  .big { font-size: 32px; font-weight: 750; letter-spacing: -.025em; line-height: 1.1; }
+  .hero-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .change { font-weight: 600; }
+  .min0 { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .gap-s { gap: 8px; }
+  .strong { font-weight: 650; }
+  .top { align-items: flex-start; }
+  .sec { font-size: 15px; }
+  .chips { margin-bottom: 12px; }
+
+  /* Konten */
+  .acc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .acc { border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); min-width: 0; transition: border-color .15s, box-shadow .15s; }
+  .acc:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); box-shadow: var(--shadow); }
+  .rename { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 0; background: none; border: 0; cursor: pointer; color: var(--text); font-weight: 650; font-size: 14.5px; text-align: left; min-width: 0; }
+  .rename :global(.ico) { opacity: 0; transition: opacity .15s; color: var(--text-3); flex: none; }
+  .rename:hover :global(.ico), .rename:focus-visible :global(.ico) { opacity: 1; }
+  .name-in { height: 30px; font-weight: 600; width: 100%; }
+  .val { font-size: 16px; font-weight: 700; white-space: nowrap; }
+  .foot { gap: 8px; }
+  .sel { height: 30px; font-size: 12.5px; padding: 0 8px; max-width: 100%; }
+
+  /* Depot */
+  .hold { max-width: 100%; }
+  .hold-tbl { min-width: 560px; }
+  .name-cell { max-width: 260px; font-weight: 550; }
+
+  /* Vorsorge */
+  .vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: var(--gap); }
+  .vcard { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .vtitle { font-size: 14.5px; }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 7px 12px; margin: 0; font-size: 13px; }
+  .kv dt { color: var(--text-2); }
+  .kv dd { margin: 0; text-align: right; font-weight: 600; }
+
+  /* Wertgegenstände */
+  .alist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .alist li + li { border-top: 1px solid var(--border); }
+  .arow { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 6px; background: none; border: 0; cursor: pointer; text-align: left; color: inherit; border-radius: 10px; transition: background .15s; }
+  .arow:hover { background: var(--surface-2); }
+  .aic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--text-2); flex: none; }
+  .amt { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; text-align: right; }
+
+  /* Formular */
+  .form { display: flex; flex-direction: column; gap: 12px; }
+  .full { grid-column: 1 / -1; }
+  textarea.input { resize: vertical; min-height: 56px; }
+
+  @media (max-width: 520px) {
+    .big { font-size: 27px; }
+    .arow { gap: 10px; padding: 10px 4px; }
+    .amt { font-size: 13px; }
+  }
+</style>

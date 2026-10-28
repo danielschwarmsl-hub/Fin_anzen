@@ -1,0 +1,30 @@
+// KI-E2E gegen Mock-Ollama: Verbindung, Modellwahl, No-Thinking, Lauf, 6-Min-Wächter (verkürzt auf 4 s)
+import { createRequire } from 'node:module';
+const require = createRequire('/opt/npm-tools/node_modules/');
+const { chromium } = require('playwright');
+const OUT = process.env.SHOTS;
+const b = await chromium.launch(); const page = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+await page.addInitScript(() => { globalThis.__FR_SLOW_MS = 4000; });
+const errors = []; page.on('pageerror', e => errors.push(e.message));
+await page.goto('http://localhost:8765/');
+await page.click('text=Mit Beispieldaten ausprobieren');
+await page.waitForSelector('.card.done', { timeout: 240000 });
+await page.click('aside button:has-text("Einstellungen")');
+await page.waitForSelector('text=Ollama verbunden', { timeout: 15000 });
+await page.click('text=KI nutzen');
+await page.waitForTimeout(500);
+await page.screenshot({ path: `${OUT}/ai-settings.png` });
+await page.selectOption('select >> nth=0', 'qwen3:8b');
+await page.waitForTimeout(300);
+await page.click('text=Offene Fälle mit KI klären');
+await page.waitForSelector('.aib', { timeout: 10000 });
+await page.waitForSelector('text=Kleineres Modell', { timeout: 30000 }).catch(() => errors.push('kein Langsam-Hinweis'));
+await page.screenshot({ path: `${OUT}/ai-banner.png` });
+const sw = await page.$('.aib button:has-text("Wechseln")');
+if (sw) { await sw.click(); await page.waitForTimeout(300); }
+const model = await page.$eval('select', s => s.value).catch(() => '?');
+await page.waitForSelector('.aib', { state: 'detached', timeout: 120000 }).catch(() => errors.push('Lauf endet nicht'));
+await page.screenshot({ path: `${OUT}/ai-done.png` });
+console.log('model after switch:', model);
+console.log(errors.length ? errors.join('\n') : 'NO ERRORS');
+await b.close();

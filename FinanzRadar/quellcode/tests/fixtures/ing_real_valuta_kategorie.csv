@@ -1,0 +1,24 @@
+Umsatzanzeige;Datei erstellt am: 17.10.2026 09:12
+
+IBAN;DE12 5001 0517 5407 3249 31
+Kontoname;Girokonto
+Bank;ING
+Kunde;Max Mustermann
+Zeitraum;29.09.2026 - 17.10.2026
+Saldo;4.512,30;EUR
+
+Sortierung;Datum absteigend
+
+In der CSV-Datei finden Sie alle bereits gebuchten Umsätze. Die vorgemerkten Umsätze werden nicht aufgeführt.
+
+Buchung;Valuta;Auftraggeber/Empfänger;Buchungstext;Kategorie;Verwendungszweck;Saldo;Währung;Betrag;Währung
+15.10.2026;15.10.2026;Frigotechnik GmbH;Gehalt/Rente;Einkommen;Gehalt 10/2026;4.512,30;EUR;3.290,98;EUR
+14.10.2026;14.10.2026;REWE Markt GmbH;Lastschrift;Lebensmittel;REWE SAGT DANKE. 12345 HAMBURG DE;1.221,32;EUR;-45,67;EUR
+13.10.2026;13.10.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;Sonstiges;1234567890 PP.1234.PP . ZALANDO, Ihr Einkauf bei ZALANDO;1.266,99;EUR;-59,95;EUR
+13.10.2026;13.10.2026;PayPal Europe S.a.r.l. et Cie S.C.A;Lastschrift;Sonstiges;1234567891 PP.1234.PP . ZALANDO, Ihr Einkauf bei ZALANDO;1.326,94;EUR;-59,95;EUR
+12.10.2026;12.10.2026;Max Mustermann;Dauerauftrag/Terminueberw.;Sonstiges;Sparen Tagesgeld;1.386,89;EUR;-300,00;EUR
+10.10.2026;10.10.2026;Vodafone GmbH;Lastschrift;Telekommunikation;Rechnung 123;1.686,89;EUR;-39,99;EUR
+05.10.2026;05.10.2026;ING;Entgelt;Sonstiges;Kontoführung 10/2026;1.726,88;EUR;-4,90;EUR
+01.10.2026;01.10.2026;Hausverwaltung Elbblick;Dauerauftrag/Terminueberw.;Wohnen;Miete 10/2026;1.731,78;EUR;-1.150,00;EUR
+30.09.2026;30.09.2026;Finanzamt Hamburg;Überweisung;Steuern;Steuerrückerstattung ESt 2025;2.881,78;EUR;+420,00;EUR
+29.09.2026;29.09.2026;Amazon EU S.a.r.l.;Retouren;Sonstiges;RETOURE 303-123;2.461,78;EUR;19,99;EUR

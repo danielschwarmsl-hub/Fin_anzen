@@ -1,0 +1,195 @@
+{
+  "seed": 42,
+  "household": "Max Mustermann, Musterstraße 1, 20095 Hamburg",
+  "files": {
+    "Banken/ING/ing_girokonto_2026H1.csv": {
+      "type": "bank_csv",
+      "issuer": "ING",
+      "encoding": "cp1252",
+      "delimiter": ";",
+      "period": "2026-01-01/2026-06-30",
+      "bookings": 125,
+      "opening_eur": "4250.00",
+      "closing_eur": "6116.20",
+      "salary_eur_monthly": "3290.98",
+      "salary_bookings": 6
+    },
+    "Banken/comdirect/comdirect_girokonto_2026H1.csv": {
+      "type": "bank_csv",
+      "issuer": "comdirect",
+      "encoding": "iso-8859-1",
+      "delimiter": ";",
+      "period": "2026-01-01/2026-06-30",
+      "bookings": 25,
+      "opening_eur": "1200.00",
+      "closing_eur": "409.92"
+    },
+    "Banken/comdirect/comdirect_depot_2026-06-30.csv": {
+      "type": "depot_csv",
+      "issuer": "comdirect",
+      "encoding": "iso-8859-1",
+      "date": "2026-06-30",
+      "positions": 3,
+      "total_eur": "7352.51"
+    },
+    "Banken/PayPal/paypal_aktivitaeten_2026H1.csv": {
+      "type": "paypal_csv",
+      "issuer": "PayPal",
+      "encoding": "utf-8-bom",
+      "delimiter": ",",
+      "rows": 20,
+      "bank_funded_in_eur": "690.54",
+      "final_balance_eur": "33.70",
+      "ing_paypal_debits": 8
+    },
+    "Banken/Renault/renaultbank_tagesgeld_2026-06.pdf": {
+      "type": "savings_statement_pdf",
+      "issuer": "Renault Bank direkt",
+      "period": "2026-06",
+      "opening_eur": "5820.00",
+      "closing_eur": "6328.73",
+      "entries": 2,
+      "credit_from_ing_eur": "500.00"
+    },
+    "Banken/ING/ing_kontoauszug_2026-03.pdf": {
+      "type": "bank_statement_pdf",
+      "issuer": "ING",
+      "period": "2026-03",
+      "bookings": 21,
+      "opening_eur": "4987.56",
+      "closing_eur": "4736.43"
+    },
+    "Banken/ING/camt053_ing_2026-05.xml": {
+      "type": "camt053",
+      "issuer": "ING",
+      "schema": "camt.053.001.08",
+      "period": "2026-05",
+      "bookings": 21,
+      "opening_eur": "5194.35",
+      "closing_eur": "5690.34"
+    },
+    "Belege/lohnabrechnung_2026-03.pdf": {
+      "type": "payslip_pdf",
+      "issuer": "Frigotechnik GmbH",
+      "period": "2026-03",
+      "gross_eur": "5200.00",
+      "net_eur": "3290.98",
+      "deductions_eur": "1909.02",
+      "credited_on_ing": "2026-03-27"
+    },
+    "Belege/rechnung_elektro_meyer_2026-02.pdf": {
+      "type": "invoice_pdf",
+      "issuer": "Elektro Meyer GmbH",
+      "invoice_no": "RE-2026-0213",
+      "date": "2026-02-20",
+      "net_eur": "346.47",
+      "vat_19_eur": "65.83",
+      "total_eur": "412.30",
+      "labour_net_eur": "230.00",
+      "paid_by": "transfer",
+      "paid_on": "2026-03-06"
+    },
+    "Belege/rechnung_amazon_monitor_2026-04.pdf": {
+      "type": "invoice_pdf",
+      "issuer": "Amazon EU S.à r.l.",
+      "invoice_no": "RE-AMZ-2026-0407-7781",
+      "date": "2026-04-07",
+      "net_eur": "209.24",
+      "vat_19_eur": "39.76",
+      "total_eur": "249.00",
+      "paid_by": "card (comdirect)",
+      "paid_on": "2026-04-09"
+    },
+    "Belege/kassenbon_rewe_2026-04-12.png": {
+      "type": "receipt_image",
+      "issuer": "REWE",
+      "date": "2026-04-12",
+      "total_eur": "67.84",
+      "paid_by": "card (comdirect)",
+      "booked_on": "2026-04-13",
+      "scan_effect": false
+    },
+    "Belege/kassenbon_edeka_2026-05-03.jpg": {
+      "type": "receipt_image",
+      "issuer": "EDEKA",
+      "date": "2026-05-03",
+      "total_eur": "47.38",
+      "paid_by": "card (ING)",
+      "booked_on": "2026-05-04",
+      "scan_effect": true
+    },
+    "Belege/vertrag_netflix_bestaetigung.pdf": {
+      "type": "subscription_confirmation_pdf",
+      "issuer": "Netflix International B.V.",
+      "date": "2026-06-09",
+      "price_monthly_eur": "13.99"
+    },
+    "Belege/scan_rechnung_optiker.png": {
+      "type": "invoice_image_only",
+      "issuer": "Optik Muster GmbH",
+      "invoice_no": "OPT-2026-0327",
+      "date": "2026-03-27",
+      "net_eur": "326.89",
+      "vat_19_eur": "62.11",
+      "total_eur": "389.00",
+      "text_layer": false,
+      "paid_on": "2026-03-30"
+    },
+    "Versicherungen/allianz_privatrente_standmitteilung_2025.pdf": {
+      "type": "insurance_statement_pdf",
+      "issuer": "Allianz Lebensversicherungs-AG",
+      "contract_no": "4711-0815",
+      "stichtag": "2025-12-31",
+      "paid_2025_eur": "1800.00",
+      "fund_value_eur": "16482.37",
+      "surrender_value_eur": "14910.00"
+    },
+    "Versicherungen/bu_beitragsbescheinigung_2025.pdf": {
+      "type": "tax_certificate_pdf",
+      "issuer": "Alte Leipziger Versicherung AG",
+      "contract_no": "55-778899",
+      "year": 2025,
+      "yearly_premium_eur": "747.60"
+    },
+    "Steuer/lohnsteuerbescheinigung_2025.pdf": {
+      "type": "tax_certificate_pdf",
+      "issuer": "Frigotechnik GmbH",
+      "year": 2025,
+      "gross_eur": "60000.00",
+      "lohnsteuer_eur": "8346.00",
+      "kirchensteuer_eur": "751.14",
+      "soli_eur": "0.00",
+      "sv_total_eur": "12930.00"
+    },
+    "Steuer/comdirect_jahressteuerbescheinigung_2025.pdf": {
+      "type": "tax_certificate_pdf",
+      "issuer": "comdirect",
+      "year": 2025,
+      "kapitalertraege_eur": "1240.55",
+      "freistellung_used_eur": "1000.00",
+      "kapest_eur": "60.14",
+      "soli_eur": "3.31",
+      "kist_eur": "5.41"
+    },
+    "Steuer/spendenquittung_aerzte_ohne_grenzen_2026.pdf": {
+      "type": "donation_receipt_pdf",
+      "issuer": "Ärzte ohne Grenzen e.V.",
+      "year": 2026,
+      "amount_eur": "50.00",
+      "date": "14.05.2026",
+      "paid_on": "2026-05-14"
+    },
+    "einkaufszettel_handschrift.txt": {
+      "type": "note_text",
+      "is_finance": false
+    },
+    "Privat/irrelevant_urlaubsfoto.jpg": {
+      "type": "photo",
+      "is_finance": false
+    },
+    "Privat/irrelevant_rezept.txt": {
+      "type": "note_text",
+      "is_finance": false
+    }
+  }
+}

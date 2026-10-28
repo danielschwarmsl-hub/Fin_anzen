@@ -1,0 +1,23 @@
+; 
+"Umsätze Girokonto";"Zeitraum: 01.10.2026 - 17.10.2026";
+"Alter Kontostand";"2.000,00 EUR";
+"Neuer Kontostand";"4.069,69 EUR";
+
+"Buchungstag";"Wertstellung (Valuta)";"Vorgang";"Buchungstext";"Umsatz in EUR";
+"offen";"";"Kartenzahlung";"Buchungstext: Kiosk Hbf";"-3,50";
+"16.10.2026";"16.10.2026";"Lastschrift / Belastung";"Empfänger: VISA Kreditkartenabrechnung Kto/IBAN: DE00200411110000000000 BLZ/BIC: COBADEHD001 Buchungstext: Kreditkartenabrechnung 09/2026 Ref. XYZ123/1";"-155,40";
+"15.10.2026";"15.10.2026";"Übertrag / Überweisung";"Auftraggeber: Frigotechnik GmbH Buchungstext: Gehalt 10/2026 Ref. 8TY6Q0BS7N5Q4A0K/1";"3.290,98";
+"10.10.2026";"10.10.2026";"Lastschrift / Belastung";"Empfänger: PayPal Europe S.a.r.l. et Cie S.C.A. Kto/IBAN: LU89751000135104200E BLZ/BIC: PPLXLUL2 Buchungstext: 1234567890 PP.1234.PP . Spotify, Ihr Einkauf bei Spotify End-to-End-Ref.: 1234567890 Mandatsref.: 5KR123 Gläubiger-ID: LU96ZZZ0000000000000000058";"-10,99";
+"05.10.2026";"05.10.2026";"Kartenverfügung";"Buchungstext: SPARKASSE HAMBURG 12345678 KARTE 4999 2026-10-05 Geldautomat";"-200,00";
+"02.10.2026";"02.10.2026";"Dauerauftrag";"Empfänger: Hausverwaltung Elbblick Kto/IBAN: DE02120300000000202051 BLZ/BIC: BYLADEM1001 Buchungstext: Miete 10/2026 Ref. NONREF";"-1.150,00";
+"01.10.2026";"01.10.2026";"Zinsen/Entgelte";"Buchungstext: Kontoführungsentgelt 10/2026";"-4,90";
+"01.10.2026";"01.10.2026";"Übertrag / Überweisung";"Auftraggeber: Max Mustermann Buchungstext: Umbuchung Sparplan Ref. 11/1";"300,00";
+
+"Umsätze Visa-Karte";"Zeitraum: 01.10.2026 - 17.10.2026";
+"Alter Kontostand";"-155,40 EUR";
+"Neuer Kontostand";"-47,00 EUR";
+
+"Buchungstag";"Umsatztag";"Vorgang";"Referenz";"Buchungstext";"Umsatz in EUR";
+"16.10.2026";"16.10.2026";"Gutschrift";"R1";"Ausgleich Kreditkartenabrechnung";"155,40";
+"14.10.2026";"13.10.2026";"Kartenzahlung";"R2";"AMAZON.DE LUXEMBOURG";"-30,00";
+"12.10.2026";"12.10.2026";"Kartenzahlung";"R3";"HOTEL BEISPIEL BERLIN";"-17,00";

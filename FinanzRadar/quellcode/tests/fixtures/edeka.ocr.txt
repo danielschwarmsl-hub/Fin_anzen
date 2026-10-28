@@ -1,0 +1,30 @@
+EDEKA Markt Eimsbüttel
+Fruchtallee 22, 20259 Hamburg
+USt-IdNr.: DE123456789
+Datum 03.05.2026 Zeit 11:42
+Kasse 04 Bon-Nr. 0412
+Haferdrink 1L 1,29 A
+Eier Bodenhaltung 10er 2,89 A
+Toastbrot 1,59 A
+Parmesan 200g 3,49 A
+Tomaten 500g 1,99 A
+Olivenöl 500ml 8,49 B
+Nudeln Hartweizen 500g 1,29 A
+Geschirrspüler-Tabs 13,99 B
+Cola 1,5L 1,19 B
+Hackfleisch gemischt 500g 6,99 A
+Kräuter Basilikum 1,69 A
+Bio Zitronen 3er 2,49 A
+SUMME EUR 47,38
+Code Satzı Netto MwSt Brutto
+A 7% 22,16 1,55 23,71
+B 19% 19,89 3,78 23,67
+Kartenzahlung VISA EUR 47,38
+TSE-Transaktion: 000448
+Signaturzaehler: 2840
+TSE-Seriennr.: DEMO-TSE-0001
+TSE-Signatur:
+D35C790730359CCAB2A953238A391BC3
+FF6648711D1ABFE47FEB1850709B6C3B
+Vielen Dank für Ihren Einkauf!
+Testbon — alle Angaben fiktiv

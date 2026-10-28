@@ -1,0 +1,14 @@
+Optik Muster GmbH - Rechnung
+
+Rechnung Nr. OPT-2026-0327
+
+Datum 27.03.2026
+
+Kunde: Max Mustermann, Musterstraße 1, 20095 Hamburg
+Gleitsichtgläser Index 1.6, entspiegelt 210,00
+Fassung Metall, Pos. 2 82,00
+Etui und Pflegetuch, Pos. 3 34,89
+Nettobetrag 326,89
+19 % Umsatzsteuer 62,11
+Rechnungsbetrag brutto 389,00 EUR
+Zahlbar sofort per Kartenzahlung. Optik Muster GmbH (Testdaten)

@@ -1,0 +1,42 @@
+REWE Markt Hamburg-Eimsbüttel
+
+Beispielweg 12, 20259 Hamburg
+
+USt-IdNr.: DE123456789
+
+Datum 12.04.2026 Zeit 10:24
+
+Kasse 04 Bon-Nr. 0231
+
+Vollmilch 1,5% 1L 1,099 A
+Vollkornbrot 2,49 A
+Bio Äpfel 1kg 2,99 A
+Gouda jung 150g 2,19 A
+Bananen 1kg 1,79 A
+Kaffee gemahlen 500g 6,49 A
+Waschmittel 40WL 11,99«B
+Zahnpasta 75ml 2.19 B
+Spülmittel 1,39 B
+Lachsfilet 200g 18,99 A
+Sahne 250g 1,89 A
+Müsli 750g 7,49 B
+Rinderhack 500g 6,86 A
+SUMME EUR 67,84
+Code Satz Netto MwSt Brutto
+A 7% 41,85 2,93 44,78
+B 19% 19,38 3,68 23,06
+Kartenzahlung VISA EUR 67,84
+TSE-Transaktion: 000994
+
+Signaturzaehler: 3524
+
+TSE-Seriennr.: DEMO-TSE-0001
+
+TSE-Signatur:
+
+194EB3EFODBDC5133C435F4C85C21151
+5982313EAAE542A18B5239FBD1FD2B42
+
+Vielen Dank für Ihren Einkauf!
+
+Testbon — alle Angaben fiktiv
