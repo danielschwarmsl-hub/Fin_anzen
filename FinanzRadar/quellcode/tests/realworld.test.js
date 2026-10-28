@@ -158,9 +158,11 @@ describe('PayPal englisch (DD/MM, Fremdwährung mit Umrechnung)', () => {
   it('Fremdwährungszahlung zählt einmal in EUR, Händlername aus der Referenz, Aufladungen sind Umbuchungen', async () => {
     const { res } = await parseFile(path.join(FIX, 'paypal_en_conversion.csv'));
     expect(res.transactions.map(t => [t.bookingDate, t.amount])).toEqual([['2026-01-14', 8990], ['2026-01-14', -8990], ['2026-02-03', 1840], ['2026-02-03', -1840]]);
-    expect(res.transactions[3]).toMatchObject({ counterparty: 'US Seller Inc', bookingText: 'Währungsumrechnung' });
+    // Die USD-Zahlung selbst wird übernommen (EUR-Betrag aus der Umrechnung), die Umrechnungszeilen zählen nicht
+    expect(res.transactions[3]).toMatchObject({ counterparty: 'US Seller Inc', bookingText: 'Express Checkout Payment', originalAmount: -2000, originalCurrency: 'USD' });
     expect(res.transactions.filter(t => t.isTransfer)).toHaveLength(2);
-    expect(res.document.fields.skippedForeign).toBe(2);
+    expect(res.document.fields.skippedForeign).toBe(0);
+    expect(res.document.fields.skippedConversion).toBe(2);
   });
   it('Datumsreihenfolge gilt pro Datei: eindeutiges 14/01 → alle Zeilen Tag/Monat; Zeitzone PST → Monat/Tag', async () => {
     const mk = (tz, d1, d2) => csvFromString([

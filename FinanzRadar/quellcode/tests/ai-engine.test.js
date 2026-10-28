@@ -16,7 +16,7 @@ function makeTable() {
 const fakeDb = { transactions: makeTable(), documents: makeTable(), blobs: makeTable(), lineItems: makeTable() };
 vi.mock('../src/lib/store/db.js', () => ({ db: fakeDb }));
 vi.mock('../src/lib/store/state.svelte.js', () => ({
-  app: { settings: { ai: { enabled: true, model: 'qwen3:8b', visionModel: '', url: 'http://mock:1', think: false } } },
+  app: { settings: { ai: { enabled: true, model: 'qwen3:8b', visionModel: '', url: 'http://localhost:1', think: false } } },
   saveSettings: vi.fn(async () => {}),
   reload: vi.fn(async () => {}),
   toast: vi.fn(),

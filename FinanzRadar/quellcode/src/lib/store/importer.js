@@ -11,6 +11,8 @@ import { aiHooks } from '../ai/hooks.js';
 
 const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', tif: 'image/tiff', tiff: 'image/tiff', csv: 'text/csv', tsv: 'text/tab-separated-values', txt: 'text/plain', md: 'text/plain', xml: 'application/xml', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel', sta: 'text/plain', mt940: 'text/plain' };
 
+const STATEMENT_TYPES = new Set(['kontoauszug', 'paypal', 'depot', 'kreditkarte']);
+const AI_KEEP = ['aiHint', 'aiAt', 'aiReason', 'aiSuggestion']; // KI-Felder, die ein Neu-Lesen überleben
 const MAX_LINE_ITEMS = 500; // Obergrenze je Dokument (Schutz vor Textdateien mit Hunderttausenden „Positionen“)
 
 let controller = null;
@@ -38,6 +40,11 @@ const isQuota = (e) => e?.name === 'QuotaExceededError' || e?.inner?.name === 'Q
 /** Schlüssel „bekannte Datei“: gleicher Pfad, gleiche Größe, gleicher Zeitstempel (0/null/'' gelten als „unbekannt“) */
 const fileKey = (path, size, mtime) => `${path}|${size ?? ''}|${mtime || ''}`;
 
+/** Früher wegen fehlendem/unsicherem OCR-Text ignoriert → beim nächsten Import erneut versuchen */
+const ignoredForOcr = (f) => f?.status === 'ignored' && (f.detection?.subtype === 'kein_text' || !!f.detection?.ocrLow);
+/** Datei gilt als erledigt (kein erneutes Lesen) */
+const isSettled = (f) => f?.status === 'done' || (f?.status === 'ignored' && !ignoredForOcr(f));
+
 /** Quelle anlegen oder vorhandene zurückgeben */
 export async function ensureSource({ kind, name, root = '', config = {} }) {
   const existing = (await db.sources.toArray()).find(s => s.kind === kind && s.name === name && s.root === root);
@@ -56,7 +63,7 @@ export async function runImport(items, source, { concurrency = 2 } = {}) {
   controller = new AbortController();
   const signal = controller.signal;
   const p = app.progress;
-  Object.assign(p, { running: true, paused: false, total: 0, done: 0, current: 'Dateien werden gesammelt …', phase: 'collect', errors: [], counts: {}, startedAt: Date.now(), log: [], skipped: 0, newDocs: 0, newTx: 0 });
+  Object.assign(p, { running: true, paused: false, total: 0, done: 0, current: 'Dateien werden gesammelt …', phase: 'collect', errors: [], counts: {}, startedAt: Date.now(), log: [], skipped: 0, newDocs: 0, newTx: 0, dupTx: 0, enrichedTx: 0 });
   pauseWaiters = [];
 
   try {
@@ -71,7 +78,7 @@ export async function runImport(items, source, { concurrency = 2 } = {}) {
     // Bekannte Dateien für schnellen Skip: gleicher Pfad + Größe + mtime in gleicher Quelle (auch Pfade von Dubletten)
     const known = new Set();
     await db.files.each(f => {
-      if (f.status !== 'done' && f.status !== 'ignored') return;
+      if (!isSettled(f)) return;
       if (f.sourceId === source.id) known.add(fileKey(f.path, f.size, f.mtime));
       for (const o of f.origins || []) if (o.sourceId === source.id) known.add(fileKey(o.path, o.size ?? f.size, o.mtime ?? f.mtime));
     });
@@ -160,7 +167,7 @@ async function processItem(item, source, ctx) {
 
 async function processContent(item, source, { signal, existingKeys }, { file, buf, hash, ext, origin }) {
   const dup = await db.files.get(hash);
-  if (dup && (dup.status === 'done' || dup.status === 'ignored')) {
+  if (dup && isSettled(dup)) {
     // Gleicher Inhalt schon importiert → nur Herkunft ergänzen (je Quelle und Pfad einmal)
     const origins = dup.origins || [];
     const same = origins.find(o => o.sourceId === origin.sourceId && o.path === origin.path);
@@ -192,19 +199,81 @@ async function processContent(item, source, { signal, existingKeys }, { file, bu
   }
 }
 
-async function readAndSave(meta, blob, hash, { signal, existingKeys }) {
-  const extracted = await extract(meta, blob, {
-    signal,
-    onProgress: (v, label) => { app.progress.current = `${meta.name} – ${label || ''} ${v ? Math.round(v * 100) + ' %' : ''}`; },
+/**
+ * Eine bereits importierte Datei neu verarbeiten (z. B. „Neu prüfen“ bei unlesbarem Beleg oder Typ korrigieren).
+ * Liest den gespeicherten Inhalt aus db.blobs, löscht die alten Daten der Datei, speichert neu und ruft danach die
+ * Nachverarbeitung (ohne aiHooks.afterImport). forceType: vom Nutzer gewählter Dokumenttyp (ohne erneute Erkennung);
+ * ocrBoost: OCR gleich mit höherer Auflösung. KI-Felder (aiHint, aiAt, aiReason, aiSuggestion) bleiben erhalten.
+ */
+export async function reprocessFile(fileId, { forceType = null, ocrBoost = false } = {}) {
+  const rec = await db.files.get(fileId);
+  if (!rec) throw new Error('Datei nicht gefunden');
+  const stored = await db.blobs.get(fileId);
+  if (!stored?.blob) throw new Error('Dateiinhalt nicht gespeichert – bitte erneut importieren');
+  const existingKeys = new Set();
+  await db.transactions.each(t => { if (t.dedupeKey && t.fileId !== fileId) existingKeys.add(t.dedupeKey); });
+  // KI-Hinweise der alten Dokumente merken; bei vom Nutzer gewähltem Typ ist ein KI-Typvorschlag/-grund überholt
+  const keep = {};
+  for (const d of await db.documents.where('fileId').equals(fileId).toArray()) {
+    for (const k of AI_KEEP) if (d[k] != null && keep[k] == null && !(forceType && (k === 'aiSuggestion' || k === 'aiReason'))) keep[k] = d[k];
+  }
+  await purgeFileData(fileId, existingKeys);
+  const meta = { name: rec.name, path: rec.path, ext: rec.ext || extOf(rec.name), mime: rec.mime || stored.blob.type || MIME[rec.ext] || 'application/octet-stream', size: rec.size };
+  const signal = new AbortController().signal;
+  await db.files.update(fileId, { status: 'processing', error: null });
+  try {
+    await readAndSave(meta, stored.blob, fileId, { signal, existingKeys, forceType, ocrBoost });
+    if (Object.keys(keep).length) {
+      for (const d of await db.documents.where('fileId').equals(fileId).toArray()) {
+        const patch = {};
+        for (const [k, v] of Object.entries(keep)) if (d[k] == null) patch[k] = v;
+        if (Object.keys(patch).length) await db.documents.update(d.id, patch);
+      }
+    }
+  } catch (e) {
+    await db.files.update(fileId, { status: 'error', error: errorText(e) }).catch(() => {});
+    throw e;
+  } finally {
+    if (!app.progress.running) await terminateOcr().catch(() => {});
+  }
+  try { await postProcess(); } catch (e) { console.error(e); }
+  await reload();
+  return db.files.get(fileId);
+}
+
+async function readAndSave(meta, blob, hash, { signal, existingKeys, forceType = null, ocrBoost = false }) {
+  const read = (boost) => extract(meta, blob, {
+    signal, ocrBoost: boost,
+    onProgress: (v, label) => { app.progress.current = `${meta.name} – ${boost ? 'zweiter Versuch: ' : ''}${label || ''} ${v ? Math.round(v * 100) + ' %' : ''}`; },
   });
+  let extracted = await read(ocrBoost);
   if (extracted.thumbnail) await db.blobs.put({ id: 'thumb:' + hash, blob: extracted.thumbnail });
 
-  let detection = detectType(extracted, meta);
-  if (aiHooks.detect && detection.confidence < 0.55 && extracted.text?.length > 40) {
-    detection = (await aiHooks.detect(extracted, meta, detection, { signal })) || detection;
+  let detection;
+  if (forceType) {
+    // Vom Nutzer gewählter Typ: direkt übernehmen, ohne erneute Erkennung und ohne KI. Nur Kontoumsatz-Typen brauchen
+    // das erkannte Format (Parser) – das wird übernommen, wenn die Erkennung denselben Typ liefert.
+    const st = STATEMENT_TYPES.has(forceType) ? detectType(extracted, meta) : null;
+    detection = {
+      type: forceType, subtype: null, institution: st?.type === forceType ? st.institution : null, format: st?.type === forceType ? st.format : null,
+      confidence: 1, signals: ['vom Nutzer gewählt'], alternatives: [], uncertain: false, forced: true, typeSource: 'user',
+    };
+  } else {
+    detection = detectType(extracted, meta);
+    // Unlesbarer Beleg: automatisch ein zweiter OCR-Versuch mit höherer Auflösung
+    if (detection.unreadable && !ocrBoost) {
+      signal.throwIfAborted();
+      const again = await read(true);
+      const second = detectType(again, meta);
+      if (!second.unreadable || (again.ocrConfidence ?? -1) > (extracted.ocrConfidence ?? -1)) { extracted = again; detection = second; }
+    }
+    if (aiHooks.detect && detection.confidence < 0.55 && extracted.text?.length > 40) {
+      detection = (await aiHooks.detect(extracted, meta, detection, { signal })) || detection;
+    }
   }
   if (detection.type === 'irrelevant') {
-    await db.files.update(hash, { status: 'ignored', detection });
+    const ocrLow = !!extracted.ocr && typeof extracted.ocrConfidence === 'number' && extracted.ocrConfidence < 55;
+    await db.files.update(hash, { status: 'ignored', detection: { ...detection, ocrLow } });
     count('irrelevant');
     return;
   }
@@ -213,10 +282,22 @@ async function readAndSave(meta, blob, hash, { signal, existingKeys }) {
     result = (await aiHooks.parse(detection, extracted, meta, result, { signal })) || result;
   }
   signal.throwIfAborted();
+  if (detection.typeSource === 'ai' && result.document) {
+    // Typ von der KI bestimmt: kenntlich machen, Begründung/Alternativen übernehmen
+    const doc = result.document;
+    doc.typeSource = 'ai';
+    doc.aiReason ??= detection.aiReason;
+    if (!doc.alternatives?.length) doc.alternatives = detection.alternatives || [];
+    if (detection.needsReview) {
+      const why = 'KI hat den Dokumenttyp bestimmt – bitte prüfen';
+      doc.needsReview = true;
+      doc.reviewReason = doc.reviewReason ? `${doc.reviewReason}; ${why}` : why;
+    }
+  }
   await saveResult(result, { fileId: hash, meta, extracted, detection, existingKeys });
   // Mehrere Konten/Abschnitte in einer Datei (z. B. comdirect Giro + Visa, mehrere camt-Statements)
   for (const extra of result.additional || []) await saveResult(extra, { fileId: hash, meta, extracted, detection, existingKeys });
-  await db.files.update(hash, { status: 'done', error: null, detection: { type: detection.type, format: detection.format, institution: detection.institution, confidence: detection.confidence } });
+  await db.files.update(hash, { status: 'done', error: null, detection: { type: detection.type, subtype: detection.subtype ?? null, format: detection.format, institution: detection.institution, confidence: detection.confidence, forced: !!detection.forced, typeSource: detection.typeSource ?? null } });
   count(detection.type);
 }
 
@@ -229,38 +310,54 @@ function upsertAccount(acc) {
   accountLock = run.catch(() => null);
   return run;
 }
+const sameText = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+const REVIEW_ACCOUNT = 'Konto zugeordnet? bitte prüfen';
+
+/**
+ * Konto suchen oder anlegen → { id, review }. IBAN gleich → dasselbe Konto. Ohne IBAN auf einer Seite nur
+ * zusammenführen, wenn Kontonummer oder Name passen und kein IBAN-Konflikt besteht; gibt es nur unsichere
+ * Kandidaten derselben Bank/Art, wird ein eigenes Konto angelegt und das Dokument zur Prüfung markiert.
+ */
 async function upsertAccountUnsafe(acc) {
-  if (!acc) return null;
+  if (!acc) return { id: null, review: null };
   const all = await db.accounts.toArray();
   const iban = normalizeIban(acc.iban);
+  const noConflict = (a) => !iban || !a.iban || normalizeIban(a.iban) === iban;
+  const matches = (a) => (acc.number && sameText(a.number, acc.number)) || sameText(a.name, acc.name);
   let found = iban ? all.find(a => normalizeIban(a.iban) === iban) : null;
-  if (!found && acc.number) found = all.find(a => a.number && a.number === acc.number && a.institution === acc.institution);
+  if (!found && acc.number) found = all.find(a => a.number && a.number === acc.number && a.institution === acc.institution && noConflict(a));
   const sameBank = all.filter(a => a.kind === acc.kind && a.institution && a.institution === acc.institution);
-  // Kein IBAN im neuen Dokument (z. B. PDF): eindeutiges Konto derselben Bank und Art übernehmen
-  if (!found && !iban) found = sameBank.length === 1 ? sameBank[0] : sameBank.find(a => (a.name || '') === (acc.name || '') && !a.iban) || null;
-  // Neues Dokument hat IBAN, bisher genau ein Konto derselben Bank/Art ohne IBAN → zusammenführen
-  if (!found && iban) { const noIban = sameBank.filter(a => !a.iban); if (noIban.length === 1 && sameBank.length === 1) found = noIban[0]; }
+  let review = null;
+  if (!found) {
+    // Kein IBAN im neuen Dokument (z. B. PDF) → passendes Konto derselben Bank/Art; neues Dokument mit IBAN → nur Konten ohne IBAN
+    const pool = iban ? sameBank.filter(a => !a.iban) : sameBank;
+    const hits = pool.filter(a => matches(a) && noConflict(a));
+    if (hits.length === 1) found = hits[0];
+    else if (hits.length > 1) { found = hits.find(a => !a.iban) || hits[0]; review = REVIEW_ACCOUNT; }
+    else if (pool.length) review = REVIEW_ACCOUNT; // Kandidaten ohne Treffer: eigenes Konto, aber nachfragen
+  }
   if (found) {
     const patch = {};
     for (const k of ['iban', 'name', 'number', 'currency', 'owner']) if (!found[k] && acc[k]) patch[k] = acc[k];
     if (Object.keys(patch).length) await db.accounts.update(found.id, patch);
-    return found.id;
+    return { id: found.id, review };
   }
   const id = uid('acc_');
   await db.accounts.put({ id, own: true, currency: 'EUR', ...acc, iban: iban || null, createdAt: new Date().toISOString() });
-  return id;
+  return { id, review };
 }
 
 const OWNER_RE = /(?:Kontoinhaber(?:in)?|Kunde|Inhaber(?:in)?|Depotinhaber)\s*[:;]\s*([A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\- ]{2,40}?)(?=\s*(?:[,;\n]|$))/m;
 
-async function saveResult(result, { fileId, meta, extracted, existingKeys }) {
+export async function saveResult(result, { fileId, meta, extracted, existingKeys }) {
   if (result.account && !result.account.owner) {
     const m = OWNER_RE.exec((extracted.rawText || extracted.text || '').slice(0, 4000));
     if (m) result.account.owner = m[1].trim();
   }
-  const accountId = await upsertAccount(result.account);
+  const { id: accountId, review: accountReview } = await upsertAccount(result.account);
   const docId = uid('doc_');
-  const d = result.document || {};
+  const d = { ...(result.document || {}) };
+  if (accountReview) { d.needsReview = true; d.reviewReason = d.reviewReason ? `${d.reviewReason}; ${accountReview}` : accountReview; }
   const doc = {
     ...d,
     id: docId, fileId, accountId,
@@ -297,12 +394,15 @@ async function saveResult(result, { fileId, meta, extracted, existingKeys }) {
   const txs = [];
   for (const t of result.transactions || []) {
     const key = t.dedupeKey;
-    if (key && existingKeys.has(key)) continue;
+    if (key && existingKeys.has(key)) { app.progress.dupTx++; continue; }
     const dk = t.bookingDate + '|' + t.amount;
     if ((existingCount.get(dk) || 0) > 0) {
       existingCount.set(dk, existingCount.get(dk) - 1);
       const ex = existingByKey.get(dk)?.shift();
-      if (ex) { const patch = {}; for (const f of ENRICH) if (!ex[f] && t[f]) patch[f] = t[f]; if (Object.keys(patch).length) enrich.push({ key: ex.id, changes: patch }); }
+      const patch = {};
+      if (ex) for (const f of ENRICH) if (!ex[f] && t[f]) patch[f] = t[f];
+      // Dublette: entweder ergänzt sie eine bestehende Buchung oder sie wird übersprungen
+      if (Object.keys(patch).length) { enrich.push({ key: ex.id, changes: patch }); app.progress.enrichedTx++; } else app.progress.dupTx++;
       continue;
     }
     if (key) existingKeys.add(key);

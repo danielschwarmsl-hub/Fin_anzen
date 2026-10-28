@@ -515,9 +515,10 @@ describe('Wiederkehrende Zahlungen', () => {
   it('Nutzerverträge: gleicher Anbieter wird nicht doppelt erkannt; IDs/Art bleiben', () => {
     const t = series(6, { counterparty: 'Netflix', amount: -1399, ...cat });
     expect(detectRecurring(t, [{ id: 'u1', source: 'user', provider: 'Netflix' }])).toHaveLength(0);
+    // IDs/Art früherer Auto-Verträge übernimmt mergeContracts (postProcess reicht detectRecurring nur Nutzerverträge) –
+    // geprüft in tests/receipts-contracts.test.js
     const first = detectRecurring(t)[0];
-    const kept = detectRecurring(t, [{ ...first, id: 'ct_alt', kind: 'sonstiges', kindUser: true }])[0];
-    expect(kept).toMatchObject({ id: 'ct_alt', kind: 'sonstiges' });
+    expect(detectRecurring(t, [{ ...first, id: 'ct_alt', kind: 'sonstiges', kindUser: true }])[0].id).toBe(first.id);
   });
   it('linkContracts setzt contractId und räumt Verwaiste auf', () => {
     const t = series(3, { counterparty: 'Netflix', amount: -1399, ...cat });

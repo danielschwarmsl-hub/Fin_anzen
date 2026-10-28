@@ -1,10 +1,11 @@
-// Gemeinsame Definitionen für alle Quellen (Ordner, Dropbox, Google Drive). DOM-frei.
+// Gemeinsame Definitionen für alle Quellen (Ordner, Dropbox, Google Drive, Outlook). DOM-frei.
 import { extOf } from '../util/format.js';
 
 export const SOURCE_KINDS = [
   { kind: 'local', label: 'Ordner' },
   { kind: 'dropbox', label: 'Dropbox' },
   { kind: 'gdrive', label: 'Google Drive' },
+  { kind: 'outlook', label: 'Outlook' },
 ];
 
 export const MAX_FILE_BYTES = 80 * 1024 * 1024;

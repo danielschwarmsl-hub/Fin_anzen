@@ -24,16 +24,51 @@ export function amountsIn(line) {
 export const lastAmount = (line) => { const a = amountsIn(line); return a.length ? a[a.length - 1] : null; };
 export const hasAmount = (line) => amountsIn(line).length > 0;
 
-/** Zeilen eines Extracted-Objekts (Seiten nacheinander), normalisiert. */
+// OCR: Zeile, die nur aus einem Preis (ggf. mit Steuerkennzeichen) besteht
+const PRICE_ONLY_RE = /^\W{0,2}-?\s?\d{1,4}[.,]\d{2}\d?\s*(?:€|EUR)?\s*[^\w\s]?\s*(?:[A-Da-d]|\*)?\s*$/;
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : NaN; };
+
+/**
+ * OCR-Zeilen mit Position (y): Steht der Preis als eigene Zeile neben dem Artikel (Tesseract trennt weit auseinander
+ * liegende Spalten), wird er an die nächstgelegene Textzeile ohne Betrag auf gleicher Höhe angehängt.
+ */
+export function mergeOcrPriceLines(lines) {
+  if (!lines?.length || !lines.every((l) => Number.isFinite(l?.y))) return lines;
+  const isPrice = (l) => PRICE_ONLY_RE.test(cleanOcr(l.text));
+  const isText = (l) => /[A-Za-zÄÖÜäöü]{2}/.test(l.text) && !hasAmount(l.text);
+  const prices = lines.filter(isPrice);
+  if (!prices.length) return lines;
+  // Toleranz: Zeilenhöhe (falls bekannt), sonst halber üblicher Abstand der übrigen Zeilen
+  const heights = lines.map((l) => l.h).filter((h) => h > 0);
+  const others = lines.filter((l) => !isPrice(l)).map((l) => l.y).sort((a, b) => b - a);
+  const gaps = others.slice(1).map((y, i) => others[i] - y).filter((g) => g > 0);
+  const tol = heights.length ? median(heights) * 0.6 : median(gaps) * 0.5;
+  if (!(tol > 0)) return lines;
+  const merged = new Map(); // Textzeile → angehängte Preiszeile
+  const dropped = new Set();
+  for (const p of prices) {
+    let best = null;
+    for (const l of lines) {
+      if (l === p || merged.has(l) || !isText(l)) continue;
+      const dy = Math.abs(l.y - p.y);
+      if (dy <= tol && (!best || dy < Math.abs(best.y - p.y))) best = l;
+    }
+    if (best) { merged.set(best, p); dropped.add(p); }
+  }
+  if (!dropped.size) return lines;
+  return lines.filter((l) => !dropped.has(l)).map((l) => (merged.has(l) ? { ...l, text: `${l.text}   ${merged.get(l).text.trim()}` } : l));
+}
+
+/** Zeilen eines Extracted-Objekts (Seiten nacheinander), normalisiert. OCR-Preiszeilen werden ihrer Position nach angehängt. */
 export function getLines(extracted) {
   let raw = [];
   if (extracted?.pages?.length && extracted.pages.some((p) => p.lines?.length)) {
     for (const p of extracted.pages) {
-      if (p.lines?.length) raw.push(...p.lines.map((l) => l.text));
+      if (p.lines?.length) raw.push(...(extracted.ocr ? mergeOcrPriceLines(p.lines) : p.lines).map((l) => l.text));
       else raw.push(...String(p.text || '').split('\n'));
     }
   } else raw = String(extracted?.text || extracted?.rawText || '').split(/\r?\n/);
-  return raw.map((l) => String(l).replace(/[ \f]/g, ' ').replace(/\s+$/, '')).filter((l) => l.trim() !== '');
+  return raw.map((l) => String(l).replace(/[\u00a0\f]/g, ' ').replace(/\s+$/, '')).filter((l) => l.trim() !== '');
 }
 
 /** Spalten einer Zeile (Trennung bei ≥2 Leerzeichen/Tab). */
