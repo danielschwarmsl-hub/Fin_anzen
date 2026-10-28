@@ -81,8 +81,15 @@ const OCR_MIN_CONFIDENCE = 55; // darunter gilt ein OCR-Ergebnis als unsicher
 const unique = (a) => [...new Set(a)];
 
 /** Punkte je Typ + Treffer-Signale. */
+// Belege, Abrechnungen und Bescheinigungen haben wenige Seiten; bei langen Dokumenten (z. B. Kontoauszug über 69 Seiten)
+// zählen Stichwörter nur auf den ersten Seiten – sonst machen Buchungstexte wie „Gehalt“ daraus eine Lohnabrechnung.
+const KEYWORD_PAGES = 2;
+const LONG_DOC_PAGES = 3;
+
 export function scoreTypes(extracted, fileMeta) {
-  const text = normalize(extracted?.text || extracted?.rawText || '');
+  const pages = extracted?.pages || [];
+  const full = normalize(extracted?.text || extracted?.rawText || '');
+  const text = pages.length > LONG_DOC_PAGES ? normalize(pages.slice(0, KEYWORD_PAGES).map((p) => p.text || '').join('\n')) : full;
   const head = text.slice(0, 350);
   const name = normalize(fileMeta?.name || '');
   const scores = {}, signals = {};
@@ -217,7 +224,8 @@ export function detectType(extracted, fileMeta) {
   const st = detectStatementFormat(extracted, fileMeta);
   const doc = detectDocumentType(extracted, fileMeta);
   if (st) {
-    const weak = (st.format === 'pdf_statement' || st.format === 'generic_csv') && (st.confidence ?? 1) < 0.7;
+    // Viele erkannte Buchungen: Kontoumsätze, egal welche Stichwörter in den Buchungstexten stehen
+    const weak = (st.format === 'pdf_statement' || st.format === 'generic_csv') && (st.confidence ?? 1) < 0.7 && !((st.bookings || 0) >= 8);
     const strongDoc = !['irrelevant', 'finanz_sonstiges'].includes(doc.type) && doc.confidence >= 0.85
       && (scoreTypes(extracted, fileMeta).scores[doc.type] || 0) >= 9;
     if (!(weak && strongDoc)) {

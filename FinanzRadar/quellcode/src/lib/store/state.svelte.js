@@ -119,6 +119,20 @@ export async function updateTransactions(ids, patch) {
   app.dataVersion++;
 }
 export async function updateDocument(id, patch) {
+  const cur = app.data.documents.find(x => x.id === id) || await db.documents.get(id);
+  // Typ vom Nutzer geändert: Datei mit genau diesem Typ neu lesen (anderer Parser, z. B. Kontoauszug statt Lohnabrechnung)
+  if (patch.type && cur?.fileId && patch.type !== cur.type && patch.type !== 'irrelevant') {
+    const { type, ...rest } = patch;
+    const { reprocessFile } = await import('./importer.js');
+    await reprocessFile(cur.fileId, { forceType: type });
+    const docs = await db.documents.where('fileId').equals(cur.fileId).toArray();
+    // Felder, die der Parser liefert (Titel, Datum, Betrag …), nicht mit Werten des alten Typs überschreiben
+    const keep = {};
+    for (const k of ['needsReview', 'reviewed', 'tags', 'note']) if (k in rest) keep[k] = rest[k];
+    for (const d of docs) await db.documents.update(d.id, { ...keep, typeSource: 'user', userEdited: true });
+    await reload();
+    return;
+  }
   await db.documents.update(id, patch);
   const d = app.data.documents.find(x => x.id === id);
   if (d) Object.assign(d, patch);

@@ -295,6 +295,21 @@ describe('Importer', () => {
     await expect(reprocessFile('gibt-es-nicht')).rejects.toThrow(/nicht gefunden/);
   });
 
+  it('Nutzer wählt „Kontoauszug“: Datei wird als Kontoauszug mit Buchungen verarbeitet, auch wenn die Erkennung anders lautet', async () => {
+    const s = await src();
+    const img = 'IMG:Gehaltsabrechnung Lohnsteuer Brutto Netto\\nDatum Erläuterung Betrag EUR\\n02.01.2025 Gutschrift Arbeitgeber GmbH 2.850,00\\n03.01.2025 Lastschrift Stadtwerke -85,00\\nKontostand am 31.01.2025 2.765,00';
+    await runImport([item('Banken/dkb.png', img)], s);
+    const [file] = await fakeDb.files.toArray();
+    expect((await fakeDb.documents.toArray())[0].type).not.toBe('kontoauszug');
+    await reprocessFile(file.id, { forceType: 'kontoauszug' });
+    const docs = await fakeDb.documents.toArray();
+    expect(docs).toHaveLength(1);
+    expect(docs[0].type).toBe('kontoauszug');
+    const txs = (await fakeDb.transactions.toArray()).map(t => t.amount).sort((a, b) => a - b);
+    expect(txs).toEqual([-8500, 285000]);
+    expect(fakeDb.accounts.rows.size).toBe(1);
+  });
+
   it('KI-Typerkennung: typeSource/aiReason/alternatives ins Dokument, Prüfhinweis; typeSource in files.detection', async () => {
     const { aiHooks } = await import('../src/lib/ai/hooks.js');
     const prev = aiHooks.detect;

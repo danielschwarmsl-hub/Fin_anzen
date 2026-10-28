@@ -8,6 +8,7 @@ import { parse } from '../parsers/index.js';
 import { displayName } from '../parsers/naming.js';
 import { postProcess } from './postprocess.js';
 import { aiHooks } from '../ai/hooks.js';
+import { detectStatementFormat } from '../parsers/docs/_statements.js';
 
 const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', tif: 'image/tiff', tiff: 'image/tiff', csv: 'text/csv', tsv: 'text/tab-separated-values', txt: 'text/plain', md: 'text/plain', xml: 'application/xml', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel', sta: 'text/plain', mt940: 'text/plain' };
 
@@ -253,9 +254,14 @@ async function readAndSave(meta, blob, hash, { signal, existingKeys, forceType =
   if (forceType) {
     // Vom Nutzer gewählter Typ: direkt übernehmen, ohne erneute Erkennung und ohne KI. Nur Kontoumsatz-Typen brauchen
     // das erkannte Format (Parser) – das wird übernommen, wenn die Erkennung denselben Typ liefert.
-    const st = STATEMENT_TYPES.has(forceType) ? detectType(extracted, meta) : null;
+    // Kontoumsatz-Typen: Format direkt aus dem Kontoumsatz-Modul (ohne Abgleich mit Dokument-Stichwörtern); findet es
+    // nichts, entscheidet die Dateiart (PDF/Bild → PDF-Auszug, Tabelle → generische CSV).
+    let st = null;
+    if (STATEMENT_TYPES.has(forceType)) {
+      st = detectStatementFormat(extracted, meta) || { format: extracted.rows ? 'generic_csv' : 'pdf_statement', institution: null, lenient: true };
+    }
     detection = {
-      type: forceType, subtype: null, institution: st?.type === forceType ? st.institution : null, format: st?.type === forceType ? st.format : null,
+      type: forceType, subtype: null, institution: st?.institution ?? null, format: st?.format ?? null, lenient: !!st?.lenient,
       confidence: 1, signals: ['vom Nutzer gewählt'], alternatives: [], uncertain: false, forced: true, typeSource: 'user',
     };
   } else {
