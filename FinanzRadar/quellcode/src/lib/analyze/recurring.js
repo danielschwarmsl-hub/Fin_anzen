@@ -1,5 +1,6 @@
 // Wiederkehrende Zahlungen (Abos, Versicherungen, Miete, Daueraufträge, Gehalt ...) erkennen.
-// detectRecurring(txs, existingContracts) → Contract[]   linkContracts(txs, contracts) → txs mit contractId
+// detectRecurring(txs, userContracts) → Contract[]   linkContracts(txs, contracts) → txs mit contractId
+// linkContractDocs(contracts, documents, txs, previous) → Verträge mit Vertragsdokument; Dokumente ohne Zahlung als Vertrag mit noPayments
 import { fold, findMerchant } from '../classify/merchants.de.js';
 
 // Intervallklassen: [name, Zentrum (Tage), Toleranz, Zahlungen pro Jahr]
@@ -179,7 +180,7 @@ function amountClusters(items) {
 
 /**
  * @param {object[]} txs Buchungen (klassifiziert, Umbuchungen markiert)
- * @param {object[]} existingContracts bisherige Verträge (IDs/Notizen bleiben erhalten)
+ * @param {object[]} existingContracts bisherige Verträge – nur Nutzerverträge zählen (deren Anbieter wird nicht erneut erkannt)
  */
 export function detectRecurring(txs, existingContracts = []) {
   // Umbuchungen (Abflüsse) laufen mit, damit Serien nicht reißen, wenn eine Rate als Umbuchung erkannt wurde;
@@ -219,11 +220,11 @@ export function detectRecurring(txs, existingContracts = []) {
     const lastDay = dayNum(lastDate);
     const active = latest - lastDay <= DAYS_PER[res.interval] * 1.5;
     const pc = res.priceChange ? { from: sign * res.priceChange.from, to: sign * res.priceChange.to, date: res.priceChange.date } : null;
+    // IDs/Notizen/Art früherer Läufe übernimmt mergeContracts (store/postprocess.js)
     const idKey = `${key}|${res.interval}|${acc}`;
-    const old = existingContracts.find(c => c.source !== 'user' && c.provider === provider && c.accountId === acc && c.interval === res.interval);
     out.push({
-      id: old?.id || 'ct_' + hash(idKey + (items.clusterBase ? '|' + items.clusterBase : '')),
-      kind: old?.kindUser ? old.kind : kind, provider, name: provider, category, subcategory: sub,
+      id: 'ct_' + hash(idKey + (items.clusterBase ? '|' + items.clusterBase : '')),
+      kind, provider, name: provider, category, subcategory: sub,
       interval: res.interval, amount, monthly: Math.round(res.amount * perYear / 12), firstDate, lastDate,
       nextDate: nextDateOf(lastDate, res.interval), accountId: acc, txIds: list.map(t => t.id), count: list.length,
       priceChange: pc, active, yearlyCost: Math.round(res.amount * perYear), source: 'auto',
@@ -264,4 +265,93 @@ export function linkContracts(txs, contracts) {
     const next = id || keep || null;
     return (t.contractId || null) === next ? t : { ...t, contractId: next };
   });
+}
+
+// ---------------------------------------------------------------- Vertragsdokumente
+const PER_YEAR = Object.fromEntries(CLASSES.map(c => [c[0], c[3]]));
+const nameTokens = (s) => fold(s).split(' ').filter(w => w.length >= 3 && !['gmbh', 'and', 'der', 'die', 'das', 'und', 'deutschland', 'germany', 'service', 'online'].includes(w));
+const contractRef = (s) => { const f = fold(s); return f.length >= 4 && /\d/.test(f) ? f : null; };
+const sameName = (a, b) => {
+  const x = nameTokens(a), y = nameTokens(b);
+  return x.some(p => p.length >= 4 && y.some(q => q.length >= 4 && (p.startsWith(q) || q.startsWith(p))));
+};
+/** Preis eines Dokuments im Rhythmus des Vertrags (null, wenn nicht vergleichbar) */
+function docPriceFor(f, interval) {
+  if (f.price == null) return null;
+  if (!f.interval || f.interval === interval) return f.price;
+  const perYear = f.priceYearly ?? (f.priceMonthly != null ? f.priceMonthly * 12 : null);
+  return perYear != null && PER_YEAR[interval] ? Math.round(perYear / PER_YEAR[interval]) : null;
+}
+const DOC_FIELDS = ['contractNumber', 'cancellationPeriod', 'startDate', 'term', 'product'];
+
+/**
+ * Verbindet Vertragsdokumente (type 'vertrag') mit erkannten Serien:
+ * 1. Vertragsnummer im Verwendungszweck einer Zahlung der Serie (stärkster Schlüssel),
+ * 2. sonst Anbieter + Betrag (±2 %) + Rhythmus – nur bei genau einem passenden Vertrag (sonst nächstliegender Betrag, Gleichstand → keiner).
+ * Übernimmt Vertragsnummer, Kündigungsfrist, Beginn, Laufzeit, Produkt (bei Nutzerverträgen nur leere Felder).
+ * Dokumente ohne passende Zahlung werden eigene Verträge mit noPayments: true (active: false → zählen nicht in Fixkosten).
+ * @param {object[]} previous bisherige Verträge (Notiz, „ausgeblendet“, Art bleiben für Dokument-Verträge erhalten)
+ */
+export function linkContractDocs(contracts, documents = [], txs = [], previous = []) {
+  const docs = (documents || []).filter(d => d.type === 'vertrag' && !d.ignored)
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(a.id).localeCompare(String(b.id)));
+  if (!docs.length) return contracts;
+  const txById = new Map(txs.map(t => [t.id, t]));
+  const textOf = new Map(contracts.map(c => [c.id, ' ' + (c.txIds || []).map(id => { const t = txById.get(id); return t ? fold(`${t.purpose || ''} ${t.endToEndId || ''} ${t.mandateId || ''}`) : ''; }).join(' ') + ' ']));
+  const out = contracts.map(c => ({ ...c }));
+  const linked = new Map(); // Vertrags-ID → Dokumente (neuestes zuerst)
+  const rest = [];
+  for (const d of docs) {
+    const f = d.fields || {};
+    const num = contractRef(f.contractNumber);
+    let target = num ? out.find(c => !c.noPayments && textOf.get(c.id)?.includes(` ${num} `)) : null;
+    let how = target ? 'nummer' : null;
+    if (!target) {
+      const provider = f.provider || d.issuer || d.institution;
+      const hits = out.filter(c => !c.noPayments && c.amount < 0 && provider && sameName(provider, c.provider || c.name) && (!f.interval || c.interval === f.interval))
+        .map(c => { const p = docPriceFor(f, c.interval); return { c, dist: p == null ? Infinity : Math.abs(Math.abs(c.amount) - p) / Math.max(1, p) }; })
+        .filter(h => h.dist <= 0.02)
+        .sort((a, b) => a.dist - b.dist);
+      if (hits.length === 1 || (hits.length > 1 && hits[0].dist < hits[1].dist)) { target = hits[0].c; how = 'anbieter'; }
+    }
+    if (!target) { rest.push(d); continue; }
+    if (!linked.has(target.id)) linked.set(target.id, []);
+    linked.get(target.id).push({ d, how });
+  }
+  for (const c of out) {
+    const list = linked.get(c.id);
+    if (!list) continue;
+    const f = list[0].d.fields || {};
+    c.docId = list[0].d.id; c.docIds = list.map(x => x.d.id); c.docMatch = list[0].how;
+    for (const k of DOC_FIELDS) if (f[k] != null && (c.source !== 'user' || c[k] == null)) c[k] = f[k];
+  }
+  // Dokumente ohne Zahlung: je Vertragsnummer bzw. Anbieter+Preis+Rhythmus ein Vertrag
+  const prevById = new Map(previous.map(c => [c.id, c]));
+  const groups = new Map();
+  for (const d of rest) {
+    const f = d.fields || {};
+    const provider = f.provider || d.issuer || d.institution || null;
+    const key = contractRef(f.contractNumber) || `${fold(provider)}|${f.price}|${f.interval}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(d);
+  }
+  for (const list of groups.values()) {
+    const d = list[0], f = d.fields || {};
+    const provider = f.provider || d.issuer || d.institution || 'Unbekannt';
+    const m = findMerchant(fold(provider), '');
+    const interval = f.interval || 'monthly';
+    const id = 'ctd_' + d.id;
+    const old = prevById.get(id);
+    const kind = old?.kindUser ? old.kind : m ? kindOf(m.category, m.sub, []) : 'sonstiges';
+    const yearly = f.priceYearly ?? (f.price != null ? f.price * (PER_YEAR[interval] || 12) : null);
+    out.push({
+      id, source: 'doc', noPayments: true, active: false, kind, kindUser: old?.kindUser, note: old?.note, hidden: old?.hidden,
+      provider, name: provider + (f.product ? ' ' + f.product : ''), category: m?.category || null, subcategory: m?.sub || null,
+      interval, amount: f.price != null ? -f.price : null, monthly: yearly != null ? Math.round(yearly / 12) : null, yearlyCost: yearly,
+      firstDate: f.startDate || d.date || null, lastDate: null, nextDate: null, accountId: null, txIds: [], count: 0, priceChange: null,
+      docId: d.id, docIds: list.map(x => x.id), docMatch: null,
+      ...Object.fromEntries(DOC_FIELDS.map(k => [k, f[k] ?? null])),
+    });
+  }
+  return out;
 }
