@@ -41,14 +41,14 @@ const RULES = {
     [/gemeinnuetzig/, 2], [/freistellungsbescheid/, 2], [/spende\b/, 1.5],
   ],
   kassenbon: [
-    [/kassenbon|kassenbeleg/, 7], [/bon-?\s?nr/, 4], [/\btse\b|signaturzaehler|tse-transaktion|tse-signatur/, 6],
+    [/kassenbon|kassenbeleg/, 7], [/\bbon-?\s?nr/, 4], [/\btse\b|signaturzaehler|tse-transaktion|tse-signatur/, 6],
     [/kartenzahlung|girocard|ec-karte|barzahlung|ruckgeld|rueckgeld|\bgegeben\b/, 2], [/summe\s+(?:eur|€)/, 3],
-    [/code\s+satz\s+netto/, 4], [/\bkasse\s+\d+/, 2], [/vielen dank fuer ihren einkauf/, 3], [/ust-?\s?id/, 0.5],
+    [/code\s+satz\s+netto/, 4], [/\bkasse\s+\d+/, 2], [/vielen dank fuer ihren einkauf/, 3], [/\bust-?\s?id/, 0.5],
     [/mwst\s+(?:brutto|netto)/, 1],
   ],
   rechnung: [
     [/\brechnung\b/, 3], [/rechnungs-?\s?(?:nummer|nr)\b/, 5], [/rechnungsdatum/, 3], [/rechnungsbetrag/, 3.5], [/\binvoice\b/, 3],
-    [/ust-?\s?id|umsatzsteuer-?id|steuernummer/, 1], [/nettobetrag|summe netto|zzgl\.?\s*\d+\s*%|\d+\s*%\s*(?:mwst|ust|umsatzsteuer)/, 2.5],
+    [/\bust-?\s?id|umsatzsteuer-?id|steuernummer/, 1], [/nettobetrag|summe netto|zzgl\.?\s*\d+\s*%|\d+\s*%\s*(?:mwst|ust|umsatzsteuer)/, 2.5],
     [/zahlbar|faellig|zahlungsziel|zahlungsbedingung/, 2], [/gesamtbetrag|endbetrag/, 1.5], [/leistungszeitraum|lieferdatum/, 1],
   ],
   vertrag: [
@@ -73,6 +73,10 @@ const GROCERY = ['milch', 'brot', 'eier', 'butter', 'kaese', 'aepfel', 'apfel', 
 const FINANCE_WORDS = ['betrag', 'summe', 'iban', 'konto', 'saldo', 'beitrag', 'steuer', 'euro', 'zahlung', 'mwst', 'umsatz', 'brutto',
   'netto', 'rechnung', 'versicherung', 'gehalt', 'bank', 'vertrag', 'gebuehr', 'kosten', 'preis'];
 const MONEY = /\d+[.,]\d{2}(?!\d)/;
+// Kurze Stämme brauchen eine rechte Wortgrenze (sonst zählen „Europa“, „Reisekosten“ …); erlaubt sind nur übliche Endungen
+const RIGHT_BOUND = { euro: '(?:s)?', reis: '(?:es)?' };
+const wordRe = (w) => new RegExp(`(?<![a-z])${w}${w in RIGHT_BOUND ? `${RIGHT_BOUND[w]}(?![a-z])` : ''}`);
+const OCR_MIN_CONFIDENCE = 55; // darunter gilt ein OCR-Ergebnis als unsicher
 
 const unique = (a) => [...new Set(a)];
 
@@ -104,7 +108,7 @@ export function scoreTypes(extracted, fileMeta) {
 
   // Einkaufszettel: kurze Liste von Lebensmitteln ohne Preise (keine Rezepte)
   const isRecipe = /rezept|zutaten|zubereitung|backofen|minuten (?:kochen|backen)/.test(text);
-  const grocery = unique(GROCERY.filter((g) => new RegExp(`(?<![a-z])${g}`).test(text)));
+  const grocery = unique(GROCERY.filter((g) => wordRe(g).test(text)));
   const shortLines = text.split('\n').filter((l) => l.trim());
   if (!isRecipe && !MONEY.test(text) && grocery.length >= 3 && shortLines.length <= 30 && shortLines.filter((l) => l.length <= 45).length >= shortLines.length * 0.8) {
     add('einkaufszettel', 6 + Math.min(3, grocery.length * 0.3), `Lebensmittel:${grocery.slice(0, 5).join(',')}`);
@@ -119,6 +123,17 @@ function confidenceFor(top, second) {
   const base = Math.min(0.97, 0.45 + 0.04 * top);
   const margin = second > 0 ? Math.min(1, (top - second) / top) : 1;
   return Math.round(Math.max(0.3, base * (0.65 + 0.35 * margin)) * 100) / 100;
+}
+
+const UNCERTAIN_CONFIDENCE = 0.55; // darunter: Typ unsicher
+const UNCERTAIN_MARGIN = 0.15;     // Zweitbester liegt weniger als 15 % hinter dem Besten: Typ unsicher
+
+/** Zweit-/Drittbeste Typen mit grober Sicherheit: Anteil an der Punktzahl des Besten, immer unter dessen Sicherheit. */
+function alternativesFor(ranked, best) {
+  const top = ranked[0]?.[1] || 0;
+  return ranked.slice(1, 3).filter(([, s]) => s >= 2).map(([type, s]) => ({
+    type, confidence: Math.round(Math.max(0.05, best * (s / top) * 0.9) * 100) / 100,
+  }));
 }
 
 function institutionFor(type, text, extracted) {
@@ -143,7 +158,12 @@ function subtypeFor(type, extracted, signals) {
   return null;
 }
 
-const det = (type, o = {}) => ({ type, subtype: null, institution: null, format: null, confidence: 0.5, signals: [], ...o });
+const det = (type, o = {}) => ({ type, subtype: null, institution: null, format: null, confidence: 0.5, signals: [], alternatives: [], ...o });
+
+/** Bild/Scan, dessen Text nicht verwertbar ist: kein Verwerfen, sondern ein Prüf-Dokument „unlesbar“. */
+const unreadable = (signal) => det('finanz_sonstiges', { subtype: 'unlesbar', confidence: 0.3, signals: [signal], unreadable: true });
+const isScan = (extracted) => extracted?.kind === 'image' || (extracted?.kind === 'pdf' && (extracted.ocr || !String(extracted.text || '').trim()));
+const lowOcr = (extracted) => !!extracted?.ocr && typeof extracted.ocrConfidence === 'number' && extracted.ocrConfidence < OCR_MIN_CONFIDENCE;
 
 /** Nur Dokument-Erkennung (ohne Kontoauszug-Formate) – synchron, DOM-frei. */
 export function detectDocumentType(extracted, fileMeta) {
@@ -153,6 +173,9 @@ export function detectDocumentType(extracted, fileMeta) {
   if (!extracted?.xml && rawText.replace(/\s+/g, '').length < 12) {
     const nm = normalize(fileMeta?.name);
     if (/einkauf/.test(nm)) return det('einkaufszettel', { confidence: 0.4, signals: ['Dateiname:einkauf'] });
+    // Bild/Scan ohne Text: unlesbar – außer die OCR hat sicher nur ein paar Zeichen gefunden (Foto mit Schild o. Ä.)
+    const confidentFewChars = extracted?.ocr && rawText.trim() && !lowOcr(extracted);
+    if (isScan(extracted) && !confidentFewChars) return unreadable(kind === 'image' ? 'Bild ohne erkennbaren Text' : 'Scan ohne erkennbaren Text');
     return det('irrelevant', { subtype: kind === 'image' ? 'kein_text' : 'leer', confidence: kind === 'image' ? 0.8 : 0.7, signals: [kind === 'image' ? 'Bild ohne erkennbaren Text' : 'kein Text'] });
   }
   const { scores, signals, text } = scoreTypes(extracted, fileMeta);
@@ -162,21 +185,31 @@ export function detectDocumentType(extracted, fileMeta) {
 
   if (bestType && top >= 4) {
     // Abgrenzung: Lohnsteuerbescheinigung enthält auch Lohn-Stichwörter, Standmitteilung auch Versicherungs-Stichwörter
+    const confidence = confidenceFor(top, second);
+    const alternatives = alternativesFor(ranked, confidence);
+    const uncertain = alternatives.length > 0 && (confidence < UNCERTAIN_CONFIDENCE || (top - second) / top < UNCERTAIN_MARGIN);
     return det(bestType, {
       subtype: subtypeFor(bestType, extracted, signals[bestType]),
       institution: institutionFor(bestType, text, extracted),
-      confidence: confidenceFor(top, second), signals: unique(signals[bestType] || []),
+      confidence, signals: unique(signals[bestType] || []), alternatives, uncertain,
     });
   }
-  const fin = unique(FINANCE_WORDS.filter((w) => new RegExp(`(?<![a-z])${w}`).test(text)));
+  const fin = unique(FINANCE_WORDS.filter((w) => wordRe(w).test(text)));
   if (fin.length >= 2 || (bestType && top >= 2.5)) {
-    return det('finanz_sonstiges', { confidence: Math.min(0.6, 0.3 + fin.length * 0.06), signals: unique([...(signals[bestType] || []), ...fin]) });
+    return det('finanz_sonstiges', {
+      confidence: Math.min(0.6, 0.3 + fin.length * 0.06), signals: unique([...(signals[bestType] || []), ...fin]),
+      alternatives: bestType ? [{ type: bestType, confidence: Math.round(Math.min(0.5, 0.2 + 0.04 * top) * 100) / 100 }] : [],
+    });
   }
+  // Kein Finanzbezug erkennbar – bei unsicherer OCR kann das aber am Lesen liegen
+  if (isScan(extracted) && lowOcr(extracted)) return unreadable(`OCR-Sicherheit ${Math.round(extracted.ocrConfidence)} %`);
   return det('irrelevant', { subtype: 'kein_finanzbezug', confidence: text.length > 40 ? 0.8 : 0.6, signals: fin });
 }
 
 /**
- * detectType(extracted, fileMeta) → Detection { type, subtype, institution, format, confidence, signals }.
+ * detectType(extracted, fileMeta) → Detection { type, subtype, institution, format, confidence, signals, alternatives }.
+ * alternatives: zweit-/drittbeste Dokumenttypen [{ type, confidence }]; uncertain: true, wenn der Typ wirklich unsicher ist.
+ * Unlesbare Bilder/Scans: type 'finanz_sonstiges', subtype 'unlesbar', unreadable: true.
  * Kontoauszüge/Umsatzdateien erkennt das statements-Modul; es gewinnt, außer bei schwachem PDF-/CSV-Treffer gegen sehr
  * eindeutige Dokument-Stichwörter.
  */
@@ -188,7 +221,7 @@ export function detectType(extracted, fileMeta) {
     const strongDoc = !['irrelevant', 'finanz_sonstiges'].includes(doc.type) && doc.confidence >= 0.85
       && (scoreTypes(extracted, fileMeta).scores[doc.type] || 0) >= 9;
     if (!(weak && strongDoc)) {
-      return { type: 'kontoauszug', subtype: null, institution: null, format: null, confidence: 0.8, signals: [], ...st };
+      return { type: 'kontoauszug', subtype: null, institution: null, format: null, confidence: 0.8, signals: [], alternatives: [], ...st };
     }
   }
   return doc;

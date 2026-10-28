@@ -105,8 +105,9 @@ describe('Erkennung aller Beispieldateien', () => {
     const missing = Object.entries(EXPECTED).filter(([, v]) => !/^(bank_csv|depot_csv|paypal_csv|savings_statement_pdf|bank_statement_pdf|camt053)$/.test(v.type)).map(([k]) => k).filter((k) => !covered.has(k));
     expect(missing).toEqual([]);
   });
-  it('Bild ohne Text ist irrelevant, E-Rechnung-XML ist Rechnung', () => {
-    expect(detectDocumentType({ kind: 'image', text: '', pages: [], xml: null }, { name: 'IMG_1.jpg' }).type).toBe('irrelevant');
+  it('Bild ohne Text ist ein unlesbarer Beleg (nicht still ignoriert), E-Rechnung-XML ist Rechnung', () => {
+    // Bewusst geändert: früher „irrelevant“ – unlesbare Belege sollen in die Prüfliste statt still zu verschwinden
+    expect(detectDocumentType({ kind: 'image', text: '', pages: [], xml: null }, { name: 'IMG_1.jpg' })).toMatchObject({ type: 'finanz_sonstiges', subtype: 'unlesbar' });
     const d = detectDocumentType({ kind: 'xml', text: '<x/>', xml: '<rsm:CrossIndustryInvoice xmlns:rsm="x"></rsm:CrossIndustryInvoice>' }, { name: 'a.xml' });
     expect(d.type).toBe('rechnung');
     expect(d.subtype).toBe('zugferd');

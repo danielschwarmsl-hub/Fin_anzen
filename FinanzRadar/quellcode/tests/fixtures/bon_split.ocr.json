@@ -1,0 +1,23 @@
+{
+  "comment": "OCR-Kassenbon (Tesseract): Preise stehen als eigene Zeilen neben dem Artikel (y fast gleich, teils etwas höher); Steuerkennzeichen klein; eine Mengenzeile passt, eine nicht.",
+  "ocrConfidence": 78,
+  "lines": [
+    { "y": 1000, "text": "PENNY Markt" },
+    { "y": 985, "text": "Datum 01.06.2026 09:15" },
+    { "y": 970, "text": "Kasse 2 Bon-Nr. 4711" },
+    { "y": 950.5, "text": "Butter" },
+    { "y": 950, "text": "1,99 a" },
+    { "y": 942, "text": "3 x 1,00" },
+    { "y": 935.8, "text": "1,15 A" },
+    { "y": 935, "text": "Milch 3,5%" },
+    { "y": 920.3, "text": "5,99 b" },
+    { "y": 920, "text": "Kaffee gemahlen" },
+    { "y": 905, "text": "Joghurt Natur" },
+    { "y": 904.6, "text": "1,58 A" },
+    { "y": 895, "text": "2 x 0,79" },
+    { "y": 880, "text": "SUMME EUR 10,71" },
+    { "y": 865, "text": "A 7% 4,41 0,31 4,72" },
+    { "y": 850, "text": "B 19% 5,03 0,96 5,99" },
+    { "y": 835, "text": "Kartenzahlung girocard 10,71" }
+  ]
+}

@@ -7,20 +7,29 @@ const TOTAL_RE = /^\W*(summe|gesamt(?:summe|betrag)?|zu zahlen|total|endbetrag)\
 const PAY_RE = /(kartenzahlung|girocard|ec[- ]?(?:karte|cash)|visa|mastercard|maestro|barzahlung|\bbar\b|gegeben|kreditkarte|contactless)/i;
 const STOP_RE = /^\W*(code\s+satz|kartenzahlung|girocard|ec[- ]?karte|barzahlung|bar\b|gegeben|r[uü]ckgeld|tse|steuer|mwst|ust)/i;
 const META_RE = /\b(datum|zeit|kasse|bon[- ]?nr|ust-?id\w*|tel|fax|www|beleg-?nr|filiale|kassierer|bediener)\b/i;
-const ITEM_RE = /^(.+?)\s+(-?\d{1,4}[.,]\d{2})\d?\s*[^\w\s]?\s*([A-D])?\s*$/;
+const ITEM_RE = /^(.+?)\s+(-?\d{1,4}[.,]\d{2})\d?\s*[^\w\s]?\s*([A-Da-d])?\s*$/;
+// Summen-/Steuerzeilen beenden die Positionsliste und sind nie Positionen
+const SUM_RE = /^\W*(?:gesamt\w*|summe\w*|zwischensumme|netto\w*|brutto\w*|mwst\.?|ust\.?|umsatzsteuer|mehrwertsteuer|zu zahlen|rechnungsbetrag|endbetrag)\b/i;
+
+/** Summenbetrag: erster Betrag nach dem Label („SUMME EUR 12,50“). */
+function amountAfterLabel(line) {
+  const m = TOTAL_RE.exec(line);
+  const after = m ? amountsIn(line.slice(m.index + m[0].length)) : [];
+  return after.length ? after[0] : lastAmount(line);
+}
 
 function parseVat(lines) {
   const vat = [];
   for (const raw of lines) {
     const line = cleanOcr(raw);
-    const m = /^\W*([A-D])\s+([0-9TtOo]{1,2})\s?[%x]\s+(.*)$/.exec(line) || /^\W*([A-D])\s+(\S{1,4})\s?%\s+(.*)$/.exec(line);
+    const m = /^\W*([A-Da-d])\s+([0-9TtOo]{1,2})\s?[%x]\s+(.*)$/.exec(line) || /^\W*([A-Da-d])\s+(\S{1,4})\s?%\s+(.*)$/.exec(line);
     if (!m) continue;
     const a = amountsIn(m[3]);
     if (a.length < 3) continue;
     const [net, tax, gross] = a.slice(-3);
     let rate = Number(String(m[2]).replace(/[Tt]/, '7').replace(/[Oo]/g, '0'));
     rate = snapRate(Number.isFinite(rate) ? rate : NaN, net, tax);
-    vat.push({ flag: m[1], rate, net, tax, gross });
+    vat.push({ flag: m[1].toUpperCase(), rate, net, tax, gross });
   }
   return vat;
 }
@@ -49,7 +58,7 @@ export function parse(extracted, fileMeta, detection) {
 
   // Summe
   const totalIdx = lines.findIndex((l) => TOTAL_RE.test(l) && hasAmount(l));
-  let total = totalIdx >= 0 ? lastAmount(lines[totalIdx]) : null;
+  let total = totalIdx >= 0 ? amountAfterLabel(lines[totalIdx]) : null;
   let totalSource = 'summe';
   const payLine = lines.find((l) => PAY_RE.test(l) && hasAmount(l) && !/code\s+satz/i.test(l));
   if (total == null && payLine) { total = lastAmount(payLine); totalSource = 'zahlung'; }
@@ -57,27 +66,32 @@ export function parse(extracted, fileMeta, detection) {
   if (total == null && vatGross != null) { total = vatGross; totalSource = 'mwst'; }
 
   // Positionen: Zeilen vor der Summenzeile (bzw. vor dem MwSt-/Zahlungsblock)
-  let end = totalIdx;
+  const sumIdx = lines.findIndex((l) => SUM_RE.test(l) && hasAmount(l));
+  let end = totalIdx >= 0 && sumIdx >= 0 ? Math.min(totalIdx, sumIdx) : Math.max(totalIdx, sumIdx);
   if (end < 0) end = lines.findIndex((l) => STOP_RE.test(l));
   if (end < 0) end = lines.length;
   const items = [];
   for (const raw of lines.slice(0, end)) {
     const line = cleanOcr(raw);
     const q = /^\s*(\d+(?:[.,]\d+)?)\s*(?:stk\.?|kg|x)?\s*[x×]\s*(\d+[.,]\d{2})/i.exec(line);
-    if (q && items.length) {
+    if (q) {
+      // Mengenzeile („2 x 1,29“) nur übernehmen, wenn Menge × Preis den Positionsbetrag ergibt
       const prev = items[items.length - 1];
-      prev.qty = Number(q[1].replace(',', '.'));
-      prev.unitPrice = amountsIn(q[2])[0];
+      const qty = Number(q[1].replace(',', '.'));
+      const unit = amountsIn(q[2])[0];
+      if (prev && unit != null && Math.abs(Math.round(qty * unit) - prev.total) <= 1) { prev.qty = qty; prev.unitPrice = unit; }
       continue;
     }
-    if (META_RE.test(line) || /\d{1,2}\.\d{1,2}\.\d{2,4}/.test(line)) continue;
+    if (META_RE.test(line) || SUM_RE.test(line) || /\d{1,2}\.\d{1,2}\.\d{2,4}/.test(line)) continue;
     const m = ITEM_RE.exec(line);
     if (!m || !/[A-Za-zÄÖÜäöü]{2}/.test(m[1])) continue;
     const price = amountsIn(m[2])[0];
     if (price == null) continue;
-    items.push({ text: m[1].trim(), qty: 1, unitPrice: price, total: price, vatRate: m[3] ? (flagRate[m[3]] ?? null) : null, _flag: m[3] || null });
+    const flag = m[3] ? m[3].toUpperCase() : null;
+    items.push({ text: m[1].trim(), qty: 1, unitPrice: price, total: price, vatRate: flag ? (flagRate[flag] ?? null) : null });
   }
-  const lineItems = items.map(({ _flag, ...rest }) => rest);
+  // Genau ein Steuersatz auf dem Bon: gilt für alle Positionen ohne Kennzeichen
+  const lineItems = vat.length === 1 ? items.map((i) => (i.vatRate == null ? { ...i, vatRate: vat[0].rate } : i)) : items;
   const itemsSum = lineItems.reduce((s, i) => s + i.total, 0);
 
   // Zahlart
