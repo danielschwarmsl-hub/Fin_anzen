@@ -44,16 +44,21 @@
     taxPaid: ['Abgeführte Steuern', 'cent'], currency: ['Währung'], gross: ['Brutto', 'cent'], grossForeign: ['Brutto', 'fx'],
     withholdingTax: ['Quellensteuer', 'fx'], fxRate: ['Devisenkurs'], perShare: ['Ertrag je Stück'], capitalIncome: ['Kapitalertrag'],
     infoOnly: ['Nur Information'], side: ['Art'], period: ['Zeitraum'], depot: ['Depot'],
-    partialFills: ['Teilausführungen'], orderCosts: ['Orderkosten (erwartet)', 'cent'], buyCosts: ['Kosten des Kaufs', 'cent'],
+    partialFills: ['Teilausführungen', 'fills'], orderCosts: ['Orderkosten (erwartet)', 'cent'], buyCosts: ['Kosten des Kaufs', 'cent'],
     sellCosts: ['Kosten des Verkaufs', 'cent'], holdingCostsPerYear: ['Laufende Kosten pro Jahr', 'cent'],
     totalCosts: ['Gesamtkosten', 'cent'], holdingYears: ['Angenommene Haltedauer (Jahre)'],
-    yieldReductionPct: ['Renditeminderung (% pro Jahr)'], costItems: ['Kostenpositionen'],
+    yieldReductionPct: ['Renditeminderung pro Jahr', 'pct'], costItems: ['Kostenpositionen', 'costs'],
   };
   function fieldRow(d, k, v) {
     const f = d.type === 'wertpapier' ? SECURITY_FIELDS[k] : null;
     if (!f) return [labelize(k), fmtVal(v)];
     const cur = d.fields?.currency && d.fields.currency !== 'EUR' ? d.fields.currency : 'EUR';
-    const val = f[1] === 'cent' ? `${centsText(v)} €` : f[1] === 'fx' ? `${centsText(v)} ${cur}` : f[1] === 'date' ? fmtDate(v) : fmtVal(v);
+    const KIND = { E: 'Bank', F: 'fremd', P: 'Produkt' };
+    const val = f[1] === 'cent' ? `${centsText(v)} €` : f[1] === 'fx' ? `${centsText(v)} ${cur}` : f[1] === 'date' ? fmtDate(v)
+      : f[1] === 'pct' ? `${String(v).replace('.', ',')} %`
+      : f[1] === 'costs' && Array.isArray(v) ? v.map((c) => `${c.label}${KIND[c.kind] ? ` (${KIND[c.kind]})` : ''}: ${c.amount != null ? centsText(c.amount) + ' €' : '–'}`).join(' · ')
+      : f[1] === 'fills' && Array.isArray(v) ? v.map((p) => `${p.nr ? p.nr + ': ' : ''}${p.quantity ?? '?'} Stück`).join(' · ')
+      : fmtVal(v);
     return [f[0], val];
   }
 
