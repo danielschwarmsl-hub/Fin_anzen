@@ -1,0 +1,1546 @@
+{
+ "_info": "Sollwerte der originalnahen Test-PDFs (erzeugt von scripts/make-real-like-pdfs.py). Beträge in Cent, Datum ISO. Personen, Konten und Nummern sind erfunden.",
+ "comdirect_wertpapierkauf": {
+  "file": "comdirect_wertpapierkauf.pdf",
+  "pages": 3,
+  "source": "d7",
+  "type": "wertpapier",
+  "subtype": "kauf",
+  "institution": "comdirect",
+  "amount": -107730,
+  "date": "2026-08-19",
+  "valuta": "2026-08-21",
+  "title": "Wertpapierkauf Microsoft Corp. 1.077,30 €",
+  "fields": {
+   "security": "Microsoft Corp.",
+   "wkn": "870747",
+   "isin": "US5949181045",
+   "quantity": 3,
+   "price": 35400,
+   "venue": "TRADEGATE",
+   "orderNo": "000641927735-001",
+   "marketValue": 106200,
+   "fees": 1530,
+   "taxPaid": null,
+   "currency": "EUR",
+   "valuta": "2026-08-21"
+  },
+  "receiptFor": {
+   "bookingText": "Wertpapiere",
+   "amount": -107730,
+   "bookingDate": "2026-08-21"
+  },
+  "notTaxCert": true
+ },
+ "comdirect_dividende": {
+  "file": "comdirect_dividende.pdf",
+  "pages": 1,
+  "source": "d2",
+  "type": "wertpapier",
+  "subtype": "dividende",
+  "institution": "comdirect",
+  "amount": 332,
+  "date": "2026-09-10",
+  "valuta": "2026-09-14",
+  "title": "Dividende Microsoft Corp. 3,32 €",
+  "fields": {
+   "security": "Microsoft Corp.",
+   "wkn": "870747",
+   "isin": "US5949181045",
+   "quantity": 5,
+   "currency": "USD",
+   "grossForeign": 455,
+   "withholdingTax": 68,
+   "fxRate": 1.1659,
+   "perShare": 0.91,
+   "capitalIncome": true,
+   "valuta": "2026-09-14"
+  },
+  "taxRelevant": true
+ },
+ "comdirect_kosteninfo_kauf": {
+  "file": "comdirect_kosteninfo_kauf.pdf",
+  "pages": 2,
+  "source": "d4",
+  "type": "wertpapier",
+  "subtype": "kosteninfo",
+  "institution": "comdirect",
+  "amount": null,
+  "date": "2025-11-20",
+  "infoOnly": true,
+  "neverReceipt": true,
+  "fields": {
+   "security": "Intel Corp. Registered Shares DL -,001",
+   "wkn": "855681",
+   "quantity": 30,
+   "price": 3989,
+   "venue": "gettex",
+   "side": "kauf",
+   "marketValue": 119655,
+   "orderCosts": 540,
+   "buyCosts": 550,
+   "sellCosts": 550,
+   "holdingCostsPerYear": 0,
+   "totalCosts": 1100,
+   "holdingYears": 5,
+   "yieldReductionPct": 0.18,
+   "costItems": [
+    {
+     "label": "Börsenplatzabhängiges Entgelt [E]",
+     "amount": 150,
+     "kind": "E"
+    },
+    {
+     "label": "Orderprovision [E]",
+     "amount": 390,
+     "kind": "E"
+    },
+    {
+     "label": "Zahlung von Dritten an die Bank [E]",
+     "amount": 10,
+     "kind": "E"
+    }
+   ],
+   "infoOnly": true
+  },
+  "taxRelevant": false
+ },
+ "comdirect_kosteninfo_kauf_spesen": {
+  "file": "comdirect_kosteninfo_kauf_spesen.pdf",
+  "pages": 2,
+  "source": "d3",
+  "type": "wertpapier",
+  "subtype": "kosteninfo",
+  "institution": "comdirect",
+  "amount": null,
+  "date": "2026-10-15",
+  "infoOnly": true,
+  "neverReceipt": true,
+  "fields": {
+   "security": "Linde plc Registered Shares EO -,001 DATA 10",
+   "wkn": "A3D7VW",
+   "quantity": 3,
+   "price": 40300,
+   "venue": "Xetra",
+   "side": "kauf",
+   "marketValue": 120900,
+   "orderCosts": 1532,
+   "buyCosts": 1532,
+   "sellCosts": 1532,
+   "holdingCostsPerYear": 0,
+   "totalCosts": 3064,
+   "holdingYears": 5,
+   "yieldReductionPct": 0.51,
+   "costItems": [
+    {
+     "label": "Börsenspesen [F]",
+     "amount": 52,
+     "kind": "F"
+    },
+    {
+     "label": "Börsenplatzabhängiges Entgelt [E]",
+     "amount": 200,
+     "kind": "E"
+    },
+    {
+     "label": "Abwicklungsentgelt \"Clearstream\" / \"Streifband\" [E]",
+     "amount": 290,
+     "kind": "E"
+    },
+    {
+     "label": "Orderprovision [E]",
+     "amount": 990,
+     "kind": "E"
+    }
+   ],
+   "infoOnly": true
+  },
+  "taxRelevant": false
+ },
+ "comdirect_finanzreport": {
+  "file": "comdirect_finanzreport.pdf",
+  "pages": 5,
+  "source": "d1",
+  "type": "kontoauszug",
+  "format": "pdf_statement",
+  "institution": "comdirect",
+  "date": "2024-12-02",
+  "period": {
+   "from": "2024-11-01",
+   "to": "2024-12-02"
+  },
+  "accounts": [
+   {
+    "name": "Girokonto",
+    "kind": "giro",
+    "iban": "DE25200411330007340061",
+    "opening": 383322,
+    "closing": 282372,
+    "count": 5,
+    "transactions": [
+     {
+      "bookingDate": "2024-11-04",
+      "valueDate": "2024-11-05",
+      "amount": 873,
+      "bookingText": "Kupon"
+     },
+     {
+      "bookingDate": "2024-11-12",
+      "valueDate": "2024-11-14",
+      "amount": -95363,
+      "bookingText": "Wertpapiere"
+     },
+     {
+      "bookingDate": "2024-11-18",
+      "valueDate": "2024-11-18",
+      "amount": -2800,
+      "bookingText": "Übertrag / Überweisung",
+      "counterparty": "Gerichtskasse Hamburg"
+     },
+     {
+      "bookingDate": "2024-12-02",
+      "valueDate": "2024-12-02",
+      "amount": -3470,
+      "bookingText": "Lastschrift / Belastung",
+      "counterparty": "comdirect Visa-Monatsabrechnung"
+     },
+     {
+      "bookingDate": "2024-12-02",
+      "valueDate": "2024-11-29",
+      "amount": -190,
+      "bookingText": "Kontoführungsentgelt"
+     }
+    ]
+   },
+   {
+    "name": "Tagesgeld PLUS-Konto",
+    "kind": "tagesgeld",
+    "iban": "DE95200411330007340062",
+    "opening": 0,
+    "closing": 0,
+    "count": 0,
+    "transactions": []
+   },
+   {
+    "name": "Visa-Karte 4871",
+    "kind": "kreditkarte",
+    "opening": 0,
+    "closing": 0,
+    "count": 3,
+    "transactions": [
+     {
+      "bookingDate": "2024-11-12",
+      "valueDate": "2024-11-11",
+      "amount": -470,
+      "bookingText": "Visa-Umsatz"
+     },
+     {
+      "bookingDate": "2024-11-18",
+      "valueDate": "2024-11-16",
+      "amount": -3000,
+      "bookingText": "Visa-Umsatz"
+     },
+     {
+      "bookingDate": "2024-11-29",
+      "valueDate": "2024-11-29",
+      "amount": 3470,
+      "bookingText": "Visa-Kartenabrechnung"
+     }
+    ]
+   }
+  ],
+  "overview": {
+   "Girokonto": 282372,
+   "Tagesgeld PLUS-Konto": 0,
+   "Depot": 1310320,
+   "Visa-Karte": 0,
+   "Gesamtsaldo": 1592692
+  },
+  "depot": {
+   "date": "2024-12-02",
+   "value": 1310320,
+   "cost": 1163068,
+   "gain": 132407,
+   "count": 17,
+   "holdings": [
+    {
+     "wkn": "A2QL8M",
+     "name": "ALPENROSE THERAPEUTICS INC.",
+     "qty": 140,
+     "currency": "EUR",
+     "value": 15498,
+     "cost": 15088,
+     "gain": 410,
+     "verwahrart": "Wertpapierrechnung",
+     "priceText": "1,107"
+    },
+    {
+     "wkn": "A3C9RX",
+     "name": "NORTHGATE MINING HLDGS",
+     "qty": 12,
+     "currency": "EUR",
+     "value": 210076,
+     "cost": 209501,
+     "gain": 575,
+     "verwahrart": "Wertpapierrechnung",
+     "priceText": "175,063"
+    },
+    {
+     "wkn": "A2JF4K",
+     "name": "VESTRA GR.HLDG NA 1/8",
+     "qty": 50,
+     "currency": "EUR",
+     "value": 106000,
+     "cost": 109935,
+     "gain": -3935,
+     "verwahrart": "Girosammelverwahrung",
+     "priceText": "21,20"
+    },
+    {
+     "wkn": "A0YJ7H",
+     "name": "LUMEN BRANDS CO.DL -,01",
+     "qty": 3,
+     "currency": "EUR",
+     "value": 4263,
+     "cost": 4063,
+     "gain": 200,
+     "verwahrart": "Girosammelverwahrung",
+     "priceText": "14,21"
+    },
+    {
+     "wkn": "A1W2K5",
+     "name": "HARBOR LANE INC. CL.B",
+     "qty": 800,
+     "currency": "EUR",
+     "value": 303600,
+     "cost": 188938,
+     "gain": 114662,
+     "verwahrart": "Wertpapierrechnung",
+     "priceText": "3,795"
+    },
+    {
+     "wkn": "A3E1PQ",
+     "name": "HARBOR LANE INC. NEW CL.B",
+     "qty": 22,
+     "currency": "EUR",
+     "value": 9885,
+     "cost": 0,
+     "gain": 0,
+     "verwahrart": "Wertpapierrechnung",
+     "priceText": "4,493"
+    },
+    {
+     "wkn": "A2PZ3D",
+     "name": "SOLWAY CLEAN POWER ETF",
+     "qty": 25,
+     "currency": "EUR",
+     "value": 156588,
+     "cost": 152360,
+     "gain": 4228,
+     "verwahrart": "Wertpapierrechnung",
+     "priceText": "62,6352"
+    },
+    {
+     "wkn": "A0MKH2",
+     "name": "OAKMONT ENERGY CORP.",
+     "qty": 400,
+     "currency": "USD",
+     "value": 0,
+     "cost": 4200,
+     "gain": -4200,
+     "verwahrart": "Sonstige",
+     "priceText": "0,000"
+    },
+    {
+     "wkn": "A3DTU8",
+     "name": "BRIGHTPATH MEDIA INC. A",
+     "qty": 10,
+     "currency": "EUR",
+     "value": 4960,
+     "cost": 0,
+     "gain": 0,
+     "verwahrart": "Wertpapierrechnung",
+     "priceText": "4,96"
+    },
+    {
+     "wkn": "A1JXK2",
+     "name": "SILVERLINE FDG INC. O.N.",
+     "qty": 30,
+     "currency": "EUR",
+     "value": 69750,
+     "cost": 46420,
+     "gain": 23330,
+     "verwahrart": "Girosammelverwahrung",
+     "priceText": "23,25"
+    },
+    {
+     "wkn": "A2DK6R",
+     "name": "MERIDIAN HOLDINGS",
+     "qty": 20,
+     "currency": "EUR",
+     "value": 1110,
+     "cost": 2000,
+     "gain": -890,
+     "verwahrart": "Wertpapierrechnung",
+     "priceText": "0,555"
+    },
+    {
+     "wkn": "A2N6WQ",
+     "name": "GREENFIELD WORLD EQUITY UCITS ETF 1C",
+     "qty": 3,
+     "currency": "EUR",
+     "value": 18444,
+     "cost": 19200,
+     "gain": -756,
+     "verwahrart": "Wertpapierrechnung",
+     "priceText": "61,48"
+    },
+    {
+     "wkn": "A1J5RX",
+     "name": "BERGWERK DIGITAL AG NA O.N.",
+     "qty": 15,
+     "currency": "EUR",
+     "value": 9480,
+     "cost": 9750,
+     "gain": -270,
+     "verwahrart": "Girosammelverwahrung",
+     "priceText": "6,32"
+    },
+    {
+     "wkn": "A0LD6E",
+     "name": "HANSE AUTOMOBIL AG VZO O.N.",
+     "qty": 20,
+     "currency": "EUR",
+     "value": 152100,
+     "cost": 157740,
+     "gain": -5640,
+     "verwahrart": "Girosammelverwahrung",
+     "priceText": "76,05"
+    },
+    {
+     "wkn": "A0RJAT",
+     "name": "PACIFIC RAIL SYSTEMS DL 1",
+     "qty": 6,
+     "currency": "EUR",
+     "value": 161150,
+     "cost": 157784,
+     "gain": 3366,
+     "verwahrart": "Girosammelverwahrung",
+     "priceText": "268,583"
+    },
+    {
+     "wkn": "A2AFR3",
+     "name": "ORION PAYMENTS DL -,01",
+     "qty": 8,
+     "currency": "EUR",
+     "value": 61500,
+     "cost": 60248,
+     "gain": 1252,
+     "verwahrart": "Girosammelverwahrung",
+     "priceText": "76,875"
+    },
+    {
+     "wkn": "A1C7LP",
+     "name": "CEDAR RIDGE INC. DL-,10",
+     "qty": 19,
+     "currency": "EUR",
+     "value": 25916,
+     "cost": 25841,
+     "gain": 75,
+     "verwahrart": "Girosammelverwahrung",
+     "priceText": "13,64"
+    }
+   ]
+  },
+  "taxOverview": {
+   "Gewinne/Verluste Aktien (Saldo)": -31226,
+   "Verlustverrechnungstopf Aktien": -31226,
+   "Gewinne/Verluste Sonstige (Saldo)": 1646,
+   "Verlustverrechnungstopf Sonstige": 0,
+   "Eingereichter Freibetrag": 0,
+   "In Anspruch genommener Freibetrag": 0,
+   "Verbleibender Freibetrag": 0,
+   "Anrechenbare ausländische Quellensteuer": 0,
+   "Abgeführte Kapitalertragsteuer": 1040,
+   "Abgeführter Solidaritätszuschlag": 57,
+   "Abgeführte Kirchensteuer": 83,
+   "Angerechnete ausländische Quellensteuer": 175
+  },
+  "notTaxCert": true
+ },
+ "mlp_depotreport": {
+  "file": "mlp_depotreport.pdf",
+  "pages": 7,
+  "source": "d6",
+  "type": "wertpapier",
+  "subtype": "depotreport",
+  "institution": "MLP",
+  "date": "2025-03-31",
+  "period": {
+   "from": "2025-01-01",
+   "to": "2025-03-31",
+   "label": "Q1 2025"
+  },
+  "infoOnly": true,
+  "depot": {
+   "name": "MLP Vermögensdepot",
+   "number": "4711235001",
+   "value": 552941,
+   "date": "2025-03-31",
+   "securitiesValue": 548723,
+   "liquidity": {
+    "iban": "DE10672300000004711235",
+    "value": 4218
+   },
+   "structure": {
+    "Kapitalreserve": 4218,
+    "Aktien": 480359,
+    "Mischfonds": 68364
+   }
+  },
+  "holdings": [
+   {
+    "wkn": "A0NB6T",
+    "name": "Nordstern Funds - Global Opportunity Fund",
+    "focus": "Aktien Welt",
+    "currency": "EUR",
+    "price": "118.42",
+    "priceDate": "2025-03-31",
+    "fxRate": null,
+    "units": 6.408,
+    "value": 75884,
+    "share": 13.72,
+    "category": "Aktien"
+   },
+   {
+    "wkn": "A2JSDC",
+    "name": "iShares Edge MSCI World Value Factor UCITS ETF",
+    "focus": "Aktien Welt",
+    "currency": "USD",
+    "price": "45.3120",
+    "priceDate": "2025-03-31",
+    "fxRate": 1.0815,
+    "units": 15.519,
+    "value": 65021,
+    "share": 11.76,
+    "category": "Aktien"
+   },
+   {
+    "wkn": "A2DWBY",
+    "name": "iShares MSCI World Small Cap UCITS ETF",
+    "focus": "Aktien Welt mittlere / kleine Unternehmen",
+    "currency": "USD",
+    "price": "6.5462",
+    "priceDate": "2025-03-31",
+    "fxRate": 1.0815,
+    "units": 105.931,
+    "value": 64119,
+    "share": 11.6,
+    "category": "Aktien"
+   },
+   {
+    "wkn": "A3CMRW",
+    "name": "Vantage MSCI EM Markets UCITS ETF",
+    "focus": "Aktien Schwellenländer Welt",
+    "currency": "USD",
+    "price": "33.0915",
+    "priceDate": "2025-03-31",
+    "fxRate": 1.0815,
+    "units": 21.62,
+    "value": 66152,
+    "share": 11.96,
+    "category": "Aktien"
+   },
+   {
+    "wkn": "A1JX8P",
+    "name": "Lumen Europa Aktienfonds",
+    "focus": "Aktien Europa",
+    "currency": "EUR",
+    "price": "214.36",
+    "priceDate": "2025-03-31",
+    "fxRate": null,
+    "units": 2.702,
+    "value": 57920,
+    "share": 10.47,
+    "category": "Aktien"
+   },
+   {
+    "wkn": "A2QJLA",
+    "name": "Helios Clean Energy Fund",
+    "focus": "Aktien Erneuerbare Energien",
+    "currency": "EUR",
+    "price": "86.17",
+    "priceDate": "2025-03-31",
+    "fxRate": null,
+    "units": 4.796,
+    "value": 41327,
+    "share": 7.47,
+    "category": "Aktien"
+   },
+   {
+    "wkn": "A1H6XK",
+    "name": "Atlas Global Real Estate Equities",
+    "focus": "Immobilienaktien Welt",
+    "currency": "EUR",
+    "price": "131.08",
+    "priceDate": "2025-03-31",
+    "fxRate": null,
+    "units": 3.326,
+    "value": 43597,
+    "share": 7.88,
+    "category": "Aktien"
+   },
+   {
+    "wkn": "A3DMU1",
+    "name": "Summit Nasdaq Tech UCITS ETF",
+    "focus": "Aktien Technologie",
+    "currency": "USD",
+    "price": "11.8845",
+    "priceDate": "2025-03-31",
+    "fxRate": 1.0815,
+    "units": 60.369,
+    "value": 66339,
+    "share": 12.0,
+    "category": "Aktien"
+   },
+   {
+    "wkn": "A0M430",
+    "name": "PVF - Prisma Vermögensverwaltungsfonds Dynamik R",
+    "focus": "Vermögensverwalter - dynamisch",
+    "currency": "EUR",
+    "price": "172.55",
+    "priceDate": "2025-03-28",
+    "fxRate": null,
+    "units": 3.962,
+    "value": 68364,
+    "share": 12.36,
+    "category": "Mischfonds"
+   }
+  ],
+  "figures": {
+   "distributions": 1236,
+   "depotFee": -1500,
+   "foreignFees": -54,
+   "trailerRefund": 212,
+   "valuePrevYearEnd": 531240,
+   "savingsRate": 18000,
+   "firstDeposit": 360000,
+   "deposits": 522000,
+   "withdrawals": 0,
+   "valueEnd": 552941,
+   "result": 30941,
+   "resultPeriod": {
+    "from": "2024-07-01",
+    "to": "2025-03-31"
+   }
+  },
+  "performance": {
+   "twr": [
+    1.84,
+    1.84,
+    6.12
+   ],
+   "mwr": [
+    1.77,
+    1.77,
+    5.46
+   ]
+  },
+  "transactions": [
+   {
+    "wkn": "A0NB6T",
+    "name": "Nordstern Funds - Global Opportunity Fund",
+    "date": "2025-01-02",
+    "dateText": "02.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "121.05",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.165,
+    "fee": 0
+   },
+   {
+    "wkn": "A0NB6T",
+    "name": "Nordstern Funds - Global Opportunity Fund",
+    "date": "2025-02-03",
+    "dateText": "03.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "124.88",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.16,
+    "fee": 0
+   },
+   {
+    "wkn": "A0NB6T",
+    "name": "Nordstern Funds - Global Opportunity Fund",
+    "date": "2025-03-03",
+    "dateText": "03.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "117.30",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.171,
+    "fee": 0
+   },
+   {
+    "wkn": "A2JSDC",
+    "name": "iShares Edge MSCI World Value Factor UCITS ETF",
+    "date": "2025-01-03",
+    "dateText": "03.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "42.1180",
+    "priceCurrency": "USD",
+    "fxRate": 1.0365,
+    "units": 0.492,
+    "fee": 2
+   },
+   {
+    "wkn": "A2JSDC",
+    "name": "iShares Edge MSCI World Value Factor UCITS ETF",
+    "date": "2025-02-04",
+    "dateText": "04.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "44.0475",
+    "priceCurrency": "USD",
+    "fxRate": 1.0303,
+    "units": 0.468,
+    "fee": 2
+   },
+   {
+    "wkn": "A2JSDC",
+    "name": "iShares Edge MSCI World Value Factor UCITS ETF",
+    "date": "2025-03-04",
+    "dateText": "04.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "45.0310",
+    "priceCurrency": "USD",
+    "fxRate": 1.063,
+    "units": 0.472,
+    "fee": 2
+   },
+   {
+    "wkn": "A2DWBY",
+    "name": "iShares MSCI World Small Cap UCITS ETF",
+    "date": "2025-01-03",
+    "dateText": "03.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "6.4210",
+    "priceCurrency": "USD",
+    "fxRate": 1.0365,
+    "units": 3.228,
+    "fee": 2
+   },
+   {
+    "wkn": "A2DWBY",
+    "name": "iShares MSCI World Small Cap UCITS ETF",
+    "date": "2025-02-04",
+    "dateText": "04.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "6.6638",
+    "priceCurrency": "USD",
+    "fxRate": 1.0303,
+    "units": 3.092,
+    "fee": 2
+   },
+   {
+    "wkn": "A2DWBY",
+    "name": "iShares MSCI World Small Cap UCITS ETF",
+    "date": "2025-03-04",
+    "dateText": "04.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "6.4417",
+    "priceCurrency": "USD",
+    "fxRate": 1.063,
+    "units": 3.3,
+    "fee": 2
+   },
+   {
+    "wkn": "A3CMRW",
+    "name": "Vantage MSCI EM Markets UCITS ETF",
+    "date": "2025-01-02",
+    "dateText": "02.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "31.9470",
+    "priceCurrency": "USD",
+    "fxRate": 1.0234,
+    "units": 0.641,
+    "fee": 2
+   },
+   {
+    "wkn": "A3CMRW",
+    "name": "Vantage MSCI EM Markets UCITS ETF",
+    "date": "2025-02-04",
+    "dateText": "04.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "32.4302",
+    "priceCurrency": "USD",
+    "fxRate": 1.0303,
+    "units": 0.635,
+    "fee": 2
+   },
+   {
+    "wkn": "A3CMRW",
+    "name": "Vantage MSCI EM Markets UCITS ETF",
+    "date": "2025-03-04",
+    "dateText": "04.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "33.2058",
+    "priceCurrency": "USD",
+    "fxRate": 1.063,
+    "units": 0.64,
+    "fee": 2
+   },
+   {
+    "wkn": "A1JX8P",
+    "name": "Lumen Europa Aktienfonds",
+    "date": "2025-01-03",
+    "dateText": "03.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "203.74",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.098,
+    "fee": 0
+   },
+   {
+    "wkn": "A1JX8P",
+    "name": "Lumen Europa Aktienfonds",
+    "date": "2025-02-03",
+    "dateText": "03.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "211.55",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.095,
+    "fee": 0
+   },
+   {
+    "wkn": "A1JX8P",
+    "name": "Lumen Europa Aktienfonds",
+    "date": "2025-03-03",
+    "dateText": "03.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "219.12",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.091,
+    "fee": 0
+   },
+   {
+    "wkn": "A2QJLA",
+    "name": "Helios Clean Energy Fund",
+    "date": "2025-01-02",
+    "dateText": "02.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "88.62",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.226,
+    "fee": 0
+   },
+   {
+    "wkn": "A2QJLA",
+    "name": "Helios Clean Energy Fund",
+    "date": "2025-02-03",
+    "dateText": "03.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "84.97",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.235,
+    "fee": 0
+   },
+   {
+    "wkn": "A2QJLA",
+    "name": "Helios Clean Energy Fund",
+    "date": "2025-03-03",
+    "dateText": "03.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "87.40",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.229,
+    "fee": 0
+   },
+   {
+    "wkn": "A1H6XK",
+    "name": "Atlas Global Real Estate Equities",
+    "date": "2025-01-02",
+    "dateText": "02.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "128.60",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.156,
+    "fee": 0
+   },
+   {
+    "wkn": "A1H6XK",
+    "name": "Atlas Global Real Estate Equities",
+    "date": "2025-02-03",
+    "dateText": "03.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "133.14",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.15,
+    "fee": 0
+   },
+   {
+    "wkn": "A1H6XK",
+    "name": "Atlas Global Real Estate Equities",
+    "date": "2025-03-03",
+    "dateText": "03.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "130.25",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.154,
+    "fee": 0
+   },
+   {
+    "wkn": "A3DMU1",
+    "name": "Summit Nasdaq Tech UCITS ETF",
+    "date": "2025-01-03",
+    "dateText": "03.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "12.4060",
+    "priceCurrency": "USD",
+    "fxRate": 1.0365,
+    "units": 1.671,
+    "fee": 2
+   },
+   {
+    "wkn": "A3DMU1",
+    "name": "Summit Nasdaq Tech UCITS ETF",
+    "date": "2025-02-04",
+    "dateText": "04.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "12.8713",
+    "priceCurrency": "USD",
+    "fxRate": 1.0303,
+    "units": 1.601,
+    "fee": 2
+   },
+   {
+    "wkn": "A3DMU1",
+    "name": "Summit Nasdaq Tech UCITS ETF",
+    "date": "2025-03-04",
+    "dateText": "04.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "11.9502",
+    "priceCurrency": "USD",
+    "fxRate": 1.063,
+    "units": 1.779,
+    "fee": 2
+   },
+   {
+    "wkn": "A0M430",
+    "name": "PVF - Prisma Vermögensverwaltungsfonds Dynamik R",
+    "date": "2025-01-03",
+    "dateText": "03.01.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "168.31",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.119,
+    "fee": 0
+   },
+   {
+    "wkn": "A0M430",
+    "name": "PVF - Prisma Vermögensverwaltungsfonds Dynamik R",
+    "date": "2025-02-04",
+    "dateText": "04.02.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "171.92",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.116,
+    "fee": 0
+   },
+   {
+    "wkn": "A0M430",
+    "name": "PVF - Prisma Vermögensverwaltungsfonds Dynamik R",
+    "date": "2025-03-04",
+    "dateText": "04.03.25",
+    "type": "Kauf",
+    "amount": 2000,
+    "price": "173.68",
+    "priceCurrency": "EUR",
+    "fxRate": null,
+    "units": 0.115,
+    "fee": 0
+   }
+  ],
+  "transactionCount": 27,
+  "freistellung": {
+   "requested": 100000,
+   "remaining": 98764
+  }
+ },
+ "dkb_kontoauszug": {
+  "file": "dkb_kontoauszug.pdf",
+  "pages": 6,
+  "source": "d8",
+  "type": "kontoauszug",
+  "format": "pdf_statement",
+  "institution": "DKB",
+  "date": "2026-03-04",
+  "period": {
+   "from": "2026-02-05",
+   "to": "2026-03-04"
+  },
+  "statementNo": "3/2026",
+  "accounts": [
+   {
+    "name": "Girokonto",
+    "kind": "giro",
+    "iban": "DE91120300001084470523",
+    "opening": 214533,
+    "closing": 321226,
+    "openingDate": "2026-02-04",
+    "closingDate": "2026-03-04",
+    "count": 54,
+    "debitCount": 51,
+    "creditCount": 3,
+    "debitSum": 241675,
+    "creditSum": 348368,
+    "transactions": [
+     {
+      "bookingDate": "2026-02-05",
+      "amount": -2999,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Telefonica Germany GmbH + Co. OHG"
+     },
+     {
+      "bookingDate": "2026-02-05",
+      "amount": -1708,
+      "bookingText": "Kartenzahlung FW",
+      "counterparty": "NAMECHEAP.COM"
+     },
+     {
+      "bookingDate": "2026-02-06",
+      "amount": -857,
+      "bookingText": "Basislastschrift",
+      "counterparty": "GitHub, Inc."
+     },
+     {
+      "bookingDate": "2026-02-09",
+      "amount": -2740,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Takeaway.com Payments B.V."
+     },
+     {
+      "bookingDate": "2026-02-10",
+      "amount": -1599,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Valve Corporation"
+     },
+     {
+      "bookingDate": "2026-02-10",
+      "amount": -512,
+      "bookingText": "Kartenzahlung FW",
+      "counterparty": "DIGITALOCEAN.COM"
+     },
+     {
+      "bookingDate": "2026-02-10",
+      "amount": -1284,
+      "bookingText": "Basislastschrift",
+      "counterparty": "MILES Mobility GmbH"
+     },
+     {
+      "bookingDate": "2026-02-10",
+      "amount": -749,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Chess.com"
+     },
+     {
+      "bookingDate": "2026-02-11",
+      "amount": -3190,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Takeaway.com Payments B.V."
+     },
+     {
+      "bookingDate": "2026-02-11",
+      "amount": -2400,
+      "bookingText": "Basislastschrift",
+      "counterparty": "mars kinotickets.online GmbH & Co. KG"
+     },
+     {
+      "bookingDate": "2026-02-12",
+      "amount": -899,
+      "bookingText": "Basislastschrift",
+      "counterparty": "AMAZON EU S.A R.L., NIEDERLASSUNG D"
+     },
+     {
+      "bookingDate": "2026-02-12",
+      "amount": -4317,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "ARAL Station"
+     },
+     {
+      "bookingDate": "2026-02-13",
+      "amount": -940,
+      "bookingText": "Basislastschrift",
+      "counterparty": "LogPay Financial Services GmbH"
+     },
+     {
+      "bookingDate": "2026-02-13",
+      "amount": -380,
+      "bookingText": "Basislastschrift",
+      "counterparty": "LogPay Financial Services GmbH"
+     },
+     {
+      "bookingDate": "2026-02-13",
+      "amount": -2250,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Takeaway.com Payments B.V."
+     },
+     {
+      "bookingDate": "2026-02-16",
+      "amount": -6499,
+      "bookingText": "Kartenzahlung onl",
+      "counterparty": "AMAZON.DE"
+     },
+     {
+      "bookingDate": "2026-02-16",
+      "amount": -18000,
+      "bookingText": "Basislastschrift",
+      "counterparty": "MLP Banking AG"
+     },
+     {
+      "bookingDate": "2026-02-16",
+      "amount": -1199,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Spotify AB"
+     },
+     {
+      "bookingDate": "2026-02-16",
+      "amount": -5632,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "EDEKA Nielsen"
+     },
+     {
+      "bookingDate": "2026-02-16",
+      "amount": -840,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "SHELL"
+     },
+     {
+      "bookingDate": "2026-02-17",
+      "amount": -2380,
+      "bookingText": "Basislastschrift",
+      "counterparty": "OpenAI Ireland Limited"
+     },
+     {
+      "bookingDate": "2026-02-17",
+      "amount": -913,
+      "bookingText": "Basislastschrift",
+      "counterparty": "MILES Mobility GmbH"
+     },
+     {
+      "bookingDate": "2026-02-18",
+      "amount": -3798,
+      "bookingText": "Basislastschrift",
+      "counterparty": "AMAZON PAYMENTS EUROPE S.C.A."
+     },
+     {
+      "bookingDate": "2026-02-18",
+      "amount": -1845,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "dm-drogerie markt"
+     },
+     {
+      "bookingDate": "2026-02-23",
+      "amount": -2870,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Takeaway.com Payments B.V."
+     },
+     {
+      "bookingDate": "2026-02-23",
+      "amount": -3426,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "Lidl"
+     },
+     {
+      "bookingDate": "2026-02-23",
+      "amount": -1562,
+      "bookingText": "Basislastschrift",
+      "counterparty": "MILES Mobility GmbH"
+     },
+     {
+      "bookingDate": "2026-02-23",
+      "amount": -1990,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Takeaway.com Payments B.V."
+     },
+     {
+      "bookingDate": "2026-02-23",
+      "amount": 341258,
+      "bookingText": "Lohn, Gehalt, Rente",
+      "counterparty": "Nordlicht Logistik GmbH"
+     },
+     {
+      "bookingDate": "2026-02-24",
+      "amount": -1295,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "Elbe Apotheke"
+     },
+     {
+      "bookingDate": "2026-02-24",
+      "amount": -699,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Kleinanzeigen GmbH"
+     },
+     {
+      "bookingDate": "2026-02-24",
+      "amount": -4500,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Hanse Ticket Vertriebs-Marketing-Gesellschaft mbH"
+     },
+     {
+      "bookingDate": "2026-02-24",
+      "amount": -1749,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Thalia Bücher GmbH"
+     },
+     {
+      "bookingDate": "2026-02-24",
+      "amount": -1749,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Thalia Bücher GmbH"
+     },
+     {
+      "bookingDate": "2026-02-26",
+      "amount": 2250,
+      "bookingText": "Zahlungseingang",
+      "counterparty": "PayPal Europe S.a.r.l. et Cie S.C.A"
+     },
+     {
+      "bookingDate": "2026-02-27",
+      "amount": -98000,
+      "bookingText": "Dauerauftrag",
+      "counterparty": "Hausverwaltung Kranich"
+     },
+     {
+      "bookingDate": "2026-02-27",
+      "amount": -1500,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Sportvereinigung Wedel-Schulau von 1909 e.V."
+     },
+     {
+      "bookingDate": "2026-02-27",
+      "amount": -2640,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Takeaway.com Payments B.V."
+     },
+     {
+      "bookingDate": "2026-02-27",
+      "amount": -999,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Microsoft Payments"
+     },
+     {
+      "bookingDate": "2026-02-27",
+      "amount": 4860,
+      "bookingText": "Zahlungseingang",
+      "counterparty": "Techniker Krankenkasse"
+     },
+     {
+      "bookingDate": "2026-02-27",
+      "amount": -1000,
+      "bookingText": "Dauerauftrag",
+      "counterparty": "Jan Beispiel"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -10000,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Allianz Lebensversicherungs-AG"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -6450,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Alte Leipziger Lebensversicherung a.G."
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -18000,
+      "bookingText": "Basislastschrift",
+      "counterparty": "MLP Banking AG"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -2310,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "Bäckerei Junge"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -2999,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Telefonica Germany GmbH + Co. OHG"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -780,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "HVV Automat"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -3845,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Barmenia Krankenversicherung AG"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -2177,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "PASSAT.APOTHEKE"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -420,
+      "bookingText": "Kartenzahlung",
+      "counterparty": "Kiosk am Rosengarten"
+     },
+     {
+      "bookingDate": "2026-03-02",
+      "amount": -231,
+      "bookingText": "Kartenzahlung onl",
+      "counterparty": "Google CLOUD"
+     },
+     {
+      "bookingDate": "2026-03-03",
+      "amount": -1105,
+      "bookingText": "Basislastschrift",
+      "counterparty": "MILES Mobility GmbH"
+     },
+     {
+      "bookingDate": "2026-03-03",
+      "amount": -699,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Kleinanzeigen GmbH"
+     },
+     {
+      "bookingDate": "2026-03-04",
+      "amount": -750,
+      "bookingText": "Basislastschrift",
+      "counterparty": "Arbeiter-Samariter-Bund Deutschland"
+     }
+    ]
+   }
+  ],
+  "expectedCount": 54,
+  "overdraft": 150000
+ },
+ "comdirect_wertpapierkauf_alt": {
+  "file": "comdirect_wertpapierkauf_alt.pdf",
+  "pages": 1,
+  "variant": true,
+  "type": "wertpapier",
+  "subtype": "kauf",
+  "institution": "comdirect",
+  "amount": -241740,
+  "date": "2025-03-12",
+  "valuta": "2025-03-14",
+  "title": "Wertpapierkauf Deutsche Post AG 2.417,40 €",
+  "fields": {
+   "security": "Deutsche Post AG",
+   "wkn": "555200",
+   "isin": "DE0005552004",
+   "quantity": 50,
+   "price": 4812,
+   "venue": "XETRA",
+   "marketValue": 240600,
+   "fees": 1140,
+   "valuta": "2025-03-14",
+   "partialFills": [
+    {
+     "nr": "91 228014",
+     "quantity": 20
+    },
+    {
+     "nr": "91 228015",
+     "quantity": 30
+    }
+   ]
+  },
+  "phrases": [
+   "ABRECHNUNG VOM",
+   "Börsenplatz",
+   "Zu Ihren Lasten (ohne „vor Steuern“)",
+   "Verrechnung über Konto",
+   "Gesamtkurswert",
+   "Gesamtprovision",
+   "Teilausführung",
+   "Geschäftsnummer … bis …"
+  ]
+ },
+ "comdirect_wertpapierverkauf": {
+  "file": "comdirect_wertpapierverkauf.pdf",
+  "pages": 2,
+  "variant": true,
+  "type": "wertpapier",
+  "subtype": "verkauf",
+  "institution": "comdirect",
+  "amount": 215238,
+  "amountBeforeTax": 223478,
+  "date": "2026-06-08",
+  "valuta": "2026-06-10",
+  "title": "Wertpapierverkauf Siemens AG 2.152,38 €",
+  "fields": {
+   "security": "Siemens AG",
+   "wkn": "723610",
+   "isin": "DE0007236101",
+   "quantity": 12,
+   "price": 18735,
+   "venue": null,
+   "marketValue": 224820,
+   "fees": 1342,
+   "taxPaid": 8240,
+   "valuta": "2026-06-10"
+  },
+  "phrases": [
+   "Wertpapierverkauf",
+   "Abwicklung : Live Trading (statt Ausführungsplatz)",
+   "Zum Preis von",
+   "Entgelte mit nachgestelltem Minus („2,90-“)",
+   "Zu Ihren Gunsten vor Steuern",
+   "Zu Ihren Gunsten nach Steuern",
+   "Die Gutschrift erfolgt mit Valuta"
+  ]
+ },
+ "comdirect_ertragsgutschrift": {
+  "file": "comdirect_ertragsgutschrift.pdf",
+  "pages": 1,
+  "variant": true,
+  "type": "wertpapier",
+  "subtype": "dividende",
+  "institution": "comdirect",
+  "amount": 3484,
+  "date": "2026-01-16",
+  "valuta": "2026-01-16",
+  "title": "Dividende Nordlicht Dividenden-Fonds 34,84 €",
+  "fields": {
+   "security": "Nordlicht Dividenden-Fonds",
+   "wkn": "A2NL7D",
+   "isin": "DE000A2NL7D2",
+   "quantity": 84.512,
+   "currency": "EUR",
+   "gross": 3484,
+   "withholdingTax": null,
+   "perShare": 0.4123,
+   "capitalIncome": true,
+   "valuta": "2026-01-16"
+  },
+  "taxRelevant": true,
+  "phrases": [
+   "Ertragsgutschrift",
+   "Ausschüttung pro Stück",
+   "Abrechnung Ertragsgutschrift",
+   "gesperrte Überschrift (Zeichenabstand) „G u t s c h r i f t …“",
+   "ohne Quellensteuer/Devisenkurs"
+  ]
+ },
+ "dkb_kontoauszug_alt": {
+  "file": "dkb_kontoauszug_alt.pdf",
+  "pages": 2,
+  "variant": true,
+  "type": "kontoauszug",
+  "format": "pdf_statement",
+  "institution": "DKB",
+  "period": {
+   "from": "2023-03-01",
+   "to": "2023-03-31"
+  },
+  "accounts": [
+   {
+    "name": "DKB-Cash",
+    "kind": "giro",
+    "iban": "DE91120300001084470523",
+    "opening": 123480,
+    "closing": 323588,
+    "count": 6,
+    "debitCount": 4,
+    "creditCount": 2,
+    "debitSum": 127737,
+    "creditSum": 327845,
+    "transactions": [
+     {
+      "bookingDate": "2023-03-03",
+      "valueDate": "2023-03-03",
+      "amount": -8500,
+      "bookingText": "Basislastschrift"
+     },
+     {
+      "bookingDate": "2023-03-06",
+      "valueDate": "2023-03-06",
+      "amount": -4237,
+      "bookingText": "Kartenzahlung"
+     },
+     {
+      "bookingDate": "2023-03-10",
+      "valueDate": "2023-03-10",
+      "amount": -20000,
+      "bookingText": "Überweisung"
+     },
+     {
+      "bookingDate": "2023-03-15",
+      "valueDate": "2023-03-15",
+      "amount": 15000,
+      "bookingText": "Zahlungseingang"
+     },
+     {
+      "bookingDate": "2023-03-28",
+      "valueDate": "2023-03-28",
+      "amount": -95000,
+      "bookingText": "Dauerauftrag"
+     },
+     {
+      "bookingDate": "2023-03-30",
+      "valueDate": "2023-03-30",
+      "amount": 312845,
+      "bookingText": "Lohn, Gehalt, Rente"
+     }
+    ]
+   }
+  ],
+  "phrases": [
+   "Bu.Tag Wert Wir haben für Sie gebucht Belastung in EUR Gutschrift in EUR",
+   "Datum ohne Jahr (dd.mm.)",
+   "ALTER KONTOSTAND … H EUR / NEUER KONTOSTAND … H EUR (erst auf Seite 2)",
+   "Kontoauszug Nummer 004 / 2023 vom … bis …",
+   "SVWZ+/EREF+/MREF+/CRED+-Tags"
+  ]
+ }
+}
