@@ -19,53 +19,6 @@ const REPORT = !!process.env.REAL_LIKE_REPORT;
 
 /** Heute bekannte Lücken: „<vorlage>: <prüfung>“ – Arbeitsliste für die Pakete C, D, E (siehe Kommentar oben). */
 const KNOWN_GAPS = new Set([
-  // comdirect_wertpapierkauf – Paket C
-  'comdirect_wertpapierkauf: Feld price',
-  'comdirect_wertpapierkauf: Feld security',
-  'comdirect_wertpapierkauf: Feld wkn',
-  'comdirect_wertpapierkauf: Titel',
-  // comdirect_wertpapierkauf_alt – Paket C
-  'comdirect_wertpapierkauf_alt: Feld marketValue',
-  'comdirect_wertpapierkauf_alt: Feld price',
-  'comdirect_wertpapierkauf_alt: Feld quantity',
-  'comdirect_wertpapierkauf_alt: Feld security',
-  'comdirect_wertpapierkauf_alt: Feld wkn',
-  'comdirect_wertpapierkauf_alt: Titel',
-  // comdirect_wertpapierverkauf – Paket C
-  'comdirect_wertpapierverkauf: Feld price',
-  'comdirect_wertpapierverkauf: Feld security',
-  'comdirect_wertpapierverkauf: Feld wkn',
-  'comdirect_wertpapierverkauf: Titel',
-  // comdirect_dividende – Paket C
-  'comdirect_dividende: Feld security',
-  'comdirect_dividende: Feld wkn',
-  'comdirect_dividende: Titel',
-  // comdirect_ertragsgutschrift – Paket C
-  'comdirect_ertragsgutschrift: Feld security',
-  'comdirect_ertragsgutschrift: Feld wkn',
-  'comdirect_ertragsgutschrift: Titel',
-  // comdirect_kosteninfo_kauf – Paket C
-  'comdirect_kosteninfo_kauf: Feld buyCosts',
-  'comdirect_kosteninfo_kauf: Feld holdingCostsPerYear',
-  'comdirect_kosteninfo_kauf: Feld holdingYears',
-  'comdirect_kosteninfo_kauf: Feld marketValue',
-  'comdirect_kosteninfo_kauf: Feld orderCosts',
-  'comdirect_kosteninfo_kauf: Feld security',
-  'comdirect_kosteninfo_kauf: Feld sellCosts',
-  'comdirect_kosteninfo_kauf: Feld totalCosts',
-  'comdirect_kosteninfo_kauf: Feld yieldReductionPct',
-  'comdirect_kosteninfo_kauf: Kostenpositionen',
-  // comdirect_kosteninfo_kauf_spesen – Paket C
-  'comdirect_kosteninfo_kauf_spesen: Feld buyCosts',
-  'comdirect_kosteninfo_kauf_spesen: Feld holdingCostsPerYear',
-  'comdirect_kosteninfo_kauf_spesen: Feld holdingYears',
-  'comdirect_kosteninfo_kauf_spesen: Feld marketValue',
-  'comdirect_kosteninfo_kauf_spesen: Feld orderCosts',
-  'comdirect_kosteninfo_kauf_spesen: Feld security',
-  'comdirect_kosteninfo_kauf_spesen: Feld sellCosts',
-  'comdirect_kosteninfo_kauf_spesen: Feld totalCosts',
-  'comdirect_kosteninfo_kauf_spesen: Feld yieldReductionPct',
-  'comdirect_kosteninfo_kauf_spesen: Kostenpositionen',
   // mlp_depotreport – Paket D
   'mlp_depotreport: Depotwert zum Stichtag',
   'mlp_depotreport: Kennzahlen (Einzahlungen, Sparrate, Ergebnis)',
@@ -127,6 +80,7 @@ function checksFor(name, e) {
       add('Kostenpositionen', (r) => (r.res.document.fields?.costItems || []).map((c) => pick(c, ['label', 'amount', 'kind'])),
         e.fields.costItems);
     }
+    if (e.fields?.partialFills) add('Teilausführungen', (r) => r.res.document.fields?.partialFills ?? null, e.fields.partialFills);
     if ('taxRelevant' in e) add('steuerrelevant', (r) => !!flagTaxDocument(r.res.document).taxRelevant, e.taxRelevant);
     if (e.subtype === 'depotreport') {
       add('Positionen (WKN)', (r) => r.all.flatMap((x) => x.holdings || []).map((h) => h.wkn), e.holdings.map((h) => h.wkn));

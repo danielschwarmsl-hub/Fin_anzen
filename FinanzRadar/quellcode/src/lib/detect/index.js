@@ -1,11 +1,11 @@
 // Dokumenttyp-Erkennung: erst Kontoauszug/Umsatzformate (statements-Modul), dann Stichwort-Scoring.
 import { detectStatementFormat } from '../parsers/docs/_statements.js';
 import { STORES, INSURERS, PROVIDERS, BROKERS, matchFirst } from '../parsers/docs/known.js';
-import { securitySubtype } from '../parsers/docs/securities.js';
+import { securitySubtype, unspace } from '../parsers/docs/securities.js';
 
-/** lowercase, Umlaute → ae/oe/ue/ss, NBSP → Leerzeichen */
+/** lowercase, Umlaute → ae/oe/ue/ss, NBSP → Leerzeichen, gesperrt gesetzte Wörter zusammengezogen („K E I N E“ → „keine“) */
 export function normalize(s) {
-  return String(s || '').toLowerCase()
+  return unspace(String(s || '').replace(/\u00a0/g, ' ')).toLowerCase()
     .replace(/ /g, ' ').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
 }
 
@@ -55,8 +55,9 @@ const RULES = {
   // Wertpapier-Abrechnungen, Erträge, MiFID-Kosteninformation, Depot-Reporting
   wertpapier: [
     [/geschaeftsabrechnung|wertpapierabrechnung/, 7], [/wertpapier-?(?:kauf|verkauf)\b/, 6], [/ordernummer|order-?nr\b/, 3],
-    [/ausfuehrungsplatz|ausfuehrungsort|handelsplatz/, 3], [/\bkurswert\b/, 2], [/zu ihren (?:lasten|gunsten)/, 3],
-    [/dividendengutschrift|gutschrift faelliger wertpapier-?ertraege/, 9], [/ertragsgutschrift|ertraegnisgutschrift|ausschuettungsgutschrift/, 6],
+    [/ausfuehrungsplatz|ausfuehrungsort|handelsplatz|boersenplatz\b/, 3], [/\b(?:gesamt)?kurswert\b/, 2], [/zu ihren (?:lasten|gunsten)/, 3],
+    [/zum (?:kurs|preis|ruecknahmepreis|ausgabepreis) von/, 2],
+    [/dividendengutschrift|gutschrift ?faelliger ?wertpapier-?ertraege/, 9], [/ertragsgutschrift|ertraegnisgutschrift|ausschuettungsgutschrift/, 6],
     [/\bdividende\b|\bausschuettung\b/, 2], [/quellensteuer/, 1.5], [/\bwkn\b|\bisin\b|wpknr/, 1.5], [/\bstk\.?\s+\d/, 1],
     [/kosteninformation zum wertpapiergeschaeft/, 10], [/markets in financial instruments directive|\bmifid\b/, 4], [/kostensimulation/, 3],
     [/reporting fuer ihre konten und depots/, 10], [/depotuebersicht|depotauszug|depot-?reporting|jahresdepotauszug/, 5],
@@ -79,8 +80,9 @@ const NAME_HINTS = [
   [/wertpapier|dividende|ertragsgutschrift|kosteninfo|depotauszug|depotreport|orderabrechnung/, 'wertpapier', 3],
 ];
 
-// Verneinte Bescheinigungen („KEINE STEUERBESCHEINIGUNG“ auf Wertpapierabrechnungen) zählen nicht als Signal
-const NEGATED_RE = /\b(?:keine|kein|nicht\s+um\s+eine|nicht\s+als)\s+(?:jahres-?)?steuerbescheinigung\w*/g;
+// Verneinte Bescheinigungen („KEINE STEUERBESCHEINIGUNG“ auf Wertpapierabrechnungen) zählen nicht als Signal – auch
+// gesperrt gesetzt („K E I N E S T E U E R …“ wird beim Zusammenziehen zu „keinesteuerbescheinigung“)
+const NEGATED_RE = /\b(?:keine|kein|nicht\s+um\s+eine|nicht\s+als)\s*(?:jahres-?)?steuerbescheinigung\w*/g;
 // Kontoauszug/Finanzreport mit Wertpapier-Buchungszeilen ist kein Wertpapier-Dokument
 const STATEMENT_HINT_RE = /finanzreport|kontoauszug|kontouebersicht|rechnungsabschluss/;
 

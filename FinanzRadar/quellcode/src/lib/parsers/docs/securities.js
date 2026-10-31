@@ -8,7 +8,15 @@ import { BROKERS, matchFirst } from './known.js';
 export const SECURITY_SUBTYPES = ['kauf', 'verkauf', 'dividende', 'kosteninfo', 'depotreport'];
 const INFO_ONLY = new Set(['kosteninfo', 'depotreport']);
 
-const fold = (s) => String(s || '').toLowerCase()
+/**
+ * Gesperrt gesetzte Wörter zusammenziehen: „G u t s c h r i f t“ → „Gutschrift“, „K E I N E  S T E U E R“ → „KEINE STEUER“.
+ * Nur Folgen von mindestens vier Einzelbuchstaben mit je einem Leerzeichen; zwei und mehr Leerzeichen bleiben Wortgrenze.
+ * Wortgrenzen mit nur einem Leerzeichen gehen dabei verloren – Muster für Überschriften erlauben deshalb fehlende Leerzeichen.
+ */
+export const unspace = (s) => String(s || '')
+  .replace(/(?<!\S)(?:[\p{L}-] ){3,}[\p{L}-](?!\S)/gu, (m) => m.replace(/ /g, ''));
+
+const fold = (s) => unspace(s).toLowerCase()
   .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
 
 /** Untertyp aus dem (gefalteten) Text; Reihenfolge: Info-Dokumente vor Erträgen vor Kauf/Verkauf. */
@@ -16,7 +24,7 @@ export function securitySubtype(text) {
   const t = fold(text);
   if (/kosteninformation zum wertpapiergeschaeft|kostensimulation|ex-?ante[- ]?kosten|kosteninformation\b.*(?:kauf|verkauf)/.test(t)) return 'kosteninfo';
   if (/reporting fuer ihre konten|depotauszug|vermoegens-?report|depot-?reporting|quartalsreport|depotuebersicht|depotaufstellung|jahresdepot/.test(t)) return 'depotreport';
-  if (/dividendengutschrift|gutschrift faelliger wertpapier-?ertraege|ertra(?:e|eg)nis-?gutschrift|ertragsgutschrift|ausschuettungsgutschrift|zinsgutschrift|kupongutschrift|\bdividende\b|\bausschuettung\b|\bkupon\b|zinsschein/.test(t)) return 'dividende';
+  if (/dividendengutschrift|gutschrift ?faelliger ?wertpapier-?ertraege|ertra(?:e|eg)nis-?gutschrift|ertragsgutschrift|ausschuettungsgutschrift|zinsgutschrift|kupongutschrift|\bdividende\b|\bausschuettung\b|\bkupon\b|zinsschein/.test(t)) return 'dividende';
   const lasten = /zu ihren lasten/.test(t), gunsten = /zu ihren gunsten/.test(t);
   if (lasten !== gunsten) return lasten ? 'kauf' : 'verkauf';
   const kauf = /wertpapierkauf|(?<!ver)\bkauf\b|\bbuy\b/.exec(t), verkauf = /wertpapierverkauf|\bverkauf\b|\bsell\b/.exec(t);
@@ -65,6 +73,16 @@ const dateIn = (line) => allDates(String(line || ''))[0] || null;
 const clean = (s) => String(s || '').replace(/[|[\]{}_—–=‚'"]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
 // Geschwärzte Stellen erscheinen als kurze Großbuchstaben-Fetzen („DD“, „MM“, „EEE“, „N“)
 const meaningful = (s) => /[a-zäöü]{2}/.test(s) || /[A-ZÄÖÜ]{4,}/.test(s);
+/**
+ * Wertpapiername plausibel? Bei geschwärzten Scans liest die OCR Fetzen wie „MEN MM Registered Shares“ oder „al a“:
+ * kein Name aus doppelten Einzelbuchstaben („MM“, „EEE“) und nicht überwiegend aus Ein-/Zwei-Zeichen-Wörtern.
+ */
+function plausibleName(s) {
+  const words = String(s || '').split(/\s+/).filter(Boolean);
+  if (!words.length || !meaningful(s) || !/[\p{L}]{3}/u.test(s)) return false;
+  if (words.some((w) => /^([A-ZÄÖÜ])\1+$/.test(w))) return false;
+  return words.filter((w) => w.replace(/[^\p{L}\d]/gu, '').length <= 2).length * 2 <= words.length;
+}
 
 // ---------------------------------------------------------------- Kennungen
 function isinValid(isin) {
@@ -81,10 +99,21 @@ function findIsin(lines) {
   for (const l of lines) for (const m of l.matchAll(/\b([A-Z]{2}[A-Z0-9]{9}\d)\b/g)) if (isinValid(m[1])) return m[1];
   return null;
 }
+const WKN_HEAD = /\b(?:WKN|WPKNR)\s*\/\s*ISIN\b/i;
 function findWkn(lines, isin) {
   for (const l of lines) {
-    const m = /\b(?:WKN|WPKNR)\b[^A-Z0-9\n]{0,6}([A-Z0-9]{6})\b/i.exec(l);
+    // „WKN: 855681“, „WKN / ISIN: 870747 / US5949181045“
+    const m = /\b(?:WKN|WPKNR)\b[^A-Z0-9\n]{0,6}([A-Z0-9]{6})\b/i.exec(l)
+      || /\b(?:WKN|WPKNR)\s*\/\s*ISIN\s*:?\s*([A-Z0-9]{6})\s*\//i.exec(l);
     if (m && /\d/.test(m[1])) return m[1].toUpperCase();
+  }
+  // Wert unter dem Spaltenkopf „Wertpapier-Bezeichnung   WPKNR/ISIN“: „Microsoft Corp.   870747“ (WKN am Zeilenende)
+  for (let h = 0; h < lines.length; h++) {
+    if (!WKN_HEAD.test(lines[h]) || /:\s*[A-Z0-9]{6}/.test(lines[h])) continue;
+    for (const l of lines.slice(h + 1, h + 3)) {
+      const m = /\S\s+([A-Z0-9]{6})\s*$/.exec(l);
+      if (m && /\d/.test(m[1]) && /[A-Za-z]/.test(l.slice(0, m.index + 1))) return m[1];
+    }
   }
   if (isin) {
     const l = lines.find((x) => x.includes(isin));
@@ -103,23 +132,31 @@ function findSecurity(lines, isin, wkn) {
     .replace(/\s+[\d.,]+\s*(?:Stk\.?|St\.|St[uü]ck)(?=\s|$).*$/i, ' ')
     .replace(/\b(?:STK|Stk\.?|St[uü]ck)\s*[\d.,]+.*$/i, ' ')
     .replace(/(?:\s+([A-Z])\1{0,3})+\s*$/, ''));
+  const ok = (s) => s.length >= 3 && plausibleName(s);
   const h = lines.findIndex((l) => /wertpapier-?\s?bezeichnun|^\s*(?:bezeichnung|wertpapier|position)\b/i.test(l));
   if (h >= 0) {
     for (const l of lines.slice(h + 1, h + 3)) {
       const s = strip(l);
-      if (s.length >= 3 && meaningful(s) && !/nennwert|kurs\b|anzahl|^stk/i.test(s)) return s.slice(0, 80);
+      if (ok(s) && !/nennwert|kurs\b|anzahl|^stk/i.test(s)) return s.slice(0, 80);
     }
+  }
+  // Kosteninformation: Name als (fette) Zeile ohne Bezeichnung direkt über „WKN: …“
+  const w = lines.findIndex((l) => /^\s*(?:WKN|ISIN)\s*:/i.test(l));
+  if (w > 0) {
+    const s = strip(lines[w - 1]);
+    const sentence = /:$|:\s/.test(s) || (/\.$/.test(s) && s.split(' ').length > 6);
+    if (ok(s) && !sentence && !/wertpapier(?:abrechnung|gesch|auftrag)|kosten/i.test(s)) return s.slice(0, 80);
   }
   for (const l of lines) {
     const m = /^(.{3,60}?)\s+[\d.,]+\s*(?:Stk\.?|St[uü]ck)\b/i.exec(l);
-    if (m && meaningful(m[1]) && !/kauf|verkauf|position|anzahl|bestand/i.test(m[1])) return strip(m[1]).slice(0, 80);
+    if (m && meaningful(m[1]) && !/kauf|verkauf|position|anzahl|bestand/i.test(m[1]) && ok(strip(m[1]))) return strip(m[1]).slice(0, 80);
   }
   if (isin) {
     const i = lines.findIndex((l) => l.includes(isin));
     const s = i >= 0 ? strip(lines[i]) : '';
-    if (s.length >= 3 && meaningful(s)) return s.slice(0, 80);
+    if (ok(s)) return s.slice(0, 80);
     const prev = i > 0 ? strip(lines[i - 1]) : '';
-    if (prev.length >= 3 && meaningful(prev) && !/:\s*$/.test(prev)) return prev.slice(0, 80);
+    if (ok(prev) && !/:\s*$/.test(prev)) return prev.slice(0, 80);
   }
   return null;
 }
@@ -142,6 +179,76 @@ function findPrice(lines) {
     if (m) { const v = num(m[1]); if (v > 0) return Math.round(v * 100); }
   }
   return null;
+}
+
+const QTY = '(\\d{1,3}(?:\\.\\d{3})*(?:,\\d+)?|\\d+(?:,\\d+)?)';
+const PRICE = '(\\d{1,3}(?:\\.\\d{3})*,\\d{2,6}|\\d+,\\d{2,6})';
+const ISO_CUR = '(?:EUR|USD|GBP|CHF|CAD|JPY|DKK|SEK|NOK|AUD|HKD)';
+// Ausführungszeile unter „Nennwert   Zum Kurs von“: „St.   3   EUR   354,00“, bei Teilausführungen mit Geschäftsnummer davor
+// und Kurswert dahinter: „91 228014   St.   20   EUR 48,12   EUR   962,40“. Die Zeile endet mit einer Zahl (nicht mit der Währung).
+const TRADE_ROW = new RegExp(`^\\s*(?:(\\d{2}\\s?\\d{6})\\s+)?St(?:k|[uü]ck)?\\.?\\s+${QTY}\\s+${ISO_CUR}\\s+${PRICE}(?:\\s+${ISO_CUR}\\s+[\\d.]+,\\d{2})?\\s*$`, 'i');
+const PRICE_HEAD = /\bnennwert\b|\bzum\s+(?:kurs|preis|r[uü]cknahmepreis|ausgabepreis|ausf[uü]hrungskurs)\s+von\b/i;
+
+/**
+ * Stück und Kurs aus der Spalte „Zum Kurs/Preis/Rücknahmepreis von“. Bei Teilausführungen zählt die Zusammenfassung;
+ * die Einzelausführungen kommen als fills [{ nr, quantity }].
+ */
+function tradeRows(lines) {
+  const head = lines.findIndex((l) => PRICE_HEAD.test(l));
+  if (head < 0) return null;
+  const rows = [];
+  let summary = null;
+  for (let i = head + 1; i < Math.min(lines.length, head + 30); i++) {
+    const m = TRADE_ROW.exec(lines[i]);
+    if (!m) continue;
+    const row = { nr: m[1] ? m[1].replace(/\s+/g, ' ') : null, quantity: num(m[2]), price: Math.round(num(m[3]) * 100) };
+    if (/zusammenfassung/i.test(lines[i - 1] || '')) summary = row;
+    else rows.push(row);
+  }
+  const best = summary || rows[0];
+  if (!best || !(best.quantity > 0) || !(best.price > 0)) return null;
+  const fills = rows.filter((r) => r.nr);
+  return { quantity: best.quantity, price: best.price, fills: fills.length > 1 ? fills.map(({ nr, quantity }) => ({ nr, quantity })) : null };
+}
+
+// ---------------------------------------------------------------- Kosteninformation (MiFID, ex ante)
+const MONEY_TXT = '(?<![\\p{L}\\d.,])(\\d{1,3}(?:\\.\\d{3})+,\\d{2}|\\d+,\\d{2})(?![\\d,])';
+const cents = (s) => Math.round(num(s) * 100);
+
+/**
+ * Erwartete Kosten laut Kosteninformation: Orderkosten, Kosten des Kaufs/Verkaufs, laufende Kosten pro Jahr, Gesamtkosten
+ * bei angenommener Haltedauer, Renditeminderung % pro Jahr und die Positionen des Kauf-/Verkaufsabschnitts
+ * ([E] eigene Entgelte, [F] fremde Entgelte, [P] Produktkosten). Geschwärzte/unlesbare Beträge bleiben null.
+ */
+function costInfo(lines, side) {
+  const amount = (re) => { const m = labeled(lines, re, { cur: 'EUR' }); return m ? Math.abs(m.cents) : null; };
+  // Fließtext über Zeilenumbrüche hinweg („… Gesamtkosten⏎auf 11,00 EUR und reduzieren die Rendite um … 0,18 % pro Jahr“)
+  const flat = lines.join(' ').replace(/\s+/g, ' ');
+  const total = new RegExp(`gesamtkosten\\s+(?:auf|von|betragen)\\s+${MONEY_TXT}\\s*(?:EUR|€)`, 'iu').exec(flat);
+  const years = /halted(?:a|o)[uv]er\s+von\s+(\d{1,2})\s+jahr/i.exec(flat);
+  const pct = /rendite\s+(?:um\s+)?(?:durchschnittlich\s+)?(?<![\d,])(\d{1,2},\d{1,4})\s*%/i.exec(flat);
+
+  const SECTION = /^\s*kosten\s+des\s+wertpapier(ver)?kauf/i;
+  let start = lines.findIndex((l) => SECTION.test(l) && !!SECTION.exec(l)[1] === (side === 'verkauf'));
+  if (start < 0) start = lines.findIndex((l) => SECTION.test(l));
+  const items = [];
+  for (let i = start + 1; start >= 0 && i < lines.length; i++) {
+    const l = lines[i];
+    if (/^\s*(?:kosten\b|die\s+gesamtkosten|gesamtkosten|\[[EFP]\])/i.test(l)) break;
+    const m = /^\s*(.+?\[([EFP])\])\s+(.*)$/.exec(l);
+    const money = m && lastMoney(m[3], 'EUR');
+    if (money) items.push({ label: m[1].replace(/\s{2,}/g, ' ').trim(), amount: Math.abs(money.cents), kind: m[2] });
+  }
+  return {
+    orderCosts: amount(/aufgelisteten\s+kosten|orderkosten/i),
+    buyCosts: amount(/^\s*kosten\s+des\s+wertpapierkauf/i),
+    sellCosts: amount(/^\s*kosten\s+des\s+wertpapierverkauf/i),
+    holdingCostsPerYear: amount(/^\s*kosten\s+w[aä]hrend\s+der\s+halted/i),
+    totalCosts: total ? cents(total[1]) : null,
+    holdingYears: years ? Number(years[1]) : null,
+    yieldReductionPct: pct ? num(pct[1]) : null,
+    costItems: items.length ? items : null,
+  };
 }
 
 function findVenue(lines) {
@@ -240,7 +347,7 @@ const euro = (cents) => {
 const SUB_TITLES = { kauf: 'Wertpapierkauf', verkauf: 'Wertpapierverkauf', dividende: 'Dividende', kosteninfo: 'Kosteninformation', depotreport: 'Depot-Reporting' };
 
 export function parse(extracted, fileMeta, detection) {
-  const lines = getLines(extracted).map(cleanOcr);
+  const lines = getLines(extracted).map(cleanOcr).map(unspace);
   const raw = lines.join('\n');
   const subtype = SECURITY_SUBTYPES.includes(detection?.subtype) ? detection.subtype : securitySubtype(raw);
   const doc = baseDoc(detection, { type: 'wertpapier', subtype });
@@ -264,13 +371,15 @@ export function parse(extracted, fileMeta, detection) {
     doc.title = ['Depot-Reporting', p?.label, institution].filter(Boolean).join(' ');
   } else {
     doc.date = findDate(lines, subtype);
-    const quantity = findQuantity(lines);
-    const price = findPrice(lines);
+    const trade = info ? null : tradeRows(lines);
+    const quantity = trade?.quantity ?? findQuantity(lines);
+    const price = trade?.price ?? findPrice(lines);
     const venue = findVenue(lines);
     Object.assign(fields, { quantity, price, venue, orderNo: findOrderNo(lines) });
     if (info) {
       const side = /\bverkauf\s*:/i.test(raw) && !/\bkauf\s*:/i.test(raw) ? 'verkauf' : /\bkauf\s*:/i.test(raw) ? 'kauf' : null;
-      Object.assign(fields, { side, infoOnly: true });
+      fields.marketValue = labeled(lines, /\bkurswert\b/i, { cur: 'EUR' })?.cents ?? null;
+      Object.assign(fields, { side, ...costInfo(lines, side), infoOnly: true });
       doc.title = [`Kosteninformation ${side === 'verkauf' ? 'Wertpapierverkauf' : 'Wertpapierkauf'}`, security].filter(Boolean).join(' ');
     } else {
       const total = findTotal(lines, subtype);
@@ -279,7 +388,9 @@ export function parse(extracted, fileMeta, detection) {
         doc.amount = subtype === 'kauf' ? -Math.abs(total.cents) : subtype ? Math.abs(total.cents) : total.cents;
       }
       fields.valuta = findValuta(lines, total);
-      fields.marketValue = labeled(lines, /\bkurswert\b/i, { cur: 'EUR' })?.cents ?? null;
+      // Teilausführungen: „Gesamtkurswert“ der Zusammenfassung vor dem Kurswert einer Einzelausführung
+      fields.marketValue = (labeled(lines, /\bgesamtkurswert\b/i, { cur: 'EUR' }) ?? labeled(lines, /\bkurswert\b/i, { cur: 'EUR' }))?.cents ?? null;
+      if (trade?.fills) fields.partialFills = trade.fills;
       const feeSum = labeled(lines, /summe\s+(?:entgelte|geb[uü]hren|kosten)|(?:^|\s)entgelte\s+gesamt/i, { cur: 'EUR' });
       let fees = feeSum ? Math.abs(feeSum.cents) : null;
       if (fees == null) {

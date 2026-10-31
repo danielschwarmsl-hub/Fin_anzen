@@ -44,6 +44,10 @@
     taxPaid: ['Abgeführte Steuern', 'cent'], currency: ['Währung'], gross: ['Brutto', 'cent'], grossForeign: ['Brutto', 'fx'],
     withholdingTax: ['Quellensteuer', 'fx'], fxRate: ['Devisenkurs'], perShare: ['Ertrag je Stück'], capitalIncome: ['Kapitalertrag'],
     infoOnly: ['Nur Information'], side: ['Art'], period: ['Zeitraum'], depot: ['Depot'],
+    partialFills: ['Teilausführungen'], orderCosts: ['Orderkosten (erwartet)', 'cent'], buyCosts: ['Kosten des Kaufs', 'cent'],
+    sellCosts: ['Kosten des Verkaufs', 'cent'], holdingCostsPerYear: ['Laufende Kosten pro Jahr', 'cent'],
+    totalCosts: ['Gesamtkosten', 'cent'], holdingYears: ['Angenommene Haltedauer (Jahre)'],
+    yieldReductionPct: ['Renditeminderung (% pro Jahr)'], costItems: ['Kostenpositionen'],
   };
   function fieldRow(d, k, v) {
     const f = d.type === 'wertpapier' ? SECURITY_FIELDS[k] : null;
