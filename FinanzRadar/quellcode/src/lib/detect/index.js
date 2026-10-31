@@ -1,6 +1,7 @@
 // Dokumenttyp-Erkennung: erst Kontoauszug/Umsatzformate (statements-Modul), dann Stichwort-Scoring.
 import { detectStatementFormat } from '../parsers/docs/_statements.js';
-import { STORES, INSURERS, PROVIDERS, matchFirst } from '../parsers/docs/known.js';
+import { STORES, INSURERS, PROVIDERS, BROKERS, matchFirst } from '../parsers/docs/known.js';
+import { securitySubtype } from '../parsers/docs/securities.js';
 
 /** lowercase, Umlaute → ae/oe/ue/ss, NBSP → Leerzeichen */
 export function normalize(s) {
@@ -51,6 +52,16 @@ const RULES = {
     [/\bust-?\s?id|umsatzsteuer-?id|steuernummer/, 1], [/nettobetrag|summe netto|zzgl\.?\s*\d+\s*%|\d+\s*%\s*(?:mwst|ust|umsatzsteuer)/, 2.5],
     [/zahlbar|faellig|zahlungsziel|zahlungsbedingung/, 2], [/gesamtbetrag|endbetrag/, 1.5], [/leistungszeitraum|lieferdatum/, 1],
   ],
+  // Wertpapier-Abrechnungen, Erträge, MiFID-Kosteninformation, Depot-Reporting
+  wertpapier: [
+    [/geschaeftsabrechnung|wertpapierabrechnung/, 7], [/wertpapier-?(?:kauf|verkauf)\b/, 6], [/ordernummer|order-?nr\b/, 3],
+    [/ausfuehrungsplatz|ausfuehrungsort|handelsplatz/, 3], [/\bkurswert\b/, 2], [/zu ihren (?:lasten|gunsten)/, 3],
+    [/dividendengutschrift|gutschrift faelliger wertpapier-?ertraege/, 9], [/ertragsgutschrift|ertraegnisgutschrift|ausschuettungsgutschrift/, 6],
+    [/\bdividende\b|\bausschuettung\b/, 2], [/quellensteuer/, 1.5], [/\bwkn\b|\bisin\b|wpknr/, 1.5], [/\bstk\.?\s+\d/, 1],
+    [/kosteninformation zum wertpapiergeschaeft/, 10], [/markets in financial instruments directive|\bmifid\b/, 4], [/kostensimulation/, 3],
+    [/reporting fuer ihre konten und depots/, 10], [/depotuebersicht|depotauszug|depot-?reporting|jahresdepotauszug/, 5],
+    [/vermoegensdepot/, 4], [/depotbestand/, 2],
+  ],
   vertrag: [
     [/\bvertrag\b|vertragsabschluss|vertragsbestaetigung/, 3], [/mitgliedschaft/, 4], [/bestaetigung ihres abonnements|abonnement/, 5],
     [/\babo\b/, 3], [/kuendigungsfrist|kuendigung/, 2.5], [/\blaufzeit\b|mindestlaufzeit|vertragslaufzeit/, 2.5],
@@ -65,7 +76,13 @@ const NAME_HINTS = [
   [/kassenbon|\bbon[-_ ]|kassenzettel/, 'kassenbon', 3], [/spende|zuwendung/, 'spende', 4],
   [/versicherung|police|beitragsbescheinigung/, 'versicherung', 3], [/rente|standmitteilung/, 'rente', 3],
   [/vertrag|abo|mitgliedschaft|bestaetigung/, 'vertrag', 2], [/einkauf/, 'einkaufszettel', 5],
+  [/wertpapier|dividende|ertragsgutschrift|kosteninfo|depotauszug|depotreport|orderabrechnung/, 'wertpapier', 3],
 ];
+
+// Verneinte Bescheinigungen („KEINE STEUERBESCHEINIGUNG“ auf Wertpapierabrechnungen) zählen nicht als Signal
+const NEGATED_RE = /\b(?:keine|kein|nicht\s+um\s+eine|nicht\s+als)\s+(?:jahres-?)?steuerbescheinigung\w*/g;
+// Kontoauszug/Finanzreport mit Wertpapier-Buchungszeilen ist kein Wertpapier-Dokument
+const STATEMENT_HINT_RE = /finanzreport|kontoauszug|kontouebersicht|rechnungsabschluss/;
 
 const GROCERY = ['milch', 'brot', 'eier', 'butter', 'kaese', 'aepfel', 'apfel', 'bananen', 'kaffee', 'zahnpasta', 'nudeln', 'reis', 'mehl',
   'zucker', 'joghurt', 'tomaten', 'kartoffeln', 'gurke', 'wasser', 'bier', 'wurst', 'schinken', 'salat', 'zwiebeln', 'obst', 'gemuese',
@@ -89,7 +106,8 @@ const LONG_DOC_PAGES = 3;
 export function scoreTypes(extracted, fileMeta) {
   const pages = extracted?.pages || [];
   const full = normalize(extracted?.text || extracted?.rawText || '');
-  const text = pages.length > LONG_DOC_PAGES ? normalize(pages.slice(0, KEYWORD_PAGES).map((p) => p.text || '').join('\n')) : full;
+  const text = (pages.length > LONG_DOC_PAGES ? normalize(pages.slice(0, KEYWORD_PAGES).map((p) => p.text || '').join('\n')) : full)
+    .replace(NEGATED_RE, ' ');
   const head = text.slice(0, 350);
   const name = normalize(fileMeta?.name || '');
   const scores = {}, signals = {};
@@ -103,6 +121,9 @@ export function scoreTypes(extracted, fileMeta) {
     }
   }
   for (const [re, type, w] of NAME_HINTS) if (re.test(name)) add(type, w, `Dateiname:${re.exec(name)[0]}`);
+  if ((scores.wertpapier || 0) > 0 && STATEMENT_HINT_RE.test(text)) add('wertpapier', -Math.min(scores.wertpapier, 8), null);
+  // Ertrags-/Wertpapierabrechnung: „zahlbar ab“, „Rechnungsnummer“ o. Ä. machen daraus keine Rechnung
+  if ((scores.wertpapier || 0) >= 12 && scores.rechnung) add('rechnung', -Math.min(scores.rechnung, 4), null);
 
   // Kassenbon: kurzes Bildlayout mit Beträgen (nur zusätzlich zu echten Bon-Signalen)
   const lineCount = text ? text.split('\n').filter((l) => l.trim()).length : 0;
@@ -149,6 +170,7 @@ function institutionFor(type, text, extracted) {
   if (type === 'kassenbon') return matchFirst(STORES, head);
   if (type === 'versicherung' || type === 'rente') return matchFirst(INSURERS, head) || matchFirst(INSURERS, raw);
   if (type === 'vertrag') return PROVIDERS.find((p) => raw.includes(p)) || null;
+  if (type === 'wertpapier') return matchFirst(BROKERS, raw);
   return null;
 }
 
@@ -158,6 +180,7 @@ function subtypeFor(type, extracted, signals) {
     if (/Invoice/.test(extracted?.xml || '')) return 'xrechnung';
     return extracted?.ocr ? 'scan' : null;
   }
+  if (type === 'wertpapier') return securitySubtype(extracted?.text || extracted?.rawText || '');
   if (type === 'versicherung') {
     const s = (signals || []).join(' ');
     return /berufsunf/.test(s) ? 'bu' : /haftpflicht/.test(s) ? 'haftpflicht' : /hausrat/.test(s) ? 'hausrat' : /kfz|kasko/.test(s) ? 'kfz' : null;
