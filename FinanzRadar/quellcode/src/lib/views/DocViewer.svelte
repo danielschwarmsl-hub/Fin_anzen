@@ -12,6 +12,10 @@
   import Collapsible from '../ui/Collapsible.svelte';
   import DocFix from '../ui/DocFix.svelte';
   import { isUnreadable, docReason } from './reviewModel.js';
+  import { explainDetection } from '../detect/index.js';
+  import { anonymizeText, detectionReport } from '../util/anonymize.js';
+  import { PARSER_VERSION } from '../store/importer.js';
+  import pkg from '../../../package.json';
 
   let { id, onclose = null } = $props();
 
@@ -143,6 +147,48 @@
 
   // Diagnose beim Einlesen von Kontoumsätzen: nur zeigen, wenn etwas hakt
   const diag = $derived(doc?.fields?.diagnostics?.problems?.length ? doc.fields.diagnostics : null);
+
+  // ---- „Warum dieser Typ?“ und Erkennungsbericht (aus dem gespeicherten Text nachgerechnet, nichts wird gespeichert) ----
+  const TYPE_NAMES = Object.fromEntries(Object.entries(TYPE_LABELS).map(([k, t]) => [k, t.name]));
+  let whyOpen = $state(false);
+  let report = $state(null); // Vorschau des Berichts (Text) oder null
+  let reportBox = $state(null);
+  let copyFailed = $state(false);
+  $effect(() => { void id; whyOpen = false; report = null; copyFailed = false; });
+  const detectInput = () => ({ text: doc?.text || '', ocr: !!doc?.ocr });
+  const detectMeta = () => ({ name: file?.name || doc?.displayName || '', ext });
+  const why = $derived.by(() => {
+    if (!whyOpen || !doc?.text) return null;
+    try { return explainDetection(detectInput(), detectMeta(), { labels: TYPE_NAMES }); } catch (e) { console.warn(e); return null; }
+  });
+
+  function buildReport() {
+    let explanation = [];
+    try { explanation = explainDetection(detectInput(), detectMeta(), { labels: TYPE_NAMES, mask: anonymizeText }).lines; } catch (e) { console.warn(e); }
+    const dg = doc.fields?.diagnostics;
+    const problems = [...(dg?.problems || [])];
+    if (dg) problems.push(`Seiten: ${dg.pages ?? '?'} · ${dg.dateLines ?? '?'} Zeilen mit Datum · ${dg.bookings ?? '?'} Buchungen gelesen${dg.expectedCount != null ? ` von ${dg.expectedCount}` : ''} · Zahlenformat ${dg.numberFormat === 'dot' ? 'Dezimalpunkt' : 'Dezimalkomma'}`);
+    return detectionReport({
+      appVersion: pkg.version, parserVersion: PARSER_VERSION, fileExt: ext, mime: file?.mime, pages: doc.pages,
+      ocr: doc.ocr, ocrConfidence: doc.ocrConfidence, type: doc.type, typeName: TYPE_NAMES[doc.type], subtype: doc.subtype,
+      confidence: doc.confidence, typeSource: doc.typeSource,
+      alternatives: (doc.alternatives || []).map((a) => ({ name: TYPE_NAMES[a.type] || a.type, confidence: a.confidence })),
+      explanation, problems, text: doc.text,
+    });
+  }
+  function showReport() { copyFailed = false; report = buildReport(); }
+  async function copyReport() {
+    try {
+      await navigator.clipboard.writeText(report);
+      toast('Erkennungsbericht kopiert', { tone: 'good' });
+      report = null;
+    } catch {
+      // Rückfall: Text markieren, Nutzer kopiert selbst
+      copyFailed = true;
+      reportBox?.focus();
+      reportBox?.select();
+    }
+  }
 
   // ---- Vorschau ----
   let pdf = $state(null);
@@ -376,6 +422,39 @@
             <label class="field wide"><span>Schlagworte <Tip text="Mit Komma trennen" /></span><input class="input" bind:value={form.tags} placeholder="z. B. Büro, Reise" /></label>
           </div>
 
+          <div class="why">
+            <Collapsible title="Warum dieser Typ?" bind:open={whyOpen}>
+              {#if doc.typeSource === 'user' || doc.typeSource === 'ai'}
+                <div class="small muted">Typ {doc.typeSource === 'user' ? 'von dir gewählt' : 'von der KI bestimmt'} – darunter die automatische Erkennung:</div>
+              {/if}
+              {#if why?.lines.length}
+                <ul class="whylist small">
+                  {#each why.lines as l, i (i)}<li class:lead={i === 0}>{l}</li>{/each}
+                </ul>
+              {:else if whyOpen}
+                <div class="small faint">{doc.text ? 'Keine Begründung verfügbar' : 'Kein Text gespeichert'}</div>
+              {/if}
+              <div class="row wrap whyfoot">
+                <span class="small faint grow">Typ falsch? Oben ändern und speichern – dann wird neu eingelesen.</span>
+                <button class="btn btn-sm btn-ghost" onclick={showReport} disabled={!!report}><Icon name="copy" size={14} />Erkennungsbericht kopieren</button>
+              </div>
+              {#if report}
+                <div class="report">
+                  <div class="row small">
+                    <strong class="grow">Das wird kopiert</strong>
+                    <Tip text="Ziffern als 0, Namen als Xxxx, IBAN, E-Mail und Links ausgeblendet; Fachwörter und Banknamen bleiben lesbar. Nichts wird gesendet – der Text landet nur in deiner Zwischenablage." />
+                  </div>
+                  <textarea class="input mono rtext" readonly rows="12" bind:this={reportBox} value={report} aria-label="Erkennungsbericht"></textarea>
+                  {#if copyFailed}<div class="small negc">Kopieren nicht möglich – der Text ist markiert, bitte mit Strg+C (Mac: ⌘C) kopieren.</div>{/if}
+                  <div class="row">
+                    <button class="btn btn-sm btn-primary" onclick={copyReport}><Icon name="copy" size={14} />Kopieren</button>
+                    <button class="btn btn-sm btn-ghost" onclick={() => (report = null)}>Schließen</button>
+                  </div>
+                </div>
+              {/if}
+            </Collapsible>
+          </div>
+
           <div class="taxrow">
             <Toggle checked={!!doc.taxRelevant} label="Steuerrelevant" onchange={setTax} />
             <Tip text={doc.aiTaxReason ? `KI: ${doc.aiTaxReason}` : 'Landet im Steuer-Export, geordnet nach Grund.'} />
@@ -549,6 +628,13 @@
     .kv dt { margin-top: 4px; }
     .taxsel { margin-left: 0; }
   }
+  .whylist { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 3px; color: var(--text-2); overflow-wrap: anywhere; }
+  .whylist .lead { color: var(--text); font-weight: 600; }
+  .whyfoot { gap: 8px; align-items: center; }
+  .whyfoot .grow { flex: 1 1 200px; }
+  .report { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+  .report .row { gap: 8px; align-items: center; }
+  .rtext { width: 100%; min-height: 180px; font-size: 11.5px; line-height: 1.45; white-space: pre; overflow: auto; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .diag { border: 1px solid var(--warn); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 12px; display: grid; gap: 6px; }
   .diag-h { color: var(--warn); font-weight: 600; display: flex; align-items: center; gap: 6px; }
   .diag ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }

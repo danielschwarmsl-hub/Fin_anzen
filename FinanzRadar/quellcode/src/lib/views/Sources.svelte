@@ -1,5 +1,5 @@
 <script>
-  import { app, live, setView, saveSettings, toast } from '../store/state.svelte.js';
+  import { app, live, setView, saveSettings, toast, retryState, retryFailedFiles } from '../store/state.svelte.js';
   import { db } from '../store/db.js';
   import { runImport, ensureSource } from '../store/importer.js';
   import * as local from '../sources/local.js';
@@ -14,6 +14,7 @@
   import Collapsible from '../ui/Collapsible.svelte';
   import ProgressBar from './ProgressBar.svelte';
   import { fmtDate, extOf } from '../util/format.js';
+  import { friendlyError } from '../util/errors.js';
 
   let over = $state(false);
   let dragDepth = 0; // dragenter/-leave feuern auch für Kindelemente (Firefox: relatedTarget unzuverlässig)
@@ -25,6 +26,8 @@
   const hasData = $derived(app.data.files.length > 0);
   const step = $derived(app.progress.running ? 2 : lastRun ? 3 : 1);
   const reviewCount = $derived(live.reviewCount);
+  // Dateien mit Lesefehler (bleiben gespeichert): Sammelanzeige mit „Erneut versuchen“
+  const failedFiles = $derived(app.data.files.filter(f => f.status === 'error'));
   const fileCount = (sid) => app.data.files.filter(f => f.sourceId === sid || (f.origins || []).some(o => o.sourceId === sid)).length;
 
   async function start(items, src) {
@@ -146,11 +149,37 @@
           <button class="btn btn-primary btn-lg" onclick={() => setView('overview')}>Zum Überblick<Icon name="arrowRight" /></button>
         {/if}
       </div>
-      {#if app.progress.errors.length}
+      {#if app.progress.errors.length && !failedFiles.length}
         <div class="errs-wrap"><Collapsible title="Nicht gelesene Dateien" badge={app.progress.errors.length}>
-          <ul class="errs small">{#each app.progress.errors as e}<li><span class="mono">{e.name}</span> – {e.error}</li>{/each}</ul>
+          <ul class="errs small">
+            {#each app.progress.errors as e}
+              {@const fe = friendlyError(e.error)}
+              <li><span class="mono">{e.name}</span> – {fe.text}{#if fe.detail}<div class="faint detail">{fe.detail}</div>{/if}</li>
+            {/each}
+          </ul>
         </Collapsible></div>
       {/if}
+    </div>
+  {/if}
+
+  {#if failedFiles.length && !app.progress.running}
+    <div class="card failed">
+      <div class="row wrap">
+        <Icon name="alert" size={18} />
+        <strong class="grow">{failedFiles.length} {failedFiles.length === 1 ? 'Datei konnte' : 'Dateien konnten'} nicht gelesen werden</strong>
+        <Tip text="Häufig ein vorübergehender Fehler des PDF-Lesers. Erneut versuchen liest die gespeicherten Dateien nacheinander noch einmal." />
+        <button class="btn btn-sm" onclick={retryFailedFiles} disabled={retryState.running}>
+          <Icon name="refresh" size={14} />{retryState.running ? `Wird eingelesen ${retryState.done + 1} / ${retryState.total} …` : 'Erneut versuchen'}
+        </button>
+      </div>
+      <Collapsible title="Welche Dateien?">
+        <ul class="errs small">
+          {#each failedFiles as f (f.id)}
+            {@const fe = friendlyError(f.error)}
+            <li><span class="mono">{f.name}</span> – {fe.text}{#if fe.detail}<div class="faint detail">{fe.detail}</div>{/if}</li>
+          {/each}
+        </ul>
+      </Collapsible>
     </div>
   {/if}
 
@@ -223,6 +252,10 @@
   .center { justify-content: center; }
   .sample { align-self: center; color: var(--accent); }
   .errs-wrap { margin-top: 12px; }
+  .failed { display: flex; flex-direction: column; gap: 8px; border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
+  .failed > .row { gap: 10px; align-items: center; color: var(--text); }
+  .failed > .row > :global(svg) { color: var(--warn); }
+  .detail { font-size: 11px; overflow-wrap: anywhere; }
   .errs { margin: 0; padding-left: 16px; max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 3px; }
   .done { border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
   .big-ic { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--good-soft); color: var(--good); }

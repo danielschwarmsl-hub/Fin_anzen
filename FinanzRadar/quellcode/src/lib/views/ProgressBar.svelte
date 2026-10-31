@@ -6,6 +6,7 @@
   import Collapsible from '../ui/Collapsible.svelte';
   import { TYPE_LABELS } from '../parsers/naming.js';
   import Tip from '../ui/Tip.svelte';
+  import { friendlyError } from '../util/errors.js';
   let { compact = false, report = false, ondismiss = null } = $props();
   const p = app.progress;
   const pct = $derived(p.total ? Math.round((p.done / p.total) * 100) : 0);
@@ -67,7 +68,12 @@
     </div>
     {#if p.errors.length}
       <Collapsible title="Probleme" badge={p.errors.length}>
-        <ul class="errs small">{#each p.errors as e}<li><span class="mono">{e.name}</span> – {e.error}</li>{/each}</ul>
+        <ul class="errs small">
+          {#each p.errors as e}
+            {@const fe = friendlyError(e.error)}
+            <li><span class="mono">{e.name}</span> – {fe.text}{#if fe.detail}<div class="faint detail">{fe.detail}</div>{/if}</li>
+          {/each}
+        </ul>
       </Collapsible>
     {/if}
   {/if}
@@ -87,4 +93,5 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .counts { gap: 6px; }
   .errs { margin: 0; padding-left: 16px; max-height: 200px; overflow: auto; }
+  .detail { font-size: 11px; overflow-wrap: anywhere; }
 </style>

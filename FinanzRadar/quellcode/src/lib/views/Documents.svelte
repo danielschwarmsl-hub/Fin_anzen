@@ -23,7 +23,7 @@
 
 <script>
   import { untrack } from 'svelte';
-  import { app, setView, getBlob, toast } from '../store/state.svelte.js';
+  import { app, setView, getBlob, toast, retryState, retryFailedFiles } from '../store/state.svelte.js';
   import { search } from '../store/search.js';
   import { TYPE_LABELS } from '../parsers/naming.js';
   import { fmtDate } from '../util/format.js';
@@ -159,6 +159,8 @@
       toast(e.message, { tone: 'bad' });
     }
   }
+  // Dateien mit Lesefehler: ruhiger Hinweis mit „Erneut versuchen“ (Details unter Quellen)
+  const failedCount = $derived(app.data.files.filter((f) => f.status === 'error').length);
   const hasFilters = $derived(!!q || typeF || year !== 'all' || taxOnly || reviewOnly);
 </script>
 
@@ -205,6 +207,17 @@
         </button>
       </div>
       <span class="small muted num">{ignoredShown.length} Dateien <Tip text="Ohne Finanzbezug erkannt; nicht im Archiv." /></span>
+    </div>
+  {/if}
+
+  {#if failedCount && !showIgnored && !app.progress.running}
+    <div class="failbar small" role="status">
+      <Icon name="alert" size={15} />
+      <span class="grow">{failedCount} {failedCount === 1 ? 'Datei konnte' : 'Dateien konnten'} nicht gelesen werden</span>
+      <button class="btn btn-sm btn-ghost" onclick={() => setView('sources')}>Details</button>
+      <button class="btn btn-sm" onclick={retryFailedFiles} disabled={retryState.running}>
+        <Icon name="refresh" size={14} />{retryState.running ? `Wird eingelesen ${retryState.done + 1} / ${retryState.total} …` : 'Erneut versuchen'}
+      </button>
     </div>
   {/if}
 
@@ -336,6 +349,9 @@
 
 <style>
   .docs { gap: 14px; }
+  .failbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border)); border-radius: var(--radius-sm); background: var(--surface); }
+  .failbar > :global(svg) { color: var(--warn); }
+  .failbar .grow { flex: 1 1 200px; }
   .fixes { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
   .fixrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between; }
   .fixname { display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 240px; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; padding: 4px 0; }

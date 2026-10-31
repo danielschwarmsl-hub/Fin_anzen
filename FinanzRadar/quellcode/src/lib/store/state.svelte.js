@@ -230,6 +230,32 @@ export async function reprocessDoc(doc, opts = {}) {
   }
 }
 
+/** Fortschritt von „erneut versuchen“ (Sammelanzeige in Quellen und Dokumente) */
+export const retryState = $state({ running: false, done: 0, total: 0, current: '' });
+/** Alle Dateien mit Lesefehler nacheinander neu einlesen; Nachverarbeitung einmal am Ende. → { done, failed } */
+export async function retryFailedFiles() {
+  const list = app.data.files.filter(f => f.status === 'error');
+  if (!list.length || retryState.running || app.progress.running) return { done: 0, failed: 0 };
+  const { reprocessFile } = await import('./importer.js');
+  Object.assign(retryState, { running: true, done: 0, total: list.length, current: '' });
+  let done = 0, failed = 0;
+  try {
+    for (const f of list) {
+      retryState.current = f.name || '';
+      const forceType = f.detection?.forced ? f.detection.type : null;
+      try { await reprocessFile(f.id, { forceType, skipPost: true }); done++; } catch (e) { console.warn('Erneut einlesen', f.name, e); failed++; }
+      retryState.done++;
+    }
+    try { await postProcess(); } catch (e) { console.error(e); }
+    await reload();
+  } finally {
+    Object.assign(retryState, { running: false, current: '' });
+  }
+  if (!failed) toast(`${done} ${done === 1 ? 'Datei' : 'Dateien'} erneut eingelesen`, { tone: 'good', ms: 5000 });
+  else toast(`${done} erneut eingelesen, ${failed} weiterhin nicht lesbar`, { tone: done ? 'info' : 'bad', ms: 7000 });
+  return { done, failed };
+}
+
 let toastId = 0;
 export function toast(msg, { tone = 'info', ms = 3200, action = null } = {}) {
   const id = ++toastId;

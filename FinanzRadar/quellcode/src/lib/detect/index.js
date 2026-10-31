@@ -257,3 +257,91 @@ export function detectType(extracted, fileMeta) {
   }
   return doc;
 }
+
+// ---------------------------------------------------------------- Begründung („Warum dieser Typ?“)
+// Nur zur Anzeige und für den Erkennungsbericht: rechnet aus dem (gespeicherten) Text nach, speichert nichts.
+const STMT_HEADER_RE = /^[^\p{L}\d]*(buchung(stag)?|datum|tag|beleg(datum)?)\b.*\b(betrag|soll|haben|umsatz)/iu;
+const DATE_LINE_RE = /^\s*\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})?(?!\d)/;
+const FORMAT_NAMES = {
+  ing_csv: 'ING-CSV', comdirect_csv: 'comdirect-CSV', comdirect_depot_csv: 'comdirect-Depot-CSV', paypal_csv: 'PayPal-CSV',
+  camt053: 'camt.053', camt052: 'camt.052', mt940: 'MT940', generic_csv: 'CSV-Umsatzliste', pdf_statement: 'PDF-Auszug',
+};
+const STATEMENT_TYPES = new Set(['kontoauszug', 'kreditkarte', 'paypal', 'depot']);
+
+/** Gespeicherten Text (oder Teil-Extrakt) in die Form bringen, die die Erkennung erwartet (Art aus der Dateiendung). */
+function asExtracted(input, fileMeta) {
+  const e = typeof input === 'string' ? { text: input } : { ...(input || {}) };
+  const text = String(e.text || e.rawText || '');
+  const ext = String(fileMeta?.ext || String(fileMeta?.name || '').split('.').pop() || '').toLowerCase();
+  if (!e.kind) {
+    if (/^(csv|tsv|txt)$/.test(ext)) Object.assign(e, { kind: 'csv', rawText: e.rawText ?? text });
+    else if (ext === 'xml') Object.assign(e, { kind: 'xml', rawText: e.rawText ?? text, xml: e.xml ?? text });
+    else if (/^(sta|mt940)$/.test(ext)) Object.assign(e, { kind: 'text', rawText: e.rawText ?? text });
+    else if (/^(png|jpe?g|webp|gif|bmp|heic|heif|tiff?)$/.test(ext)) e.kind = 'image';
+    else e.kind = 'pdf';
+  }
+  if (!e.pages && /\f/.test(text)) e.pages = text.split(/\n\f\n|\f/).map((t, i) => ({ n: i + 1, text: t }));
+  return e;
+}
+
+/** Textzeilen über alle Seiten (für Spaltenkopf und Datumszeilen) */
+function textLines(e) {
+  if (Array.isArray(e.pages) && e.pages.some((p) => p.lines?.length)) return e.pages.flatMap((p) => (p.lines || []).map((l) => l.text || ''));
+  return String(e.text || e.rawText || '').split(/\r?\n|\f/);
+}
+
+const pointsText = (p) => String(Math.round(p * 10) / 10).replace('.', ',');
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const wordText = (sig) => (/^Dateiname:/.test(sig) ? `Dateiname ‚${sig.slice(10)}‘`
+  : /^Lebensmittel:/.test(sig) ? `Lebensmittel (${sig.slice(13).replace(/,/g, ', ')})` : cap(sig));
+
+/**
+ * explainDetection(extracted | { text, pages?, ocr } | string, fileMeta, { mask?, labels? }) →
+ *   { type, subtype, confidence, statement: null | { type, format, institution, signals, header, dateLines, bookings, won },
+ *     ranked: [{ type, points, words }] (beste 3 Stichwort-Typen), lines: string[] (deutsche Sätze) }
+ * mask: Funktion für Text aus dem Dokument (Spaltenkopf; Daten in Signalen werden genullt) – für den anonymisierten Bericht.
+ * labels: { [type]: Anzeigename } (sonst der Typ-Schlüssel).
+ */
+export function explainDetection(input, fileMeta, { mask = null, labels = {} } = {}) {
+  const e = asExtracted(input, fileMeta);
+  const name = (t) => labels[t] || t;
+  const final = detectType(e, fileMeta);
+  const st = detectStatementFormat(e, fileMeta);
+  const { scores, signals } = scoreTypes(e, fileMeta);
+  const ranked = Object.entries(scores).filter(([, p]) => p > 0).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([type, points]) => ({ type, points: Math.round(points * 10) / 10, words: unique(signals[type] || []) }));
+
+  let statement = null;
+  const lines = [];
+  if (st) {
+    const raw = textLines(e);
+    // Spaltenkopf (PDF) – CSV-Erkennungen nennen ihre Kopfzeile selbst
+    const ownHeader = !(st.signals || []).some((s) => /^Kopfzeile/.test(s));
+    const line = ownHeader ? raw.find((l) => STMT_HEADER_RE.test(l.trim()))?.trim().replace(/^[^\p{L}\d]+/u, '').replace(/\s+/g, ' ') : null;
+    const header = !line ? null : line.length <= 70 ? line : line.slice(0, 70).replace(/[\s;,][^\s;,]*$/, '') + ' …';
+    const dateLines = raw.filter((l) => DATE_LINE_RE.test(l)).length;
+    const won = STATEMENT_TYPES.has(final.type) && final.format === st.format;
+    statement = { type: st.type, format: st.format, institution: st.institution || null, signals: st.signals || [], header, dateLines, bookings: st.bookings ?? null, won };
+    const parts = [];
+    if (header) parts.push(`Spaltenkopf ‚${mask ? mask(header) : header}‘`);
+    // Eigene Zählung nur, wenn die Erkennung selbst keine Datumszeilen nennt
+    if (dateLines && !statement.signals.some((s) => /\d+ Datumszeilen/.test(s))) parts.push(`${dateLines} Datumszeilen`);
+    for (const s of statement.signals) {
+      if (header && /^Spaltenkopf/.test(s)) continue;
+      parts.push(mask ? s.replace(/\d{1,2}\.\d{1,2}\.\d{2,4}/g, (d) => d.replace(/\d/g, '0')) : s);
+    }
+    if (FORMAT_NAMES[st.format]) parts.push(`Format ${FORMAT_NAMES[st.format]}`);
+    const head = `${name(st.type)} – erkannt an: ${parts.join(', ')}`;
+    lines.push(won ? head : `${head} (die Stichwörter waren eindeutiger)`);
+    if (won && ranked.length) lines.push('Stichwörter zählen hier nicht – die Buchungszeilen haben Vorrang:');
+  }
+  for (const r of ranked) {
+    lines.push(`${name(r.type)} (${pointsText(r.points)} Punkte): ${r.words.length ? r.words.map(wordText).join(', ') : '–'}`);
+  }
+  if (!st) {
+    if (final.type === 'finanz_sonstiges' && !ranked.some((r) => r.points >= 4)) lines.push('Kein Typ erreicht 4 Punkte – daher sonstiges Finanzdokument.');
+    else if (final.type === 'irrelevant') lines.push('Keine Finanzbegriffe gefunden.');
+    else if (!ranked.length) lines.push('Keine typischen Stichwörter gefunden.');
+  }
+  return { type: final.type, subtype: final.subtype ?? null, confidence: final.confidence ?? null, statement, ranked, lines };
+}
