@@ -322,7 +322,7 @@ export function explainDetection(input, fileMeta, { mask = null, labels = {} } =
     const line = ownHeader ? raw.find((l) => STMT_HEADER_RE.test(l.trim()))?.trim().replace(/^[^\p{L}\d]+/u, '').replace(/\s+/g, ' ') : null;
     const header = !line ? null : line.length <= 70 ? line : line.slice(0, 70).replace(/[\s;,][^\s;,]*$/, '') + ' …';
     const dateLines = raw.filter((l) => DATE_LINE_RE.test(l)).length;
-    const won = STATEMENT_TYPES.has(final.type) && final.format === st.format;
+    const won = !!st.format && final.format === st.format;
     statement = { type: st.type, format: st.format, institution: st.institution || null, signals: st.signals || [], header, dateLines, bookings: st.bookings ?? null, won };
     const parts = [];
     if (header) parts.push(`Spaltenkopf ‚${mask ? mask(header) : header}‘`);

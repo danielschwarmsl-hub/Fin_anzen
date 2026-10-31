@@ -79,7 +79,15 @@ async function doRecognize(canvas, { unit = 1, onProgress } = {}) {
 
 /** Erkennt Text auf einem Canvas. Aufrufe laufen nacheinander (ein Worker). */
 export function recognizeCanvas(canvas, opts) {
-  const run = chain.then(() => doRecognize(canvas, opts));
+  // Scheitert der OCR-Worker (Start oder Absturz), einmal mit frischem Worker wiederholen
+  const once = async () => {
+    try { return await doRecognize(canvas, opts); } catch (e) {
+      if (e?.name === 'AbortError') throw e;
+      await terminateOcr();
+      return doRecognize(canvas, opts);
+    }
+  };
+  const run = chain.then(once);
   chain = run.catch(() => {});
   return run;
 }

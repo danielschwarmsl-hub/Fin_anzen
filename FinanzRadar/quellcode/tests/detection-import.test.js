@@ -41,6 +41,7 @@ vi.mock('../src/lib/store/postprocess.js', () => ({ postProcess: vi.fn(async () 
 // Extraktion: Dateiinhalt „IMG:<OCR-Text 1. Versuch>|<OCR-Text 2. Versuch>“ simuliert ein Foto; sonst Textdatei
 vi.mock('../src/lib/extract/index.js', () => ({
   terminateOcr: vi.fn(async () => {}),
+  isPdfWorkerFailure: (msg) => /fake worker|PDF-Leser/i.test(String(msg || '')),
   extract: vi.fn(async (meta, blob, opts = {}) => {
     const raw = await blob.text();
     if (raw.startsWith('IMG:')) {
@@ -321,6 +322,23 @@ describe('Importer', () => {
     const txs = (await fakeDb.transactions.toArray()).map(t => t.amount).sort((a, b) => a - b);
     expect(txs).toEqual([-8500, 285000]);
     expect(fakeDb.accounts.rows.size).toBe(1);
+  });
+
+  it('Update auf Version 5: wegen PDF-Leser-Absturz gescheiterte Dateien und Wertpapier-Dokumente neu lesen', async () => {
+    const s = await src();
+    const div = 'comdirect\nGutschrift fälliger Wertpapier-Erträge\nDividendengutschrift\nDepotbestand per 19.08.2026 STK 5,000 Microsoft Corp.\nBruttobetrag: USD 4,55\nVerrechnung über Konto (IBAN) Valuta Zu Ihren Gunsten vor Steuern\nDE00 EUR 14.09.2026 EUR 3,32\n';
+    const rech = 'Muster GmbH\nRechnung\nRechnungsnummer R-9\nRechnungsdatum 01.01.2026\nBeratung   100,00\nRechnungsbetrag 100,00\n';
+    await runImport([item('Belege/d.txt', div), item('Belege/r.txt', rech), item('Belege/x.txt', rech.replace('R-9', 'R-11'))], s);
+    const files = await fakeDb.files.toArray();
+    const x = files.find(f => f.name === 'x.txt');
+    await fakeDb.files.update(x.id, { status: 'error', error: 'Setting up fake worker failed: "can\'t access property "setup", t is undefined".' });
+    await fakeDb.documents.where('fileId').equals(x.id).delete();
+    const store = new Map([['parserVersion', 4]]);
+    const io = { getSetting: async (k, f) => (store.has(k) ? store.get(k) : f), setSetting: async (k, v) => { store.set(k, v); } };
+    extract.mockClear();
+    expect(await reprocessStale(io)).toEqual({ done: 2, failed: 0 }); // Dividende + gescheiterte Datei, nicht die intakte Rechnung
+    expect((await fakeDb.files.get(x.id)).status).toBe('done');
+    expect(store.get('parserVersion')).toBe(5);
   });
 
   it('Update auf Version 4: früher falsch erkannte Wertpapier-Dokumente neu lesen, echte Rechnungen nicht', async () => {

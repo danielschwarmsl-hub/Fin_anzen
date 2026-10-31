@@ -2,7 +2,7 @@
 import { db } from './db.js';
 import { app, reload } from './state.svelte.js';
 import { sha256Hex, uid, extOf, normalizeIban } from '../util/format.js';
-import { extract, terminateOcr } from '../extract/index.js';
+import { extract, terminateOcr, isPdfWorkerFailure } from '../extract/index.js';
 import { detectType } from '../detect/index.js';
 import { parse } from '../parsers/index.js';
 import { displayName } from '../parsers/naming.js';
@@ -308,7 +308,7 @@ async function restoreDecisions(fileId, decided) {
  * Stand der Lese-Logik. Erhöhen, wenn Erkennung/Parser sich so ändern, dass alte Importe falsch sein können;
  * beim nächsten Start werden verdächtige Dateien dann automatisch neu gelesen (reprocessStale).
  */
-export const PARSER_VERSION = 4;
+export const PARSER_VERSION = 5;
 const STATEMENT_DOC_TYPES = new Set(['kontoauszug', 'kreditkarte', 'paypal', 'depot']);
 
 /** Dateien neu lesen (Nutzerwahl des Typs bleibt erhalten); Fortschritt in app.progress. → { done, failed } */
@@ -366,9 +366,15 @@ export async function reprocessStale({ getSetting, setSetting }) {
     else if (seen < 3 && STATEMENT_DOC_TYPES.has(d.type) && (d.fields?.format === 'pdf_statement' || d.format === 'pdf_statement')) ids.add(d.fileId);
     // Version 4: Wertpapier-Dokumente (Abrechnung, Dividende, Kosteninformation, Depot-Reporting), DKB Soll/Haben,
     // comdirect Finanzreport – bisher oft „Sonstiges“, „Rechnung“ oder „Steuerbescheinigung“. Vom Nutzer gesetzte Typen bleiben.
-    else if (seen < 4 && STALE_V4_TYPES.has(d.type) && d.typeSource !== 'user' && !forced.has(d.fileId) && d.text
+    // Version 5: Wertpapier-Abrechnungen/Kosteninformation auf Textebene, MLP-Reporting und Finanzreport mit Depotbestand,
+    // DKB altes Layout, IBAN aus der Kontoübersicht – Nutzerentscheidungen bleiben erhalten
+    else if (seen < 5 && (d.type === 'wertpapier' || (STATEMENT_DOC_TYPES.has(d.type) && /pdf_statement|mlp_reporting/.test(d.fields?.format || d.format || '')))) ids.add(d.fileId);
+    // Version 4 (in Version 5 wiederholt, weil das Neueinlesen beim PDF-Leser-Absturz scheitern konnte):
+    else if (seen < 5 && STALE_V4_TYPES.has(d.type) && d.typeSource !== 'user' && !forced.has(d.fileId) && d.text
       && detectType({ kind: 'pdf', ocr: !!d.ocr, text: d.text }, { name: nameOf.get(d.fileId) || '' }).type !== d.type) ids.add(d.fileId);
   }
+  // Version 5: Dateien, die wegen des abgestürzten PDF-Lesers nicht gelesen wurden, erneut versuchen
+  if (seen < 5) for (const f of files) if (f.status === 'error' && isPdfWorkerFailure(f.error)) ids.add(f.id);
   const res = ids.size ? await reprocessMany([...ids], 'Nach Update neu einlesen') : { done: 0, failed: 0 };
   await setSetting('parserVersion', PARSER_VERSION);
   return res;
