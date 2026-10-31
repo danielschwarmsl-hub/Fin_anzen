@@ -14,7 +14,8 @@ const R = (re, category, sub, conf, dir = null) => ({ re, category, sub, conf, d
 const INCOME_FIRST = [
   R(/(?<![a-z])(?:gehalt|lohn|loehne|bezuege|besoldung|gehaltszahlung|lohnzahlung|arbeitsentgelt|verguetung|urlaubsgeld|urlaubsentgelt|weihnachtsgeld)(?![a-z])/, 'einkommen', 'gehalt', 0.85, 'in'),
   R(/(?<![a-z])(?:erstattung|rueckerstattung|gutschrift)[a-z ]{0,30}(?:finanzamt|steuer)|finanzamt[a-z ]{0,30}erstattung|steuererstattung|einkommensteuererstattung/, 'einkommen', 'erstattung', 0.85, 'in'),
-  R(/(?<![a-z])(?:dividende|dividenden|ausschuettung|ertragsgutschrift|fondsertrag|kuponzahlung|kupon)(?![a-z])/, 'einkommen', 'dividenden', 0.85, 'in'),
+  // Dividende, Ausschüttung, Erträgnis-/Ertragsgutschrift, Kupon (comdirect: „ERTRAEGNISGUTSCHRIFT“, „Kupon“)
+  R(/(?<![a-z])(?:dividende[a-z]*|ausschuettung[a-z]*|ertr(?:ag|aeg)(?:nis|s)?gutschrift|ertraegnis[a-z]*|fondsertrag|kupon[a-z]*)(?![a-z])/, 'einkommen', 'dividenden', 0.85, 'in'),
   R(/(?<![a-z])(?:zinsen|zinsgutschrift|habenzinsen|guthabenzinsen|zinsertrag|zinszahlung|zins)(?![a-z])/, 'einkommen', 'zinsen', 0.85, 'in'),
   R(/deutsche rentenversicherung|rentenzahlung|altersrente|erwerbsminderungsrente|versorgungsbezuege|rentenbezug|(?<![a-z])rente(?![a-z])/, 'einkommen', 'rente', 0.8, 'in'),
   R(/(?<![a-z])(?:kindergeld|elterngeld|kinderzuschlag|wohngeld|buergergeld|bafoeg|arbeitslosengeld|krankengeld)(?![a-z])/, 'einkommen', 'sonstiges', 0.8, 'in'),
@@ -35,6 +36,8 @@ const KEYWORDS = [
   R(/kreditkartenabrechnung|ausgleich kreditkarte|kk abrechnung|kartenabrechnung|abrechnung kreditkarte|visa abrechnung|mastercard abrechnung/, 'sonstiges', 'unbekannt', 0.5),
   // Sparen / Vorsorge
   R(/(?<![a-z])(?:bausparen|bausparvertrag|bausparkasse|bausparrate)(?![a-z])|bauspar/, 'vorsorge_sparen', 'bausparen', 0.8),
+  // Gerichts-/Justizkasse, Bußgeld: Behörde
+  R(/gerichtskasse|justizkasse|gerichtskosten|(?<![a-z])(?:bussgeld[a-z]*|verwarnungsgeld)(?![a-z])/, 'sonstiges', 'behoerden', 0.75, 'out'),
   R(/riester|ruerup|basisrente/, 'vorsorge_sparen', 'riester_ruerup', 0.8),
   R(/betriebsrente|direktversicherung|entgeltumwandlung|bav beitrag/, 'vorsorge_sparen', 'betriebsrente', 0.75),
   R(/privatrente|rentenversicherung|altersvorsorge|fondspolice|fondsgebundene|rentenpolice/, 'vorsorge_sparen', 'privatrente', 0.75),
@@ -137,20 +140,45 @@ function wohnenFirst(tx, { pos, text, cpMerchant }) {
 }
 
 // ---------------------------------------------------------------- Verfeinerung der Unterkategorie
+// Rentenbausteine (Nutzerwunsch: immer „Vorsorge & Sparen“, nie „Versicherungen“ – auch beim Versicherer als Empfänger).
+// Reihenfolge = Vorrang: Riester/Rürup vor Bausparen vor bAV vor Privatrente vor Depot/Sparplan. Text ist gefaltet.
+const PENSION = [
+  [/riester|ruerup|basisrente/, 'riester_ruerup'],
+  [/(?<![a-z])(?:bausparen|bausparvertrag|bausparkasse|bausparrate|bauspar[a-z]*)(?![a-z])/, 'bausparen'],
+  [/betriebsrente|betriebliche altersversorgung|direktversicherung|entgeltumwandlung|pensionskasse|pensionsfonds|unterstuetzungskasse|(?<![a-z])bav(?![a-z])/, 'betriebsrente'],
+  [/privatrente|private rente|privat rente|rentenversicherung|altersvorsorge[a-z]*|fondsrente|fondspolice|fondsgebundene|rentenpolice|rentenbaustein[a-z]*|zukunftsrente|generation (?:basic|business|private)/, 'privatrente'],
+  [/vermoegensdepot|investmentdepot|fondsdepot|vermoegensverwaltung|kapitalanlage|vermoegenswirksam[a-z]*|(?<![a-z])vl (?:sparen|sparplan|vertrag|leistung[a-z]*|beitrag|anlage)(?![a-z])|(?:etf|fonds|wertpapier)sparplan|(?:etf|fonds) sparplan|(?<![a-z])sparplan(?![a-z])/, 'sparplan_depot'],
+];
+// Gesetzliche Rente (DRV) und Depotgebühren sind keine Rentenbausteine im obigen Sinn
+const PENSION_NOT = /deutsche rentenversicherung|(?<![a-z])drv(?![a-z])|depotentgelt|depotgebuehr|verwahrentgelt|kontofuehrung/;
+// Versicherer-Name mit „Vorsorge“/„Pension“ (z. B. „ERGO Vorsorge Lebensversicherung AG“, „Allianz Pensionskasse“)
+const PENSION_CP = /(?<![a-z])vorsorge(?![a-z])|pensionskasse|pensionsfonds|unterstuetzungskasse|versorgungswerk/;
+
+/** Rentenbaustein-Unterkategorie aus dem Text oder null */
+function pensionSub(text) {
+  if (PENSION_NOT.test(text)) return null;
+  for (const [re, sub] of PENSION) if (re.test(text)) return sub;
+  return null;
+}
+
 function refineInsurance(text, cpText) {
   const t = `${text} ${cpText}`;
   // Privatrente & Co. gehören zur Vorsorge, nicht zu den Versicherungen
-  if (/riester|ruerup|basisrente/.test(text)) return { category: 'vorsorge_sparen', sub: 'riester_ruerup' };
-  if (/privatrente|altersvorsorge|fondspolice|fondsgebundene|rentenversicherung|rentenpolice/.test(text)) return { category: 'vorsorge_sparen', sub: 'privatrente' };
-  if (/betriebsrente|direktversicherung|entgeltumwandlung/.test(text)) return { category: 'vorsorge_sparen', sub: 'betriebsrente' };
-  if (/haftpflicht/.test(t)) return { sub: 'haftpflicht' };
-  if (/hausrat/.test(t)) return { sub: 'hausrat' };
-  if (/berufsunfaehig|(?<![a-z])bu(?![a-z])/.test(t)) return { sub: 'bu' };
-  if (/zusatz|krankenzusatz|zahnzusatz|krankenversicherung/.test(t)) return { sub: 'kranken_zusatz' };
-  if (/kfz|(?<![a-z])auto(?![a-z])|vollkasko|teilkasko|fahrzeug/.test(t)) return { sub: 'kfz' };
-  if (/rechtsschutz/.test(t)) return { sub: 'rechtsschutz' };
-  if (/unfall/.test(t)) return { sub: 'unfall' };
-  if (/risikoleben|lebensversicherung|kapitallebens|(?<![a-z])leben(?![a-z])/.test(t)) return { sub: 'leben' };
+  const p = pensionSub(text);
+  if (p) return { category: 'vorsorge_sparen', sub: p };
+  // reine Risikoversicherungen bleiben Versicherungen
+  if (/haftpflicht/.test(t)) return { category: 'versicherungen', sub: 'haftpflicht' };
+  if (/hausrat/.test(t)) return { category: 'versicherungen', sub: 'hausrat' };
+  if (/berufsunfaehig|(?<![a-z])bu(?![a-z])/.test(t)) return { category: 'versicherungen', sub: 'bu' };
+  if (/zusatz|krankenzusatz|zahnzusatz|krankenversicherung/.test(t)) return { category: 'versicherungen', sub: 'kranken_zusatz' };
+  if (/kfz|(?<![a-z])auto(?![a-z])|vollkasko|teilkasko|fahrzeug/.test(t)) return { category: 'versicherungen', sub: 'kfz' };
+  if (/rechtsschutz/.test(t)) return { category: 'versicherungen', sub: 'rechtsschutz' };
+  if (/unfall/.test(t)) return { category: 'versicherungen', sub: 'unfall' };
+  if (/risikoleben|risiko lebens/.test(t)) return { category: 'versicherungen', sub: 'leben' };
+  // Name des Versicherers: „… Vorsorge …“, Pensionskasse → Vorsorge; sonst Lebensversicherung
+  const cp = pensionSub(cpText) || (PENSION_CP.test(cpText) ? (/pension|unterstuetzungskasse/.test(cpText) ? 'betriebsrente' : 'privatrente') : null);
+  if (cp) return { category: 'vorsorge_sparen', sub: cp };
+  if (/lebensversicherung|kapitallebens|(?<![a-z])leben(?![a-z])/.test(t)) return { category: 'versicherungen', sub: 'leben' };
   return {};
 }
 function refineWohnen(text) {
@@ -216,6 +244,11 @@ const hasCat = (c, s) => !!getCategory(c) && (!s || !!getSub(c, s));
 // Wertpapierkauf / Sparplanausführung (Giro- oder Depotseite): Sparen, kein Konsum
 const DEPOT_BUY = /wertpapierkauf|wertpapier ?kauf|kauf wertpapier|wertpapierabrechnung kauf|(?<![a-z])(?:etf|fonds|wertpapier)sparplan|(?<![a-z])sparplan(?:ausfuehrung| ausfuehrung)?(?![a-z])|sparplanausfuehrung|fondskauf|etf kauf|kauf etf|(?<![a-z])depotkauf/;
 const DEPOT_NOT = /riester|ruerup|bauspar|basisrente/;
+// Wertpapier-Girobuchung (comdirect: „Wertpapiere … WPKNR … ISIN“; auch WKN/ISIN neben „Wertpapier“)
+const SECURITIES = /wpknr|(?<![a-z])(?:wertpapiere?|wp)(?![a-z]).*(?:(?<![a-z])wkn(?![a-z])|(?<![a-z])isin(?![a-z]))|(?<![a-z])(?:wertpapierverkauf|wertpapier verkauf|wp verkauf|wertpapierabrechnung|wp abrechnung)(?![a-z])/;
+const SECURITIES_SELL = /verkauf|(?<![a-z])vk(?![a-z])|tilgung|rueckzahlung|endfaelligkeit|einloesung|sell/;
+// DKB-Buchungsart „Lohn, Gehalt, Rente“ (in Buchungstext oder Verwendungszweck)
+const BT_SALARY = / lohn gehalt rente /;
 // PayPal-Währungsumrechnung: Gegenstück zur Fremdwährungszahlung, kein eigener Einkauf
 const CONVERSION = /waehrungsumrechnung|currency conversion|general currency conversion/;
 
@@ -266,16 +299,38 @@ function decide(tx, ctx, userRules, cache) {
     if (w) return w;
   }
 
-  // 2c. Wertpapierkauf / Sparplan (Abfluss) – vor der Händlerliste, damit „comdirect“ & Co. nicht als Bankgebühr enden
+  // 2c. Rentenbausteine (Abfluss): Riester/Rürup, bAV, Privat-/Fondsrente, Vermögensdepot, Sparplan, VL, Bausparen →
+  //     immer Vorsorge & Sparen – vor Händlerliste (Versicherer-Namen) und allgemeiner Versicherungsregel
+  if (!pos && !tx.ownTransfer) {
+    const ps = pensionSub(text);
+    if (ps) {
+      const out = { category: 'vorsorge_sparen', subcategory: ps, categorySource: 'keyword', confidence: 0.85 };
+      if (cpMerchant && !cpMerchant.intermediary) out.merchant = cpMerchant.name;
+      return out;
+    }
+  }
+
+  // 2d. Wertpapierkauf / Sparplan (Abfluss) – vor der Händlerliste, damit „comdirect“ & Co. nicht als Bankgebühr enden
   if (!pos && !DEPOT_NOT.test(text)) {
     const depotAcc = cache.depot.has(tx.accountId) && /(?<![a-z])kauf(?![a-z])|sparplan|ausfuehrung|wertpapier/.test(`${btFold} ${purposeFold}`);
-    if (depotAcc || DEPOT_BUY.test(text)) return { category: 'vorsorge_sparen', subcategory: 'sparplan_depot', categorySource: 'keyword', confidence: 0.85 };
+    if (depotAcc || DEPOT_BUY.test(text) || SECURITIES.test(text)) return { category: 'vorsorge_sparen', subcategory: 'sparplan_depot', categorySource: 'keyword', confidence: 0.85 };
   }
 
   // 3a. Einkommens-Stichworte (Zufluss) und Gehaltsbuchung der Bank
   if (pos) {
     if (tx.bookingText === 'Gehalt/Lohn' || tx.gvc === '053') return { category: 'einkommen', subcategory: 'gehalt', categorySource: 'keyword', confidence: 0.95 };
+    // DKB „Lohn, Gehalt, Rente“: Rente erkennt man nur an Zweck/Auftraggeber, sonst Gehalt
+    if (BT_SALARY.test(` ${btFold} ${purposeFold} `)) {
+      const rest = `${purposeFold} ${cpFold} ${rawFold}`.replace(/lohn gehalt rente/g, ' ');
+      const k = INCOME_FIRST.find(r => r.sub !== 'gehalt' && r.re.test(rest));
+      if (k?.sub === 'rente') return { category: 'einkommen', subcategory: 'rente', categorySource: 'keyword', confidence: 0.9 };
+      return { category: 'einkommen', subcategory: 'gehalt', categorySource: 'keyword', confidence: 0.9 };
+    }
     for (const k of INCOME_FIRST) if (k.re.test(`${purposeFold} ${btFold}`)) return { category: k.category, subcategory: k.sub, categorySource: 'keyword', confidence: k.conf };
+    // Wertpapierverkauf / Rückzahlung auf dem Girokonto: Umschichtung aus dem Depot – weder Einkommen noch Ausgabe
+    if (SECURITIES.test(text) && (SECURITIES_SELL.test(text) || !/gutschrift|erstattung/.test(text))) {
+      return { category: 'vorsorge_sparen', subcategory: 'sparplan_depot', categorySource: 'keyword', confidence: 0.8 };
+    }
   }
 
   // 3a'. Zufluss vom eigenen Konto (Gegenkonto nicht importiert): weder Einnahme noch Entnahme aus Sparen
@@ -291,7 +346,7 @@ function decide(tx, ctx, userRules, cache) {
     if (m.conf < 0.6) weak = m;
     else {
       let category = m.category, sub = m.sub || null;
-      if (m.refine === 'insurance') { const r = refineInsurance(`${purposeFold} ${btFold}`, `${cpFold} ${rawFold}`); if (r.category) { category = r.category; } sub = r.sub ?? sub; }
+      if (m.refine === 'insurance') { const r = refineInsurance(`${purposeFold} ${btFold}`, `${cpFold} ${rawFold}`); if (r.category) category = r.category; sub = r.sub ?? sub; }
       else if (m.refine === 'wohnen') { const r = refineWohnen(`${purposeFold} ${btFold}`); sub = r.sub ?? sub; }
       // Steuerbehörde: Zufluss = Erstattung
       if (pos && category === 'steuern_abgaben') { category = 'einkommen'; sub = 'erstattung'; }

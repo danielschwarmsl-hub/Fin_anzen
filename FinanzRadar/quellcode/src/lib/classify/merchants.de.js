@@ -139,6 +139,8 @@ G('mobilitaet', 'taxi_sharing', {}, [
 ]);
 
 // ---------------------------------------------------------------- Reisen & Freizeit
+// Condor-Versicherungen vor der Fluggesellschaft Condor
+G('versicherungen', null, { refine: 'insurance', recurringHint: 'monthly' }, [['Condor Versicherung', 'condor (?:lebensversicherung[a-z ]*|versicherung[a-z ]*|allgemeine[a-z ]*)']]);
 // Reiseversicherungen vor den allgemeinen Versicherer-Mustern (ERGO, HanseMerkur, Allianz)
 G('freizeit_reisen', 'urlaub', {}, [
   ['ERGO Reiseversicherung', 'ergo (?:reise[a-z]*|travel)'], ['HanseMerkur Reiseversicherung', 'hanse ?merkur (?:reise[a-z]*|travel)'], ['Allianz Reiseversicherung', 'allianz (?:reise[a-z]*|travel|partners)'],
@@ -342,7 +344,8 @@ G('versicherungen', null, { refine: 'insurance', recurringHint: 'monthly' }, [
   ['WGV', 'wgv[a-z ]*'], ['VHV', 'vhv[a-z ]*'], ['Die Bayerische', 'die bayerische|bayerische versicherung[a-z ]*'], ['Sparkassenversicherung', 'sv sparkassenversicherung|sparkassenversicherung|oeffentliche versicherung[a-z ]*|versicherungskammer[a-z ]*'],
   ['Itzehoer', 'itzehoer[a-z ]*'], ['Basler', 'basler[a-z ]*|baloise'], ['Mecklenburgische', 'mecklenburgische[a-z ]*'], ['DKV', 'dkv[a-z ]*|ukv'], ['ARAG', 'arag[a-z ]*'], ['Roland', 'roland rechtsschutz|advocard'],
   ['HDI', 'hdi[a-z ]*|gerling|talanx'], ['Getsafe', 'getsafe|feather|friday finance|lemonade|clark germany|wefox|ottonova|nexible|adam riese'], ['Universa', 'universa|haftpflichtkasse|vgh|kravag|sdk|inter versicherung[a-z ]*'],
-  ['Check24', 'check24(?: vergleichsportal| versicherung[a-z ]*)?'], ['Versicherung', 'versicherung(?:s)?[a-z ]*|krankenkasse|zusatzversicherung', { cpOnly: true, conf: 0.7 }],
+  ['Check24', 'check24(?: vergleichsportal| versicherung[a-z ]*)?'], ['Canada Life', 'canada life[a-z ]*'], ['Württembergische', 'wuerttembergische[a-z ]*|wwk[a-z ]*|ideal (?:lebensversicherung|versicherung)[a-z ]*|dialog lebensversicherung'],
+  ['Versicherung', 'versicherung(?:s)?[a-z ]*|krankenkasse|zusatzversicherung', { cpOnly: true, conf: 0.7 }],
 ]);
 
 // ---------------------------------------------------------------- Spenden
@@ -405,6 +408,9 @@ G('steuern_abgaben', 'einkommensteuer', { cpOnly: true, conf: 0.8 }, [
   ['Finanzamt', 'finanzamt[a-z ]*|finanzkasse[a-z ]*|bundeskasse|steueramt|oberfinanzdirektion|bundeszentralamt fuer steuern'],
   ['Steuerberater', 'steuerberater[a-z ]*|lohnsteuerhilfe[a-z ]*|wiso steuer|taxfix|smartsteuer|steuerkanzlei[a-z ]*', { sub: 'einkommensteuer' }],
 ]);
+G('sonstiges', 'behoerden', { cpOnly: true, conf: 0.8 }, [
+  ['Gerichtskasse', 'gerichtskasse[a-z ]*|justizkasse[a-z ]*|landesjustizkasse[a-z ]*|amtsgericht[a-z ]*|landgericht[a-z ]*|oberlandesgericht[a-z ]*|bundesamt fuer justiz|bussgeldstelle[a-z ]*|zentrale bussgeldstelle'],
+]);
 G('sonstiges', 'behoerden', { conf: 0.8 }, [['ESTA', 'esta (?:gov|usa|application|travel authorization)'], ['eVisa', 'evisa|ivisa|visumservice']]);
 G('steuern_abgaben', 'kfz_steuer', { cpOnly: true, conf: 0.75 }, [
   ['Zoll (Kfz-Steuer)', 'hauptzollamt[a-z ]*|kfz ?steuer|zulassungsstelle[a-z ]*|strassenverkehrsamt|zulassungsdienst[a-z ]*'],
@@ -422,6 +428,9 @@ G('vorsorge_sparen', 'sparplan_depot', { conf: 0.85 }, [
   ['Trade Republic', 'trade republic[a-z ]*'], ['Scalable Capital', 'scalable[a-z ]*'], ['Smartbroker', 'smartbroker[a-z ]*|justtrade|flatex[a-z ]*|degiro'], ['Consorsbank', 'consorsbank|consors'],
   ['onvista bank', 'onvista[a-z ]*|dab bank|c24 invest|nuri|growney|quirion|bevestor|easyfolio|moneyfarm|ginmon|whitebox'], ['Bitpanda', 'bitpanda|coinbase|kraken|bison|binance|bitcoin de'],
   ['Wertpapiersparplan', 'wertpapier[a-z ]*|etf sparplan[a-z ]*|fondssparplan[a-z ]*|depot(?:bank|uebertrag|ueberweisung)[a-z ]*|comdirect depot[a-z ]*|ing depot|dkb depot|dkb broker', { cpOnly: true }],
+  // Fondsgesellschaften / Vermögensdepots (MLP-Vermögensdepot, Deka-, Union-, DWS-Sparpläne)
+  ['MLP Banking', 'mlp(?: banking| finanzberatung| finanzdienstleistungen| se| ag)?[a-z ]*', { cpOnly: true, conf: 0.75 }],
+  ['Fondsgesellschaft', 'deka(?: bank| investment[a-z ]*)?|union investment[a-z ]*|dws(?: investment[a-z ]*)?|fondsdepot bank|ebase|fil fondsbank|fidelity[a-z ]*|vanguard[a-z ]*', { cpOnly: true, conf: 0.8 }],
 ]);
 G('vorsorge_sparen', 'tagesgeld', { conf: 0.8 }, [
   ['Renault Bank', 'renault bank(?: direkt)?'], ['Tagesgeld', 'tagesgeld[a-z ]*|festgeld[a-z ]*|sparkonto[a-z ]*|extra konto', { cpOnly: true }], ['Weltsparen', 'weltsparen|raisin|zinspilot'],

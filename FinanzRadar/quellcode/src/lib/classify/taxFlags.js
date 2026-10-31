@@ -44,6 +44,14 @@ export function flagTaxDocument(doc) {
     case 'steuerbescheinigung': return yes('kapitalertraege');
     case 'spende': return yes('spenden');
     case 'versicherung': case 'rente': return yes('versicherung_vorsorge');
+    case 'wertpapier': {
+      // Kosteninformation / Depot-Reporting: nur Info, nicht steuerrelevant
+      const f = doc.fields || {};
+      if (f.infoOnly || doc.subtype === 'kosteninfo' || doc.subtype === 'depotreport') return NO;
+      // Dividende/Ausschüttung und Verkauf (Veräußerungsgewinn) gehören in die Anlage KAP; ein Kauf allein nicht
+      if (f.capitalIncome || doc.subtype === 'dividende' || doc.subtype === 'verkauf') return yes('kapitalertraege');
+      return NO;
+    }
     case 'rechnung': case 'kassenbon': case 'vertrag': case 'finanz_sonstiges': {
       if (doc.type === 'rechnung' && doc.fields?.isCraftsman) return yes('haushalt_handwerker');
       const t = docText(doc);

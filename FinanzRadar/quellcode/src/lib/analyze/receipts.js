@@ -3,6 +3,8 @@
 //   level 'sure' = still übernehmen, 'check' = übernehmen und in die Prüfliste; suggestions = nur Vorschlag ohne Verknüpfung
 // matchReceipts(documents, txs) → links (Kompatibilität)
 // applyReceipts(txs, documents, lineItems) → txs mit receiptDocId/receiptDocIds/receiptSource/receiptScore, checks (receipt/split), splitSuggestion
+// Wertpapier-Abrechnungen (type 'wertpapier', subtype kauf|verkauf|dividende) werden als Beleg an die Girobuchung gehängt
+// (Betrag exakt mit Vorzeichen, Valuta ±3 Tage oder Geschäftstag ±5 Tage); Kosteninformation/Depot-Reporting (fields.infoOnly) nie.
 import { fold, findMerchant } from '../classify/merchants.de.js';
 
 const DOC_TYPES = new Set(['rechnung', 'kassenbon']);
@@ -12,6 +14,10 @@ const SURE_MARGIN = 15;  // Abstand zum Zweitbesten, ab dem ein Treffer eindeuti
 const MAX_GROUP = 6;     // Sammelbuchung: höchstens so viele Belege
 const MAX_POOL = 12;     // … aus den zeitlich nächsten Belegen
 const MAX_EXACT = 8;     // Konfliktgruppen bis zu dieser Größe werden exakt gelöst, größere gierig
+const SEC_SUBTYPES = new Set(['kauf', 'verkauf', 'dividende']);
+const SEC_VALUTA_DAYS = 3, SEC_DATE_DAYS = 5;
+// Hinweise im Buchungstext auf eine Wertpapier-Buchung (gefaltet)
+const SEC_HINT = /(?<![a-z])(?:wertpapier[a-z]*|wpknr|wkn|isin|depot[a-z]*|dividende[a-z]*|ertraegnis[a-z]*|ertragsgutschrift|ausschuettung[a-z]*|kupon[a-z]*|sparplan[a-z]*)(?![a-z])/;
 
 const dayNum = (iso) => Math.floor(Date.parse(iso + 'T00:00:00Z') / 864e5);
 const tokens = (s) => fold(s).split(' ').filter(w => w.length >= 3 && !STOP.has(w) && !/^\d+$/.test(w));
@@ -58,6 +64,39 @@ const lockedLink = (t) => t.receiptSource === 'user' && !!t.receiptDocId;
 /** Nutzer hat an dieser Buchung schon einen Beleg gelöst → neue Auto-Links nie still übernehmen */
 const touchedByUser = (t) => !!t && (t.receiptSource === 'user' || t.receiptRejected?.length > 0);
 const txDocIds = (t) => (t.receiptDocIds?.length ? t.receiptDocIds : t.receiptDocId ? [t.receiptDocId] : []);
+const isoDay = (s) => (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s) ? dayNum(s.slice(0, 10)) : null);
+
+/** Wertpapier-Abrechnung mit Zahlung (Kauf/Verkauf/Dividende) – Kosteninformation und Depot-Reporting sind nur Info */
+export const isSecuritiesReceipt = (d) => !!d && d.type === 'wertpapier' && !d.fields?.infoOnly && SEC_SUBTYPES.has(d.subtype)
+  && Number.isFinite(d.amount) && d.amount !== 0 && (isoDay(d.fields?.valuta) != null || isoDay(d.date) != null);
+/** erwarteter Buchungsbetrag mit Vorzeichen: Kauf = Abfluss, Verkauf/Dividende = Zufluss */
+const secTarget = (d) => (d.subtype === 'kauf' ? -Math.abs(d.amount) : Math.abs(d.amount));
+
+function prepSecDoc(d) {
+  const f = d.fields || {};
+  const name = `${d.issuer || ''} ${d.institution || ''}`;
+  const refs = [f.isin, f.wkn].map(v => fold(v)).filter(r => r.length >= 6);
+  return { d, valuta: isoDay(f.valuta), day: isoDay(d.date), tok: tokens(name), refs, target: secTarget(d) };
+}
+
+/** Punktzahl Wertpapier-Abrechnung ↔ Buchung (Betrag passt schon) oder null außerhalb des Zeitfensters */
+function scoreSecPair(pd, c) {
+  const dv = pd.valuta != null ? c.day - pd.valuta : null;
+  const dd = pd.day != null ? c.day - pd.day : null;
+  let diff;
+  if (dv != null && Math.abs(dv) <= SEC_VALUTA_DAYS) diff = dv;
+  else if (dd != null && Math.abs(dd) <= SEC_DATE_DAYS) diff = dd;
+  else return null;
+  const refHit = pd.refs.some(r => has(c.text, r));
+  const hint = SEC_HINT.test(c.text);
+  const sim = nameSimilarity(pd.tok, c.cp, c.text);
+  let score = 60 + Math.max(0, 30 - Math.abs(diff) * 3) + 20 * sim;
+  if (refHit) score += 40;
+  if (hint) score += 15;
+  const weak = !refHit && !hint && sim === 0; // nur Betrag + Datum passen
+  if (weak) score -= 20;
+  return { score: Math.round(score * 10) / 10, weak, strongHit: refHit, sim, diff };
+}
 
 function prepTx(t) {
   const cpText = fold(`${t.counterparty || ''} ${t.counterpartyRaw || ''}`);
@@ -155,7 +194,8 @@ function subsetSums(pool, target, limit = 2) {
 
 export function planReceipts(documents, txs) {
   const docs = (documents || []).filter(d => DOC_TYPES.has(d.type) && d.amount > 0 && d.date);
-  if (!docs.length) return { links: [], suggestions: [] };
+  const secDocs = (documents || []).filter(isSecuritiesReceipt);
+  if (!docs.length && !secDocs.length) return { links: [], suggestions: [] };
 
   // Vom Nutzer bestätigte Verknüpfungen sind gesperrt (Buchung und Beleg)
   const userDocs = new Set();
@@ -176,6 +216,27 @@ export function planReceipts(documents, txs) {
       }
     }
   }
+  // 1b. Wertpapier-Abrechnungen ↔ Girobuchung: Betrag exakt mit Vorzeichen (Zu- und Abflüsse, auch als Umbuchung zum Depot erkannt)
+  const secPool = new Map();
+  if (secDocs.length) {
+    const bySigned = new Map();
+    for (const t of txs) {
+      if (!t.bookingDate || !t.amount || lockedLink(t)) continue;
+      if (!bySigned.has(t.amount)) bySigned.set(t.amount, []);
+      bySigned.get(t.amount).push(t);
+    }
+    for (const d of secDocs) {
+      if (userDocs.has(d.id)) continue;
+      const pd = prepSecDoc(d);
+      for (const t of bySigned.get(pd.target) || []) {
+        if ((t.receiptRejected || []).includes(d.id)) continue;
+        let c = secPool.get(t.id);
+        if (!c) secPool.set(t.id, c = prepTx(t));
+        const s = scoreSecPair(pd, c);
+        if (s) cands.push({ docId: d.id, txId: t.id, ...s });
+      }
+    }
+  }
   // Schwache Treffer (ohne Namens-/Referenzbezug) nur, wenn sie für Beleg und Buchung eindeutig sind – sonst bloß Vorschlag
   const perDoc = new Map(), perTx = new Map();
   for (const c of cands) { perDoc.set(c.docId, (perDoc.get(c.docId) || 0) + 1); perTx.set(c.txId, (perTx.get(c.txId) || 0) + 1); }
@@ -190,7 +251,7 @@ export function planReceipts(documents, txs) {
   }
 
   // 2. Globale Zuordnung + Unsicherheit (Abstand zum Zweitbesten über alle Kandidaten von Beleg und Buchung)
-  const txById = new Map(pool.map(c => [c.t.id, c]));
+  const txById = new Map([...secPool.values(), ...pool].map(c => [c.t.id, c]));
   const links = [];
   for (const c of assign(kept)) {
     let second = -Infinity;
