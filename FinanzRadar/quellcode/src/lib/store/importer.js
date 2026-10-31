@@ -340,7 +340,10 @@ export async function reprocessAll() {
 const STALE_V4_TYPES = new Set(['finanz_sonstiges', 'rechnung', 'steuerbescheinigung']);
 
 export async function reprocessStale({ getSetting, setSetting }) {
-  const seen = await getSetting('parserVersion', 1);
+  const stored = await getSetting('parserVersion', null);
+  // Leere Datenbank (erster Start): alles wird ohnehin mit der aktuellen Version eingelesen
+  if (stored == null && !(await db.files.count())) { await setSetting('parserVersion', PARSER_VERSION); return { done: 0, failed: 0 }; }
+  const seen = stored ?? 1;
   if (seen >= PARSER_VERSION) return { done: 0, failed: 0 };
   const [docs, txs] = await Promise.all([db.documents.toArray(), db.transactions.toArray()]);
   const withTx = new Set(txs.map(t => t.fileId));
