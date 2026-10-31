@@ -266,6 +266,19 @@ describe('Importer', () => {
     expect((await fakeDb.transactions.toArray()).find(t => t.amount === -500).counterpartyIban).toBe('DE89370400440532013000');
   });
 
+  it('reprocessFile: scheitert das Lesen (PDF-Leser abgestürzt), bleiben Dokument und Buchungen erhalten', async () => {
+    const s = await src();
+    const txt = 'Muster GmbH\nRechnung\nRechnungsnummer R-9\nRechnungsdatum 01.01.2026\nBeratung   100,00\nRechnungsbetrag 100,00\n';
+    await runImport([item('Belege/r.txt', txt)], s);
+    const [file] = await fakeDb.files.toArray();
+    const before = await fakeDb.documents.toArray();
+    extract.mockImplementationOnce(async () => { throw new Error('PDF konnte nicht gelesen werden (PDF-Leser abgestürzt)'); });
+    await expect(reprocessFile(file.id, { forceType: 'vertrag' })).rejects.toThrow(/PDF-Leser/);
+    const after = await fakeDb.documents.toArray();
+    expect(after.map(d => d.id)).toEqual(before.map(d => d.id));
+    expect((await fakeDb.files.get(file.id)).status).toBe('done');
+  });
+
   it('reprocessFile: liest den gespeicherten Inhalt neu, ersetzt die alten Daten, Typ vom Nutzer; danach Nachverarbeitung', async () => {
     const s = await src();
     const txt = 'Muster GmbH\nRechnung\nRechnungsnummer R-9\nRechnungsdatum 01.01.2026\nBeratung   100,00\nNettobetrag 100,00\nzzgl. 19 % MwSt 19,00\nRechnungsbetrag 119,00\n';

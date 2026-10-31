@@ -243,12 +243,19 @@ export async function reprocessFile(fileId, { forceType = null, ocrBoost = false
   const oldTxs = oldDocIds.length ? await db.transactions.where('documentId').anyOf(oldDocIds).toArray() : [];
   const decided = [];
   for (const t of oldTxs) { const d = userDecisions(t); if (d) decided.push({ id: t.id, dedupeKey: t.dedupeKey, mk: txMatchKey(t), d }); }
-  await purgeFileData(fileId, existingKeys);
   const meta = { name: rec.name, path: rec.path, ext: rec.ext || extOf(rec.name), mime: rec.mime || stored.blob.type || MIME[rec.ext] || 'application/octet-stream', size: rec.size };
   const signal = new AbortController().signal;
+  // Erst lesen, dann alte Daten löschen: scheitert das Lesen (z. B. PDF-Leser abgestürzt), bleibt der bisherige Stand erhalten
+  let pre;
+  try { pre = await readFile(meta, stored.blob, signal, ocrBoost); } catch (e) {
+    if (rec.status === 'error') await db.files.update(fileId, { error: errorText(e) }).catch(() => {});
+    if (!app.progress.running) await terminateOcr().catch(() => {});
+    throw e;
+  }
+  await purgeFileData(fileId, existingKeys);
   await db.files.update(fileId, { status: 'processing', error: null });
   try {
-    await readAndSave(meta, stored.blob, fileId, { signal, existingKeys, forceType, ocrBoost });
+    await readAndSave(meta, stored.blob, fileId, { signal, existingKeys, forceType, ocrBoost, preExtracted: pre });
     if (decided.length) await restoreDecisions(fileId, decided);
     if (Object.keys(keep).length) {
       for (const d of await db.documents.where('fileId').equals(fileId).toArray()) {
@@ -367,12 +374,14 @@ export async function reprocessStale({ getSetting, setSetting }) {
   return res;
 }
 
-async function readAndSave(meta, blob, hash, { signal, existingKeys, forceType = null, ocrBoost = false }) {
-  const read = (boost) => extract(meta, blob, {
-    signal, ocrBoost: boost,
-    onProgress: (v, label) => { app.progress.current = `${meta.name} – ${boost ? 'zweiter Versuch: ' : ''}${label || ''} ${v ? Math.round(v * 100) + ' %' : ''}`; },
-  });
-  let extracted = await read(ocrBoost);
+const readFile = (meta, blob, signal, boost) => extract(meta, blob, {
+  signal, ocrBoost: boost,
+  onProgress: (v, label) => { app.progress.current = `${meta.name} – ${boost ? 'zweiter Versuch: ' : ''}${label || ''} ${v ? Math.round(v * 100) + ' %' : ''}`; },
+});
+
+async function readAndSave(meta, blob, hash, { signal, existingKeys, forceType = null, ocrBoost = false, preExtracted = null }) {
+  const read = (boost) => readFile(meta, blob, signal, boost);
+  let extracted = preExtracted || await read(ocrBoost);
   if (extracted.thumbnail) await db.blobs.put({ id: 'thumb:' + hash, blob: extracted.thumbnail });
 
   let detection;
