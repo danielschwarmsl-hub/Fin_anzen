@@ -164,6 +164,24 @@ export function normalizeBookingText(raw) {
   return null;
 }
 
+// Vorzeichen aus der Buchungsart (Soll/Haben-Auszüge ohne Spaltenpositionen, OCR ohne Vorzeichen)
+const KIND_CREDIT = /(?<!\p{L})(?:lohn|gehalt|rente|bez(?:ü|ue)ge|gutschrift|zahlungseingang|eingang|erstattung|habenzins\w*|zinsgutschrift|kupon|dividende|ertr(?:ä|ae)gnis\w*|einzahlung|bareinzahlung)(?!\p{L})/iu;
+const KIND_DEBIT = /(?<!\p{L})(?:basislastschrift|firmenlastschrift|lastschrift|kartenzahlung|kartenzahlun|abbuchung|(?:ü|ue)berweisung|(?:ü|ue)bertrag|dauerauftrag|entgelt|kontof(?:ü|ue)hrung\w*|geb(?:ü|ue)hr|auszahlung|bargeldauszahlung|belastung|wertpapiere|sollzins\w*|visa-umsatz)(?!\p{L})/iu;
+/**
+ * Vorzeichen einer Buchung ohne Vorzeichen/Spalte: erst die Buchungsart (Kopf), dann der ganze Text.
+ * → -1 (Soll), 1 (Haben) oder null (unklar)
+ */
+export function kindSign(head, rest = '') {
+  for (const s of [cleanText(head), cleanText(rest)]) {
+    if (!s) continue;
+    const c = KIND_CREDIT.exec(s), d = KIND_DEBIT.exec(s);
+    if (c && d) return c.index <= d.index ? 1 : -1;
+    if (c) return 1;
+    if (d) return -1;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------- SEPA-Tokens
 const TOKEN_RE = /(?:^|\s)(EREF|KREF|MREF|CRED|DEBT|SVWZ|ABWA|ABWE|IBAN|BIC|BREF|RREF|OAMT|COAM|ORMR|PURP|ISSR)\+/g;
 export const CREDITOR_ID_RE = /[A-Z]{2}\d{2}ZZZ[0-9A-Z]{8,}/;
