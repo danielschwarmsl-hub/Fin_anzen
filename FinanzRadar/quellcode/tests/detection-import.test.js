@@ -310,6 +310,23 @@ describe('Importer', () => {
     expect(fakeDb.accounts.rows.size).toBe(1);
   });
 
+  it('Update auf Version 4: früher falsch erkannte Wertpapier-Dokumente neu lesen, echte Rechnungen nicht', async () => {
+    const s = await src();
+    const rech = 'Muster GmbH\nRechnung\nRechnungsnummer R-9\nRechnungsdatum 01.01.2026\nBeratung   100,00\nRechnungsbetrag 100,00\n';
+    const div = 'comdirect\nGutschrift fälliger Wertpapier-Erträge\nDividendengutschrift\nDepotbestand per 19.08.2026 STK 5,000 Microsoft Corp.\nBruttobetrag: USD 4,55\nVerrechnung über Konto (IBAN) Valuta Zu Ihren Gunsten vor Steuern\nDE00 EUR 14.09.2026 EUR 3,32\n';
+    await runImport([item('Belege/r.txt', rech), item('Belege/d.txt', div)], s);
+    const docs = await fakeDb.documents.toArray();
+    const d = docs.find(x => x.type === 'wertpapier');
+    expect(d).toBeTruthy();
+    await fakeDb.documents.update(d.id, { type: 'rechnung' }); // simuliert: alte Version hielt die Dividende für eine Rechnung
+    const store = new Map([['parserVersion', 3]]);
+    const io = { getSetting: async (k, f) => (store.has(k) ? store.get(k) : f), setSetting: async (k, v) => { store.set(k, v); } };
+    extract.mockClear();
+    expect(await reprocessStale(io)).toEqual({ done: 1, failed: 0 });
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect((await fakeDb.documents.toArray()).filter(x => x.type === 'wertpapier')).toHaveLength(1);
+  });
+
   it('nach Update: nur verdächtige Altimporte neu lesen (lange Nicht-Kontoauszüge, Kontoauszüge ohne Buchungen), einmal je Version', async () => {
     const s = await src();
     const txt = 'Muster GmbH\nRechnung\nRechnungsnummer R-9\nRechnungsdatum 01.01.2026\nBeratung   100,00\nRechnungsbetrag 100,00\n';

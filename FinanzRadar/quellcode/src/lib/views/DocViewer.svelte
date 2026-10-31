@@ -133,8 +133,13 @@
     doc?.payroll ? Object.entries(PAYROLL_LABELS).filter(([k]) => doc.payroll[k] != null).map(([k, label]) => ({ label, value: doc.payroll[k] })) : []
   );
   const fieldRows = $derived(
-    doc?.fields ? Object.entries(doc.fields).filter(([k, v]) => v != null && v !== '' && k !== 'diagnostics').map(([k, v]) => fieldRow(doc, k, v)) : []
+    doc?.fields ? Object.entries(doc.fields).filter(([k, v]) => v != null && v !== '' && !HIDDEN_FIELDS.has(k)).map(([k, v]) => fieldRow(doc, k, v)) : []
   );
+
+  // Kontrollsummen und Info-Abschnitte (Kontoauszug/Finanzreport) eigens darstellen, nicht als Rohfelder
+  const HIDDEN_FIELDS = new Set(['diagnostics', 'controlTotals', 'infoSections', 'variant', 'section']);
+  const totals = $derived(doc?.fields?.controlTotals || null);
+  const infoSections = $derived(Array.isArray(doc?.fields?.infoSections) && doc.fields.infoSections.length ? doc.fields.infoSections : null);
 
   // Diagnose beim Einlesen von Kontoumsätzen: nur zeigen, wenn etwas hakt
   const diag = $derived(doc?.fields?.diagnostics?.problems?.length ? doc.fields.diagnostics : null);
@@ -329,6 +334,13 @@
               {#if isUnreadable(doc) || doc.alternatives?.length}<DocFix doc={doc} />{/if}
             </div>
           {/if}
+          {#if totals || infoSections}
+            <div class="small faint">
+              {#if totals}Laut Auszug: {totals.sollCount ?? '?'} Soll-Buchungen{totals.sollSum != null ? ` (${centsText(totals.sollSum)} €)` : ''} · {totals.habenCount ?? '?'} Haben-Buchungen{totals.habenSum != null ? ` (${centsText(totals.habenSum)} €)` : ''}{/if}
+              {#if totals && infoSections}<br />{/if}
+              {#if infoSections}Nur zur Info, nicht als Buchungen gelesen: {infoSections.join(', ')}{/if}
+            </div>
+          {/if}
           {#if diag}
             <div class="diag">
               <div class="small diag-h"><Icon name="alert" size={13} /> Beim Einlesen hakt es</div>
@@ -347,6 +359,7 @@
                   {#each diag.strayAmounts as u, i (i)}<li>{u.page ? `S. ${u.page}: ` : ''}{u.text}</li>{/each}
                 </ul>
               {/if}
+              {#if diag.sollHaben?.signFromKind}<div class="small faint">Vorzeichen bei {diag.sollHaben.signFromKind} Buchung{diag.sollHaben.signFromKind === 1 ? '' : 'en'} aus der Buchungsart abgeleitet (Spalte Soll/Haben im Scan nicht erkennbar)</div>{/if}
               <div class="small faint">{diag.pages} Seiten · {diag.dateLines} Zeilen mit Datum · {diag.bookings} Buchungen gelesen{diag.expectedCount != null ? ` von ${diag.expectedCount}` : ''} · Zahlenformat {diag.numberFormat === 'dot' ? '-75.00' : '-75,00'}</div>
             </div>
           {/if}

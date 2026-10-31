@@ -301,7 +301,7 @@ async function restoreDecisions(fileId, decided) {
  * Stand der Lese-Logik. Erhöhen, wenn Erkennung/Parser sich so ändern, dass alte Importe falsch sein können;
  * beim nächsten Start werden verdächtige Dateien dann automatisch neu gelesen (reprocessStale).
  */
-export const PARSER_VERSION = 3;
+export const PARSER_VERSION = 4;
 const STATEMENT_DOC_TYPES = new Set(['kontoauszug', 'kreditkarte', 'paypal', 'depot']);
 
 /** Dateien neu lesen (Nutzerwahl des Typs bleibt erhalten); Fortschritt in app.progress. → { done, failed } */
@@ -337,11 +337,16 @@ export async function reprocessAll() {
  * ab Version 3 außerdem alle PDF-Kontoauszüge.
  * Läuft einmal je PARSER_VERSION.
  */
+const STALE_V4_TYPES = new Set(['finanz_sonstiges', 'rechnung', 'steuerbescheinigung']);
+
 export async function reprocessStale({ getSetting, setSetting }) {
   const seen = await getSetting('parserVersion', 1);
   if (seen >= PARSER_VERSION) return { done: 0, failed: 0 };
   const [docs, txs] = await Promise.all([db.documents.toArray(), db.transactions.toArray()]);
   const withTx = new Set(txs.map(t => t.fileId));
+  const files = await db.files.toArray();
+  const forced = new Set(files.filter(f => f.detection?.forced || f.detection?.typeSource === 'user').map(f => f.id));
+  const nameOf = new Map(files.map(f => [f.id, f.name || '']));
   const ids = new Set();
   for (const d of docs) {
     if (!d.fileId) continue;
@@ -349,6 +354,10 @@ export async function reprocessStale({ getSetting, setSetting }) {
     else if (!STATEMENT_DOC_TYPES.has(d.type) && (d.pages || 0) > 3) ids.add(d.fileId);
     // Version 3: PDF-Kontoauszüge (Empfänger/IBAN/Zweck bei DKB & Co.) – Nutzerentscheidungen bleiben erhalten
     else if (seen < 3 && STATEMENT_DOC_TYPES.has(d.type) && (d.fields?.format === 'pdf_statement' || d.format === 'pdf_statement')) ids.add(d.fileId);
+    // Version 4: Wertpapier-Dokumente (Abrechnung, Dividende, Kosteninformation, Depot-Reporting), DKB Soll/Haben,
+    // comdirect Finanzreport – bisher oft „Sonstiges“, „Rechnung“ oder „Steuerbescheinigung“. Vom Nutzer gesetzte Typen bleiben.
+    else if (seen < 4 && STALE_V4_TYPES.has(d.type) && d.typeSource !== 'user' && !forced.has(d.fileId) && d.text
+      && detectType({ kind: 'pdf', ocr: !!d.ocr, text: d.text }, { name: nameOf.get(d.fileId) || '' }).type !== d.type) ids.add(d.fileId);
   }
   const res = ids.size ? await reprocessMany([...ids], 'Nach Update neu einlesen') : { done: 0, failed: 0 };
   await setSetting('parserVersion', PARSER_VERSION);
@@ -416,7 +425,7 @@ async function readAndSave(meta, blob, hash, { signal, existingKeys, forceType =
   await saveResult(result, { fileId: hash, meta, extracted, detection, existingKeys });
   // Mehrere Konten/Abschnitte in einer Datei (z. B. comdirect Giro + Visa, mehrere camt-Statements)
   for (const extra of result.additional || []) await saveResult(extra, { fileId: hash, meta, extracted, detection, existingKeys });
-  await db.files.update(hash, { status: 'done', error: null, detection: { type: detection.type, subtype: detection.subtype ?? null, format: detection.format, institution: detection.institution, confidence: detection.confidence, forced: !!detection.forced, typeSource: detection.typeSource ?? null } });
+  await db.files.update(hash, { status: 'done', error: null, detection: { type: detection.type, subtype: detection.subtype ?? null, format: detection.format, institution: detection.institution, confidence: detection.confidence, forced: !!detection.forced, typeSource: detection.typeSource ?? null, variant: detection.variant ?? null } });
   count(detection.type);
 }
 
