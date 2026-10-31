@@ -28,6 +28,21 @@ export const PROVIDERS = [
   'ADAC', 'Spiegel', 'Dropbox', 'Microsoft', 'Google', 'Adobe', 'Paramount+', 'RTL+', 'Deezer',
 ];
 
+// Banken/Broker für Wertpapier-Dokumente. Reihenfolge zählt: comdirect ist „eine Marke der Commerzbank AG“,
+// OCR liest den Namen gern als „comdırect“ oder „COomdırec“.
+export const BROKERS = [
+  ['comdirect', /\bco\s?o?m\s?d[iı]\s?rec/i], ['MLP', /\bmlp\b/i], ['Trade Republic', /\btrade\s?republic\b/i],
+  ['Scalable Capital', /\bscalable\b/i], ['Smartbroker', /\bsmartbroker\b/i], ['flatex', /\bflatex/i],
+  ['DEGIRO', /\bdegiro\b/i], ['onvista', /\bonvista\b/i], ['Consorsbank', /\bconsors\s?bank\b|\bcortal consors\b/i],
+  ['DKB', /\bdkb\b|deutsche kreditbank/i], ['justTRADE', /\bjusttrade\b/i], ['finanzen.net zero', /\bfinanzen\.net zero\b/i],
+  ['maxblue', /\bmaxblue\b/i], ['S Broker', /\bs\s?broker\b/i], ['1822direkt', /\b1822\s?direkt\b/i], ['DADAT', /\bdadat\b/i],
+  ['Baader Bank', /\bbaader\b/i], ['ebase', /\bebase\b/i], ['FIL Fondsbank', /\bfil fondsbank\b|\bfidelity\b/i],
+  ['fondsdepot bank', /\bfondsdepot bank\b/i], ['Union Investment', /\bunion investment\b/i], ['DWS', /\bdws\b/i],
+  ['Deka', /\bdeka(?:bank)?\b/i], ['Targobank', /\btargo\s?bank\b/i], ['Postbank', /\bpostbank\b/i],
+  ['Deutsche Bank', /\bdeutsche bank\b/i], ['Commerzbank', /\bcommerzbank\b/i], ['HypoVereinsbank', /\bhypovereinsbank\b/i],
+  ['Sparkasse', /\bsparkasse\b/i], ['Volksbank', /\bvolksbank\b|\braiffeisenbank\b/i], ['ING', /\bING(?:-DiBa)?\b/],
+];
+
 export function matchFirst(list, text) {
   for (const [name, re] of list) if (re.test(text)) return name;
   return null;

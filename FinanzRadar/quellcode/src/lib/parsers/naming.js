@@ -7,6 +7,7 @@ export const TYPE_LABELS = {
   kreditkarte: { label: 'Kontoauszug', name: 'Kreditkartenabrechnung', icon: 'bank' },
   paypal: { label: 'Umsaetze', name: 'PayPal-Umsätze', icon: 'bank' },
   depot: { label: 'Umsaetze', name: 'Depot', icon: 'bank' },
+  wertpapier: { label: 'Wertpapier', name: 'Wertpapier / Depot', icon: 'piggy' },
   lohn: { label: 'Lohnabrechnung', name: 'Lohnabrechnung', icon: 'payslip' },
   lohnsteuerbescheinigung: { label: 'Lohnsteuerbescheinigung', name: 'Lohnsteuerbescheinigung', icon: 'tax' },
   steuerbescheinigung: { label: 'Steuerbescheinigung', name: 'Steuerbescheinigung', icon: 'tax' },

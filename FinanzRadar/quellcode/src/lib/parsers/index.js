@@ -8,6 +8,7 @@ import { parse as parseInsurance } from './docs/insurance.js';
 import { parse as parseDonation } from './docs/donation.js';
 import { parse as parseContract } from './docs/contract.js';
 import { parse as parseShoppingList } from './docs/shoppinglist.js';
+import { parse as parseSecurities } from './docs/securities.js';
 import { parse as parseGeneric } from './docs/generic.js';
 import { baseDoc, baseResult, review } from './docs/util.js';
 import { displayName, titleFor, TYPE_LABELS } from './naming.js';
@@ -26,6 +27,7 @@ const DOC_PARSERS = {
   spende: parseDonation,
   vertrag: parseContract,
   einkaufszettel: parseShoppingList,
+  wertpapier: parseSecurities,
 };
 
 export const UNREADABLE_REASON = 'Beleg nicht lesbar – neu prüfen';

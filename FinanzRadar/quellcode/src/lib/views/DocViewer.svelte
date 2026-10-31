@@ -33,6 +33,21 @@
   const centsText = (c) => (c == null ? '' : (c / 100).toFixed(2).replace('.', ','));
   const labelize = (k) => { const s = String(k).replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); };
   const fmtVal = (v) => (typeof v === 'boolean' ? (v ? 'Ja' : 'Nein') : typeof v === 'object' ? JSON.stringify(v) : String(v));
+  // Wertpapier-Felder: deutsche Beschriftung; 'cent' = Betrag in Cent, 'fx' = Cent in der Fremdwährung des Dokuments
+  const SECURITY_FIELDS = {
+    security: ['Wertpapier'], wkn: ['WKN'], isin: ['ISIN'], quantity: ['Stück'], price: ['Kurs', 'cent'], venue: ['Ausführungsplatz'],
+    orderNo: ['Ordernummer'], valuta: ['Valuta', 'date'], marketValue: ['Kurswert', 'cent'], fees: ['Entgelte', 'cent'],
+    taxPaid: ['Abgeführte Steuern', 'cent'], currency: ['Währung'], gross: ['Brutto', 'cent'], grossForeign: ['Brutto', 'fx'],
+    withholdingTax: ['Quellensteuer', 'fx'], fxRate: ['Devisenkurs'], perShare: ['Ertrag je Stück'], capitalIncome: ['Kapitalertrag'],
+    infoOnly: ['Nur Information'], side: ['Art'], period: ['Zeitraum'], depot: ['Depot'],
+  };
+  function fieldRow(d, k, v) {
+    const f = d.type === 'wertpapier' ? SECURITY_FIELDS[k] : null;
+    if (!f) return [labelize(k), fmtVal(v)];
+    const cur = d.fields?.currency && d.fields.currency !== 'EUR' ? d.fields.currency : 'EUR';
+    const val = f[1] === 'cent' ? `${centsText(v)} €` : f[1] === 'fx' ? `${centsText(v)} ${cur}` : f[1] === 'date' ? fmtDate(v) : fmtVal(v);
+    return [f[0], val];
+  }
 
   // ---- Daten ----
   const doc = $derived(app.data.documents.find((d) => d.id === id) || null);
@@ -118,7 +133,7 @@
     doc?.payroll ? Object.entries(PAYROLL_LABELS).filter(([k]) => doc.payroll[k] != null).map(([k, label]) => ({ label, value: doc.payroll[k] })) : []
   );
   const fieldRows = $derived(
-    doc?.fields ? Object.entries(doc.fields).filter(([k, v]) => v != null && v !== '' && k !== 'diagnostics').map(([k, v]) => [labelize(k), fmtVal(v)]) : []
+    doc?.fields ? Object.entries(doc.fields).filter(([k, v]) => v != null && v !== '' && k !== 'diagnostics').map(([k, v]) => fieldRow(doc, k, v)) : []
   );
 
   // Diagnose beim Einlesen von Kontoumsätzen: nur zeigen, wenn etwas hakt
