@@ -3,6 +3,7 @@
 // keine Buchungen. Je Buchung zwei Datumszeilen: Buchungstag (mit Betrag am Ende) und darunter Valuta.
 import { parseGermanAmount, parseGermanDate } from '../../util/format.js';
 import { cleanText, makeTx, buildResult, normalizeBookingText, accountName, detection, findIban, kindSign } from './common.js';
+import { finanzreportDepotResult, parseTaxOverview } from './pdf-depotreport.js';
 
 export const FINANZREPORT_RE = /Finanzreport\s+Nr\.?\s*\d+\s+per\s+(\d{2}\.\d{2}\.\d{4})/i;
 
@@ -31,7 +32,7 @@ export function detectFinanzreport(lines, text) {
   const sections = findSections(lines);
   const signals = [`Finanzreport Nr. … per ${m?.[1] || '?'}`];
   if (sections.length) signals.push(`Kontoabschnitte: ${sections.map(s => s.label).join(', ')}`);
-  if (/^Depot(?:bestand)?\b/im.test(text)) signals.push('Depotbestand (nur Info)');
+  if (/^Depot(?:bestand)?\b/im.test(text)) signals.push('Depotbestand');
   const bookings = sections.reduce((a, s) => a + s.bookings.filter(b => b.amount != null).length, 0);
   return { ...detection('kontoauszug', 'pdf_statement', 'comdirect', /comdirect/i.test(text) ? 0.9 : 0.8, signals), bookings, variant: 'finanzreport' };
 }
@@ -273,5 +274,10 @@ export function parseFinanzreport(det, lines, text) {
       fields: { variant: 'finanzreport', diagnostics: { pages: new Set(lines.map(l => l.n)).size, lines: lines.length, numberFormat: 'comma', header: null, dateLines: 0, bookings: 0, unparsed: [], strayAmounts: [], expectedCount: null, readCount: 0, balance: null, problems: ['Keine Kontoabschnitte im Finanzreport gefunden.'] } },
     }));
   }
+  // Depotbestand → eigenes Ergebnis (comdirect Depot: Bestände + Bewertung); Steuerübersicht dorthin, sonst zum ersten Konto
+  const tax = parseTaxOverview(lines);
+  const depot = finanzreportDepotResult(lines, reportDate, tax);
+  if (depot) results.push(depot);
+  else if (tax) Object.assign(results[0].document.fields, tax);
   return results;
 }

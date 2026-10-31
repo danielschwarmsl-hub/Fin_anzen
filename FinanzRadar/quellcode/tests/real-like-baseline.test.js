@@ -19,16 +19,6 @@ const REPORT = !!process.env.REAL_LIKE_REPORT;
 
 /** Heute bekannte Lücken: „<vorlage>: <prüfung>“ – Arbeitsliste für die Pakete C, D, E (siehe Kommentar oben). */
 const KNOWN_GAPS = new Set([
-  // mlp_depotreport – Paket D
-  'mlp_depotreport: Depotwert zum Stichtag',
-  'mlp_depotreport: Kennzahlen (Einzahlungen, Sparrate, Ergebnis)',
-  'mlp_depotreport: Liquiditätskonto',
-  'mlp_depotreport: Positionen (Anteile, Wert)',
-  'mlp_depotreport: Positionen (WKN)',
-  'mlp_depotreport: Transaktionen (Käufe)',
-  // comdirect_finanzreport – Paket D (Depot)
-  'comdirect_finanzreport: Depotbestand (WKN)',
-  'comdirect_finanzreport: Depotbewertung',
 ]);
 
 const cache = new Map();
@@ -89,7 +79,8 @@ function checksFor(name, e) {
   }
   if (e.type === 'kontoauszug') {
     add('Format', (r) => r.det.format, e.format);
-    add('Konten', (r) => r.all.length, e.accounts.length);
+    // Konten mit Buchungen; ein Depotbestand im selben Dokument ist ein eigenes Ergebnis (geprüft unter e.depot)
+    add('Konten', (r) => r.all.filter((x) => x.document?.type !== 'depot').length, e.accounts.length);
     e.accounts.forEach((a, i) => {
       const acc = (r) => r.all[i] || { transactions: [] };
       const p = `Konto ${a.name}`;

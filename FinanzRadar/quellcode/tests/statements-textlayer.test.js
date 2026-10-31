@@ -201,7 +201,10 @@ describe('Konto-Zusammenführung PDF ↔ bestehende Konten', () => {
 
     const { all } = await runRealLike('comdirect_finanzreport');
     for (const r of all) await saveResult(r, opts('fr'));
-    const after = await accounts();
+    const all4 = await accounts();
+    // Depotbestand des Finanzreports kommt als eigenes Depotkonto dazu (Paket D)
+    expect(all4.filter((a) => a.kind === 'depot').map((a) => a.name)).toEqual(['comdirect Depot']);
+    const after = all4.filter((a) => a.kind !== 'depot');
     expect(after).toHaveLength(3);
     expect(after.map((a) => [a.kind, a.iban, a.number ?? null])).toEqual([
       ['giro', 'DE25200411330007340061', null], ['tagesgeld', 'DE95200411330007340062', null], ['kreditkarte', null, '4871'],

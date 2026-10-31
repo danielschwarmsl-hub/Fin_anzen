@@ -10,11 +10,12 @@ import { detectComdirectCsv, detectComdirectDepot, parseComdirectCsv, parseComdi
 import { detectPaypalCsv, parsePaypalCsv } from './csv-paypal.js';
 import { detectGenericCsv, parseGenericCsv, guessCsvMapping, parseCsvWithMapping } from './csv-generic.js';
 import { detectPdfStatement, parsePdfStatement } from './pdf-statement.js';
+import { detectMlpReporting, parseMlpReporting } from './pdf-depotreport.js';
 
 export { guessCsvMapping, parseCsvWithMapping };
 export { parseSepaTokens, normalizeBookingText } from './common.js';
 
-const DETECTORS = [detectCamt, detectMt940, detectIngCsv, detectComdirectDepot, detectComdirectCsv, detectPaypalCsv, detectGenericCsv, detectPdfStatement];
+const DETECTORS = [detectCamt, detectMt940, detectIngCsv, detectComdirectDepot, detectComdirectCsv, detectPaypalCsv, detectGenericCsv, detectMlpReporting, detectPdfStatement];
 
 export function detectStatementFormat(extracted, fileMeta) {
   if (!extracted) return null;
@@ -41,6 +42,8 @@ export async function parseStatementAll(detection, extracted, fileMeta) {
     case 'paypal_csv': out = parsePaypalCsv(det, ctx); break;
     case 'generic_csv': out = parseGenericCsv(det, ctx); break;
     case 'pdf_statement': out = parsePdfStatement(det, ctx); break;
+    // MLP-Reporting: Wertpapier-Dokument (Depot-Reporting) mit Depotkonto, Beständen, Käufen + Liquiditätskonto
+    case 'mlp_reporting': out = parseMlpReporting(det, ctx); break;
     default: throw new Error(`Unbekanntes Format: ${det.format}`);
   }
   return Array.isArray(out) ? out : [out];
