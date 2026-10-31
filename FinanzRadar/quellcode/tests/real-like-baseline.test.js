@@ -73,17 +73,9 @@ const KNOWN_GAPS = new Set([
   'mlp_depotreport: Positionen (Anteile, Wert)',
   'mlp_depotreport: Positionen (WKN)',
   'mlp_depotreport: Transaktionen (Käufe)',
-  // comdirect_finanzreport – Paket D (Depot) / E (Konten)
+  // comdirect_finanzreport – Paket D (Depot)
   'comdirect_finanzreport: Depotbestand (WKN)',
   'comdirect_finanzreport: Depotbewertung',
-  'comdirect_finanzreport: Konto Girokonto: IBAN',
-  'comdirect_finanzreport: Konto Tagesgeld PLUS-Konto: IBAN',
-  // dkb_kontoauszug_alt – Paket E
-  'dkb_kontoauszug_alt: Konto DKB-Cash: Anfangs-/Endsaldo',
-  'dkb_kontoauszug_alt: Konto DKB-Cash: Beträge in Reihenfolge',
-  'dkb_kontoauszug_alt: Konto DKB-Cash: Saldo geht auf',
-  'dkb_kontoauszug_alt: Konto DKB-Cash: Soll/Haben-Anzahl',
-  'dkb_kontoauszug_alt: Konto DKB-Cash: Summen Soll/Haben',
 ]);
 
 const cache = new Map();

@@ -9,14 +9,16 @@ import { FINANZREPORT_RE, detectFinanzreport, parseFinanzreport } from './pdf-fi
 // Beträge: deutsch „-1.234,56“ oder – z. B. im DKB-Umsatzexport – mit Dezimalpunkt „-1234.56“ / „-1,234.56“
 const AMT = String.raw`[+\-−–]?(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}[+\-−–]?`;
 const AMT_DOT = String.raw`[+\-−–]?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}[+\-−–]?`;
-const amountEnd = (amt) => new RegExp(String.raw`(?:^|\s)(${amt})(?:\s*(?:EUR|€))?(?:\s*([SH]))?\s*$`);
+// Soll/Haben-Kennzeichen vor oder nach der Währung: „1.234,80 H EUR“ (DKB alt) wie „1.234,80 EUR H“
+const amountEnd = (amt) => new RegExp(String.raw`(?:^|\s)(${amt})(?:\s*(?:EUR|€))?(?:\s*([SH]))?(?:\s*(?:EUR|€))?\s*$`);
 const AMOUNT_END = amountEnd(AMT);
 const AMOUNT_END_DOT = amountEnd(AMT_DOT);
 const DATE = String.raw`\d{2}\.\d{2}\.(?:\d{4}|\d{2})?`;
 const BOOKING_START = new RegExp(String.raw`^(${DATE})(?=\s|$)\s*(?:(${DATE})(?=\s|$))?\s*(.*)$`);
 // Nur Seitenköpfe/-füße und Übertragszeilen am Zeilenanfang: Namen wie "Erika Muster" oder "Kontoübertrag" im Zweck bleiben Buchungstext
 const SKIP_LINE = /^(seite|page)\s+\d+|^(?:zwischensumme\s+)?[uü]bertrag\b.*(?:seite|\d,\d{2})|^muster\s+[–—-]|testdokument|^\s*umsätze\s*$|^\s*buchungen\s*$|^\s*umsatzübersicht\s*$/i;
-const HEADER_LINE = /^(buchung(stag)?|datum|tag|beleg(datum)?)\b.*\b(betrag|soll|haben|umsatz)/i;
+// „Bu.Tag Wert Wir haben für Sie gebucht Belastung in EUR Gutschrift in EUR“: älteres DKB-Layout
+const HEADER_LINE = /^(buchung(stag)?|datum|tag|beleg(datum)?|bu\.\s*tag)\b.*\b(betrag|soll|haben|umsatz|belastung|gutschrift)/i;
 const CLOSING_LINE = /^(ne[uv]er\s+(saldo|kontostand)|alter\s+(saldo|kontostand)|summe|kontostand|saldo|endsaldo|schlusssaldo|dieser auszug|hinweis|bitte beachten|wichtige|rechnungsabschluss|kontoabschluss|guthaben|gesamtumsatzsummen|ihr dispositionskredit)/i;
 // „Kontostand am 04.02.2026, Auszug Nr. 2“ (DKB): Endstand des Vorauszugs = Anfangssaldo
 const OPEN_RE = /(alter\s+(?:saldo|kontostand)|saldo\s+alt|anfangs(?:saldo|bestand)|saldo\s+vortrag|kontostand\s+zu\s+beginn|kontostand\s+am\s+\d{2}\.\d{2}\.\d{4}\s*,?\s*auszug\s+nr)/i;
@@ -30,7 +32,7 @@ const KIND_ANY = new RegExp(String.raw`^(?:${DATE}\s*)?${KIND_WORDS}\b`, 'i');
 const AMBIG_RE = /kontostand\s+(?:am|vom)/i;
 const CARD_RE = /kreditkarten[- ]?(abrechnung|auszug)|(visa|master\s?card)[- ]?(karten)?[- ]?abrechnung|kartenabrechnung|abrechnung\s+ihrer\s+(visa|master)/i;
 const PAYPAL_PDF = /paypal/i;
-const SOLL_HABEN_HEAD = /\bsoll\b.*\bhaben\b/i;
+const SOLL_HABEN_HEAD = /\bsoll\b.*\bhaben\b|\bbelastung\b.*\bgutschrift\b/i;
 
 /** Spaltenkopf mit getrennten Soll- und Haben-Spalten (DKB „Betrag Soll EUR | Betrag Haben EUR“)? */
 const isSollHabenHeader = (t) => HEADER_LINE.test(t) && SOLL_HABEN_HEAD.test(t) && !/gesamtumsatz|summe/i.test(t);
@@ -200,14 +202,16 @@ export function detectPdfStatement(ctx) {
 /**
  * Spaltenpositionen „Soll“/„Haben“ aus der Kopfzeile (rechte Kante der Spalte). Der Kopf kommt als einzelne Wörter
  * („Betrag“, „Soll“, „EUR“), als Textstück je Spalte („Betrag Soll EUR“) oder als ein Stück für die ganze Zeile.
- * Die Spalte reicht bis zum Ende ihrer Beschriftung (Folgestücke wie „EUR“ gehören dazu). → { soll, haben } | null
+ * Die Spalte reicht bis zum Ende ihrer Beschriftung (Folgestücke wie „EUR“ gehören dazu). Älteres DKB-Layout:
+ * „Belastung in EUR“ / „Gutschrift in EUR“ (dort steht „haben“ auch in „Wir haben für Sie gebucht“). → { soll, haben } | null
  */
 function findSollHaben(lines) {
-  const WORD = { soll: /\bsoll\b/i, haben: /\bhaben\b/i };
   const UNIT = /^\(?(?:in\s+)?(?:EUR|€)\)?$/i;
   for (const l of lines) {
     const t = l.text.trim();
     if (!l.items?.length || !SOLL_HABEN_HEAD.test(t) || /gesamtumsatz|summe/i.test(t) || BOOKING_START.test(t)) continue;
+    const WORD = /\bbelastung\b.*\bgutschrift\b/i.test(t) && HEADER_LINE.test(t)
+      ? { soll: /\bbelastung\b/i, haben: /\bgutschrift\b/i } : { soll: /\bsoll\b/i, haben: /\bhaben\b/i };
     const items = [...l.items].sort((a, b) => a.x - b.x);
     const edge = (key) => {
       const i = items.findIndex(it => WORD[key].test(it.str));

@@ -452,18 +452,39 @@ function upsertAccount(acc) {
 }
 const sameText = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 const REVIEW_ACCOUNT = 'Konto zugeordnet? bitte prüfen';
+const digitsOf = (s) => String(s ?? '').replace(/\D/g, '');
+// Kontoname ohne Bank, Klammerzusatz, Ziffern und Satzzeichen: „comdirect Visa-Karte (Kreditkarte)“ (CSV) ≈ „comdirect Visa-Karte“ (Finanzreport)
+const coreName = (a) => {
+  const inst = String(a?.institution ?? '').toLowerCase();
+  let n = String(a?.name ?? '').toLowerCase();
+  if (inst) n = n.replace(inst, ' ');
+  return n.replace(/\([^)]*\)/g, ' ').replace(/[^a-zäöüß]+/g, '');
+};
+/**
+ * Kontonummer-/Kartenendung: beide mit Nummer → letzte vier Ziffern gleich (Kartennummer „4871“ ↔ „XXXX XXXX 4871“);
+ * Kontonummer ↔ IBAN (deutsche IBAN endet auf die zehnstellige Kontonummer). → true | false | null (nicht vergleichbar)
+ */
+function numberMatch(a, acc) {
+  const na = digitsOf(a.number), nb = digitsOf(acc.number);
+  if (na.length >= 4 && nb.length >= 4) return na.slice(-4) === nb.slice(-4);
+  const [num, iban] = na.length >= 6 && acc.iban ? [na, acc.iban] : nb.length >= 6 && a.iban ? [nb, a.iban] : [];
+  if (num) return normalizeIban(iban).endsWith(num.padStart(10, '0').slice(-10));
+  return null;
+}
 
 /**
  * Konto suchen oder anlegen → { id, review }. IBAN gleich → dasselbe Konto. Ohne IBAN auf einer Seite nur
- * zusammenführen, wenn Kontonummer oder Name passen und kein IBAN-Konflikt besteht; gibt es nur unsichere
+ * zusammenführen, wenn Kontonummer(-endung) oder Name passen und kein IBAN- oder Nummernkonflikt besteht (gleiche Bank
+ * und Kontoart; Name auch ohne Klammerzusatz, z. B. comdirect-CSV ↔ Finanzreport); gibt es nur unsichere
  * Kandidaten derselben Bank/Art, wird ein eigenes Konto angelegt und das Dokument zur Prüfung markiert.
  */
 async function upsertAccountUnsafe(acc) {
   if (!acc) return { id: null, review: null };
   const all = await db.accounts.toArray();
   const iban = normalizeIban(acc.iban);
-  const noConflict = (a) => !iban || !a.iban || normalizeIban(a.iban) === iban;
-  const matches = (a) => (acc.number && sameText(a.number, acc.number)) || sameText(a.name, acc.name);
+  const noConflict = (a) => (!iban || !a.iban || normalizeIban(a.iban) === iban) && numberMatch(a, acc) !== false;
+  const matches = (a) => (acc.number && sameText(a.number, acc.number)) || numberMatch(a, acc) === true
+    || sameText(a.name, acc.name) || (!!coreName(acc) && coreName(a) === coreName(acc));
   let found = iban ? all.find(a => normalizeIban(a.iban) === iban) : null;
   if (!found && acc.number) found = all.find(a => a.number && a.number === acc.number && a.institution === acc.institution && noConflict(a));
   const sameBank = all.filter(a => a.kind === acc.kind && a.institution && a.institution === acc.institution);

@@ -201,7 +201,7 @@ export function parseSepaTokens(text) {
   });
   return out;
 }
-const noRef = v => !v || /^(NOTPROVIDED|NONREF|NOREF|KEINE ANGABE)$/i.test(v.trim());
+const noRef = v => !v || /^(NOTPROVIDED|NONREF|NOREF|KEINE ANGABE|NICHT(?: ANGEGEBEN)?)$/i.test(v.trim());
 
 /** Reichert eine Transaktion um SEPA-Referenzen an und normalisiert Verwendungszweck. */
 function enrich(tx) {
