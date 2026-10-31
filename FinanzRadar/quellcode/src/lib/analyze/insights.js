@@ -24,6 +24,25 @@ function monthsBetween(from, to) {
 }
 const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
 
+/**
+ * Depotbestand mit Bewertung aus demselben Dokument zum selben Stichtag: Die Bewertung ist der Gesamtwert (z. B. MLP-Reporting:
+ * Wertpapiere + Liquiditätskonto), die Positionen schlüsseln ihn nur auf → für das Nettovermögen zählt die Bewertung.
+ */
+function depotSnapshots(holdings, valuations) {
+  const val = new Map();
+  for (const v of valuations) if (v.documentId && v.accountId && v.date) val.set(`${v.accountId}|${v.date}|${v.documentId}`, v.value);
+  if (!val.size) return holdings;
+  const out = [], done = new Set();
+  for (const h of holdings) {
+    const k = `${h.accountId}|${h.date}|${h.documentId}`;
+    if (!val.has(k)) { out.push(h); continue; }
+    if (done.has(k)) continue;
+    done.add(k);
+    out.push({ accountId: h.accountId, documentId: h.documentId, date: h.date, value: val.get(k) });
+  }
+  return out;
+}
+
 /** Lohn-/Steuerdaten (payroll) für den Zeitraum: Abrechnungen, ggf. hochgerechnet; sonst Lohnsteuerbescheinigung anteilig */
 function payrollFor(documents, salaryMonths, months, from, to) {
   const FIELDS = ['gross', 'lohnsteuer', 'soli', 'kirchensteuer', 'kv', 'pv', 'rv', 'av'];
@@ -234,10 +253,11 @@ export function computeInsights(data, opts = {}) {
   let lastBooking = '';
   for (const t of allTx) if (t.bookingDate && t.bookingDate > lastBooking) lastBooking = t.bookingDate;
   const nwTo = to >= lastBooking ? '9999-12-31' : to;
+  const nwVals = (data?.valuations || []).filter(v => nwIds.has(v.accountId) && v.date <= nwTo);
   const nw = computeNetWorth(
     selAccounts,
-    (data?.valuations || []).filter(v => nwIds.has(v.accountId) && v.date <= nwTo),
-    (data?.holdings || []).filter(h => nwIds.has(h.accountId) && (!h.date || h.date <= nwTo)),
+    nwVals,
+    depotSnapshots((data?.holdings || []).filter(h => nwIds.has(h.accountId) && (!h.date || h.date <= nwTo)), nwVals),
     allTx.filter(t => nwIds.has(t.accountId) && t.bookingDate && t.bookingDate <= nwTo),
     accIds ? [] : (data?.assets || []).filter(a => !a.purchaseDate || a.purchaseDate <= nwTo),
   );

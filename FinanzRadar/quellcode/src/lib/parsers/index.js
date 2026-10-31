@@ -15,6 +15,8 @@ import { displayName, titleFor, TYPE_LABELS } from './naming.js';
 import { extOf } from '../util/format.js';
 
 const STATEMENT_TYPES = new Set(['kontoauszug', 'paypal', 'depot', 'kreditkarte']);
+// Dokument-Typen, die das Kontoumsatz-Modul selbst erkannt hat und mit Konten/Beständen liefert (MLP-Reporting = Wertpapier)
+const STATEMENT_DOC_FORMATS = new Set(['mlp_reporting']);
 
 const DOC_PARSERS = {
   kassenbon: parseReceipt,
@@ -65,7 +67,7 @@ function failure(err, type, detection, fileMeta) {
 export function parse(detection, extracted, fileMeta) {
   const type = detection?.type;
   try {
-    if (STATEMENT_TYPES.has(type)) {
+    if (STATEMENT_TYPES.has(type) || STATEMENT_DOC_FORMATS.has(detection?.format)) {
       return Promise.resolve(parseStatement(detection, extracted, fileMeta))
         .then((r) => finish(r, detection, fileMeta))
         .catch((err) => failure(err, type, detection, fileMeta));

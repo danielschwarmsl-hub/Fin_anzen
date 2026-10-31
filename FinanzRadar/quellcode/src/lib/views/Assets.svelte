@@ -87,26 +87,39 @@
     return m;
   });
   const nwByAcc = $derived(new Map((ins?.netWorth?.byAccount || []).map((x) => [x.accountId, x])));
+  // Konten ohne eigene Bewertung, deren Stand in einem Depotwert steckt (MLP-Liquiditätskonto): Saldo nur anzeigen, nicht summieren
+  const includedBal = $derived.by(() => {
+    const m = new Map();
+    for (const d of app.data.documents || []) {
+      if (!d.accountId || !d.fields?.includedInDepotValue || d.balance?.closing == null) continue;
+      const cur = m.get(d.accountId);
+      if (!cur || (d.date || '') >= (cur.date || '')) m.set(d.accountId, { value: d.balance.closing, date: d.balance.closingDate || d.date });
+    }
+    return m;
+  });
   const accRows = $derived(
     (app.data.accounts || []).map((a) => {
       const vs = valsByAcc.get(a.id) || [];
       const last = vs.at(-1);
       const bya = nwByAcc.get(a.id);
+      const inc = !bya && !last ? includedBal.get(a.id) : null;
       return {
         a,
-        value: bya ? bya.value : last ? last.value : null,
-        date: bya ? bya.date : last ? last.date : null,
+        value: bya ? bya.value : last ? last.value : inc ? inc.value : null,
+        date: bya ? bya.date : last ? last.date : inc ? inc.date : null,
+        included: !!inc,
         spark: vs.map((v) => v.value),
       };
     })
   );
+  const counted = (r) => (r.included ? 0 : r.value ?? 0);
   const accGroups = $derived(
     GROUPS.map((g) => {
       const rows = accRows.filter((r) => groupOf(r.a.kind) === g.key);
-      return { ...g, rows, sum: rows.reduce((s, r) => s + (r.value ?? 0), 0) };
+      return { ...g, rows, sum: rows.reduce((s, r) => s + counted(r), 0) };
     }).filter((g) => g.rows.length)
   );
-  const netTotal = $derived(ins?.netWorth?.total ?? accRows.reduce((s, r) => s + (r.value ?? 0), 0));
+  const netTotal = $derived(ins?.netWorth?.total ?? accRows.reduce((s, r) => s + counted(r), 0));
 
   let editingId = $state(null);
   let draft = $state('');
@@ -124,7 +137,6 @@
   }
 
   // ---- Depot ----
-  let depotSel = $state(null);
   // Pro Depot nur der jüngste Bestand (Stichtag, bei gleichem Tag das zuletzt importierte Dokument) – wie in networth.js
   const holdings = $derived.by(() => {
     const latest = new Map();
@@ -138,9 +150,58 @@
       .filter((h) => { const l = latest.get(h.accountId || ''); return l && h.documentId === l.documentId && h.date === l.date; })
       .sort((a, b) => (b.value || 0) - (a.value || 0));
   });
-  const depotIds = $derived([...new Set(holdings.map((h) => h.accountId).filter(Boolean))]);
-  const shownHoldings = $derived(depotSel ? holdings.filter((h) => h.accountId === depotSel) : holdings);
-  const holdingsTotal = $derived(shownHoldings.reduce((s, h) => s + (h.value || 0), 0));
+  // Je Depot: Stand, Gesamtwert (Bewertung des Dokuments, sonst Summe), Positionen, Kennzahlen und Entwicklung
+  const depots = $derived.by(() => {
+    const byAcc = new Map();
+    for (const h of holdings) {
+      const k = h.accountId || '';
+      if (!byAcc.has(k)) byAcc.set(k, []);
+      byAcc.get(k).push(h);
+    }
+    const docs = new Map((app.data.documents || []).map((d) => [d.id, d]));
+    return [...byAcc.entries()].map(([accountId, hs]) => {
+      const doc = docs.get(hs[0].documentId) || null;
+      const date = hs[0].date || doc?.date || null;
+      const sum = hs.reduce((s, h) => s + (h.value || 0), 0);
+      const vs = valsByAcc.get(accountId) || [];
+      const own = vs.find((v) => v.documentId === hs[0].documentId && v.date === date);
+      const total = own ? own.value : sum;
+      const acc = (app.data.accounts || []).find((a) => a.id === accountId);
+      const txs = doc ? (app.data.transactions || []).filter((t) => t.accountId === accountId && t.documentId === doc.id) : [];
+      return {
+        accountId, acc, doc, date, sum, total, cash: total - sum, hs,
+        fields: doc?.fields || {}, spark: vs.map((v) => v.value),
+        trades: { n: txs.length, sum: txs.reduce((s, t) => s - t.amount, 0) },
+      };
+    }).sort((a, b) => b.total - a.total);
+  });
+  const holdingsTotal = $derived(depots.reduce((s, d) => s + d.total, 0));
+  const fmtPct = (x, sign = true) => (x == null ? '–' : (sign && x > 0 ? '+' : '') + x.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' %');
+  const fmtPrice = (h) => (h.priceExact ?? (h.price != null ? h.price / 100 : null)) == null ? '–'
+    : (h.priceExact ?? h.price / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + ' ' + (h.currency === 'EUR' || !h.currency ? '€' : h.currency);
+  /** Kennzahlen eines Depot-Dokuments: [Bezeichnung, Wert, Art ('eur'|'pct'|'text'), Tooltip] */
+  function depotFigures(dp) {
+    const f = dp.fields;
+    const perf = f.performance;
+    const since = f.resultPeriod?.from ? ' seit ' + fmtDate(f.resultPeriod.from) : '';
+    const out = [
+      ['Einzahlungen', f.deposits, 'eur', 'Summe aller Einzahlungen ins Depot'],
+      ['Sparrate / Monat', f.savingsRate, 'eur', 'Aktuelle monatliche Sparrate'],
+      ['Gesamtergebnis', f.result, 'eur', 'Wertzuwachs abzüglich Einzahlungen' + since + ', laut Depotbank'],
+      ['Rendite seit Beginn', perf?.mwr?.[2], 'pct', 'Geldgewichtet (berücksichtigt Zeitpunkt und Höhe der Einzahlungen); zeitgewichtet ' + fmtPct(perf?.twr?.[2])],
+      ['Rendite lfd. Jahr', perf?.mwr?.[0], 'pct', 'Geldgewichtet; zeitgewichtet ' + fmtPct(perf?.twr?.[0])],
+      ['Ausschüttungen', f.distributions, 'eur', 'Ausschüttungen, Zinsen und Dividenden im Zeitraum'],
+      ['Depotentgelt', f.depotFee, 'eur', 'Gebucht im Liquiditätskonto'],
+      ['Wert ' + (f.valuePrevDate ? fmtDate(f.valuePrevDate) : 'Vorjahr'), f.valuePrevYearEnd, 'eur', 'Gesamtwert zum Jahresende davor'],
+      ['Kaufwert', f.cost, 'eur', 'Summe der Kaufwerte laut Depotbank (vereinfachte Rechnung)'],
+      ['Gewinn / Verlust', f.gain, 'eur', 'Kurswert minus Kaufwert, ohne steuerliche Gesichtspunkte'],
+      ['Verlusttopf Aktien', f.lossPotStocks, 'eur', 'Verlustverrechnungstopf Aktien (Steuerübersicht)'],
+      ['Verlusttopf Sonstige', f.lossPotOther, 'eur', 'Verlustverrechnungstopf Sonstige (Steuerübersicht)'],
+      ['Freibetrag übrig', f.allowanceRemaining ?? f.exemption?.remaining, 'eur', 'Verbleibender Sparer-Pauschbetrag laut Bank'],
+      ['Abgeführte Steuern', f.taxPaid, 'eur', 'Kapitalertragsteuer, Solidaritätszuschlag und Kirchensteuer laut Steuerübersicht'],
+    ];
+    return out.filter(([, v]) => Number.isFinite(v) && v !== 0);
+  }
 
   // ---- Altersvorsorge & BU ----
   const docValMap = $derived.by(() => {
@@ -324,7 +385,7 @@
             {/if}
             <div class="row between small faint">
               <span class="mono ellipsis">{maskIban(r.a.iban) || r.a.number || ''}</span>
-              <span class="num">{r.date ? fmtDate(r.date) : ''}</span>
+              <span class="num">{r.included ? 'im Depotwert enthalten · ' : ''}{r.date ? fmtDate(r.date) : ''}</span>
             </div>
             <div class="row between wrap foot">
               <select class="input sel" aria-label="Kontoart" value={kindKey(r.a.kind)} onchange={(e) => saveAccount(r.a, { kind: e.currentTarget.value })}>
@@ -342,46 +403,95 @@
   {/each}
 
   <!-- Depot -->
-  {#if holdings.length}
-    <section class="card">
-      <div class="card-head">
-        <h2>Depot<Tip text="Jeweils der neueste Bestand je Wertpapier und Depot" /></h2>
-        <Money value={holdingsTotal} class="small strong" />
+  {#if depots.length}
+    <section class="stack tight">
+      <div class="row between">
+        <h2 class="sec">Depotbestände<Tip text="Je Depot der neueste Bestand (Stichtag) mit Positionen und Kennzahlen aus dem Depot-Dokument" /></h2>
+        {#if depots.length > 1}<Money value={holdingsTotal} class="small strong" />{/if}
       </div>
-      {#if depotIds.length > 1}
-        <div class="row wrap chips">
-          <button class="chip" class:on={depotSel === null} onclick={() => (depotSel = null)}>Alle</button>
-          {#each depotIds as id (id)}
-            <button class="chip" class:on={depotSel === id} onclick={() => (depotSel = id)}>{accountName(id)}</button>
-          {/each}
-        </div>
-      {/if}
-      <div class="scroll hold">
-        <table class="tbl hold-tbl">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>ISIN</th>
-              <th class="r">Stück</th>
-              <th class="r">Kurs</th>
-              <th class="r">Wert</th>
-              <th class="r">Anteil</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each shownHoldings as h (h.id)}
-              <tr>
-                <td class="ellipsis name-cell">{h.name || '–'}</td>
-                <td class="mono faint">{h.isin || '–'}</td>
-                <td class="r num">{fmtQty(h.qty)}</td>
-                <td class="r"><Money value={h.price} /></td>
-                <td class="r"><Money value={h.value} /></td>
-                <td class="r num muted">{holdingsTotal ? pct((h.value || 0) / holdingsTotal) : '–'}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+      {#each depots as dp (dp.accountId)}
+        {@const figs = depotFigures(dp)}
+        <article class="card depot">
+          <div class="row between top wrap dhead">
+            <div class="min0">
+              <div class="small muted ellipsis">{dp.acc?.institution || dp.doc?.institution || '–'}{dp.acc?.number ? ' · Depot ' + dp.acc.number : ''}</div>
+              <div class="strong ellipsis dname">{dp.acc?.name || accountName(dp.accountId)}</div>
+              <div class="small faint">
+                Stand {dp.date ? fmtDate(dp.date) : '–'} · {dp.hs.length} Positionen{dp.doc ? ' · ' + (dp.doc.title || '') : ''}
+              </div>
+            </div>
+            <div class="amt">
+              <span class="val num">{fmtEUR(dp.total)}</span>
+              {#if Number.isFinite(dp.fields.result) && dp.fields.result !== 0}
+                <span class="small num" class:pos={dp.fields.result > 0} class:negc={dp.fields.result < 0}>{fmtEUR(dp.fields.result, { sign: true })} Ergebnis</span>
+              {:else if Number.isFinite(dp.fields.gain) && dp.fields.gain !== 0}
+                <span class="small num" class:pos={dp.fields.gain > 0} class:negc={dp.fields.gain < 0}>{fmtEUR(dp.fields.gain, { sign: true })} G/V</span>
+              {/if}
+            </div>
+          </div>
+          {#if dp.spark.length > 1}
+            <Sparkline values={dp.spark} height={36} />
+          {/if}
+          {#if figs.length}
+            <dl class="figs">
+              {#each figs as [label, val, kind, tip] (label)}
+                <div class="fig">
+                  <dt><span>{label}</span><Tip text={tip} /></dt>
+                  <dd class="num" class:pos={kind === 'pct' && val > 0} class:negc={kind === 'pct' && val < 0}>{kind === 'pct' ? fmtPct(val) : fmtEUR(val)}</dd>
+                </div>
+              {/each}
+            </dl>
+          {/if}
+          <div class="scroll hold">
+            <table class="tbl hold-tbl">
+              <thead>
+                <tr>
+                  <th>Wertpapier</th>
+                  <th class="r">Stück</th>
+                  <th class="r">Kurs</th>
+                  <th class="r">Wert</th>
+                  <th class="r">Anteil</th>
+                  <th class="r">Ergebnis</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each dp.hs as h (h.id)}
+                  {@const res = h.result ?? (h.cost ? h.gain : null)}
+                  <tr>
+                    <td class="name-cell">
+                      <div class="ellipsis strong-ish" title={h.name || ''}>{h.name || '–'}</div>
+                      <div class="small faint ellipsis">{[h.wkn || h.isin, h.focus, h.savingsRate ? 'Sparrate ' + fmtEUR(h.savingsRate) : null].filter(Boolean).join(' · ')}</div>
+                    </td>
+                    <td class="r num">{fmtQty(h.qty)}</td>
+                    <td class="r num" title={h.priceDate ? 'Kurs vom ' + fmtDate(h.priceDate) + (h.fxRate ? ' · Devisenkurs ' + h.fxRate.toLocaleString('de-DE') : '') : ''}>{fmtPrice(h)}</td>
+                    <td class="r"><Money value={h.value} /></td>
+                    <td class="r num muted">{h.share != null ? fmtPct(h.share, false) : dp.total ? pct((h.value || 0) / dp.total) : '–'}</td>
+                    <td class="r num" class:pos={res > 0} class:negc={res < 0}>
+                      {res != null ? fmtEUR(res, { sign: true }) : '–'}
+                      {#if h.performancePct != null}<div class="small">{fmtPct(h.performancePct)}</div>{/if}
+                    </td>
+                  </tr>
+                {/each}
+                {#if dp.cash > 0}
+                  <tr class="cash">
+                    <td class="name-cell"><div class="strong-ish">Liquiditätskonto</div><div class="small faint">im Depotwert enthalten</div></td>
+                    <td></td><td></td>
+                    <td class="r"><Money value={dp.cash} /></td>
+                    <td class="r num muted">{dp.total ? pct(dp.cash / dp.total) : '–'}</td>
+                    <td></td>
+                  </tr>
+                {/if}
+              </tbody>
+            </table>
+          </div>
+          {#if dp.trades.n}
+            <div class="small muted">
+              {dp.trades.n} Wertpapiergeschäfte im Zeitraum · {fmtEUR(dp.trades.sum)} investiert
+              <Tip text="Käufe im Depot zählen nicht als Ausgabe – das Geld bleibt Vermögen" />
+            </div>
+          {/if}
+        </article>
+      {/each}
     </section>
   {/if}
 
@@ -550,9 +660,19 @@
   .sel { height: 30px; font-size: 12.5px; padding: 0 8px; max-width: 100%; }
 
   /* Depot */
+  .depot { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .dname { font-size: 15px; }
+  .dhead { gap: 12px; }
+  .figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 0; }
+  .fig { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .fig dt { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-2); }
+  .fig dt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fig dd { margin: 2px 0 0; font-weight: 650; font-size: 14px; }
   .hold { max-width: 100%; }
-  .hold-tbl { min-width: 560px; }
-  .name-cell { max-width: 260px; font-weight: 550; }
+  .hold-tbl { min-width: 620px; }
+  .name-cell { max-width: 300px; }
+  .strong-ish { font-weight: 550; }
+  .cash td { border-top: 1px dashed var(--border); }
 
   /* Vorsorge */
   .vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: var(--gap); }
