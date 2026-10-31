@@ -53,7 +53,7 @@ function sectionStart(lines, i) {
 function columnsOf(line) {
   if (!line?.items?.length) return null;
   const cols = [];
-  for (const it of line.items) {
+  for (const it of splitHeaderItems(line.items)) {
     const s = it.str.trim();
     if (/^(?:Buchungstag|Valuta)$/i.test(s)) cols.push({ key: 'date', x: it.x });
     else if (/^(?:Vorgang|Referenz)$/i.test(s)) cols.push({ key: 'vorgang', x: it.x });
@@ -62,6 +62,19 @@ function columnsOf(line) {
     else if (/^(?:Ausgang|Eingang)$/i.test(s)) cols.push({ key: 'amount', x: it.x });
   }
   return cols.some(c => c.key === 'vorgang') && cols.some(c => c.key === 'text') ? cols.sort((a, b) => a.x - b.x) : null;
+}
+
+/**
+ * pdf.js fasst nah beieinander stehende Spaltenköpfe zu einem Stück zusammen („Buchungstag Vorgang“): in einzelne
+ * Wörter mit anteilig (nach Zeichen) geschätzter x-Position zerlegen.
+ */
+function splitHeaderItems(items) {
+  return items.flatMap(it => {
+    const str = String(it.str || '');
+    const words = [...str.matchAll(/\S+/g)];
+    if (words.length < 2 || !it.w) return [it];
+    return words.map(m => ({ ...it, str: m[0], x: it.x + it.w * (m.index / str.length), w: it.w * (m[0].length / str.length) }));
+  });
 }
 
 /** Zeile in Spalten zerlegen: mit Positionen nach x, sonst nach Lücken (pdf.js trennt Spalten mit drei Leerzeichen). */
@@ -92,7 +105,7 @@ function findSections(lines) {
     const t = l.text.trim();
     if (!t) continue;
     const s = sectionStart(lines, i);
-    if (s) { cur = { ...s, bookings: [], opening: null, closing: null, openingDate: null, closingDate: null, unread: 0 }; out.push(cur); cols = null; continue; }
+    if (s) { cur = { ...s, title: t, bookings: [], opening: null, closing: null, openingDate: null, closingDate: null, unread: 0 }; out.push(cur); cols = null; continue; }
     if (!cur) continue;
     if (END_RE.test(t)) { cur = null; continue; }
     if (PAGE_NOISE.test(t)) continue;
@@ -120,11 +133,44 @@ function findSections(lines) {
       cur.bookings.push(b);
       continue;
     }
-    // Folgezeile: mit Positionen nach Spalten, sonst ganz zum Buchungstext
-    if (last) { last.justStarted = false; addCells(last, cols && l.items?.length ? cellsOf(l, t, cols) : { text: t }); }
+    // Folgezeile: mit Positionen nach Spalten, sonst ganz zum Buchungstext; unter „Vorgang“ steht hier nur die Referenz
+    if (last) {
+      last.justStarted = false;
+      const c = cols && l.items?.length ? cellsOf(l, t, cols) : { text: t };
+      if (c.vorgang && /\d/.test(c.vorgang)) c.vorgang = '';
+      addCells(last, c);
+    }
   }
   return out;
 }
+
+/**
+ * Kontoübersicht: „Girokonto   DE25 2004 1133 0007 3400 61   +2.823,72“, „Visa-Karte 4871   +0,00“ → je Konto IBAN bzw.
+ * Kartenendung und Saldo zum Stichtag (Kontrollwert für den Neuen Saldo des Abschnitts).
+ * → [{ label, iban, card, balance }]
+ */
+function findOverview(lines) {
+  const i = lines.findIndex(l => /^Konto[üu]bersicht\b/i.test(l.text.trim()));
+  if (i < 0) return [];
+  const out = [];
+  for (let j = i + 1; j < lines.length && j <= i + 15; j++) {
+    const t = lines[j].text.trim();
+    if (/^Gesamtsaldo\b/i.test(t)) break;
+    const s = SECTIONS.find(x => x.re.test(t));
+    const am = AMT_END.exec(t);
+    if (!s || !am) continue;
+    const head = t.slice(0, am.index);
+    out.push({
+      label: s.label, iban: findIban(head),
+      card: s.kind === 'kreditkarte' ? cardEnd(head) : null, balance: amountOf(am[1]),
+    });
+  }
+  return out;
+}
+
+// Kartenendung direkt hinter dem Kontonamen: „Visa-Karte 4871“
+const cardEnd = (t) => /^Visa-?Karte\s+(?:Nr\.?\s*)?(?:[X*•]+\s*)*(\d{4})\b/i.exec(String(t || '').trim())?.[1] || null;
+const fmtEur = (c) => `${(c / 100).toFixed(2).replace('.', ',')} €`;
 
 function addCells(b, c) {
   if (c.vorgang) b.vorgang.push(c.vorgang);
@@ -151,10 +197,13 @@ function toTransactions(sec) {
     // Spalte „Auftraggeber/Empfänger“ enthält in der Valuta-Zeile IBAN und BIC – für den Namen entfernen
     const party = cleanText(b.party.join(' ').replace(/\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,4})?\b(?:\s+[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b)?/g, ' '));
     const counterpartyIban = findIban(b.party.join(' '));
-    const counterparty = party || (sec.kind === 'kreditkarte' ? text.split(/\s{2,}|\s+(?:WWW\.|Betrag:|USD|Kurs:)/i)[0] : '') || vorgang;
+    const bookingText = normalizeBookingText(vorgang) || vorgang || null;
+    // Entgelt/Zinsen ohne Auftraggeber: Gegenpartei ist die Bank selbst
+    const counterparty = party || (sec.kind === 'kreditkarte' ? text.split(/\s{2,}|\s+(?:WWW\.|Betrag:|USD|Kurs:)/i)[0] : '')
+      || (bookingText === 'Gebühr' || bookingText === 'Zinsen' ? 'comdirect' : '') || vorgang;
     txs.push(makeTx({
       bookingDate: b.bookingDate, valueDate: b.valueDate || b.bookingDate, amount,
-      counterpartyRaw: counterparty, purpose: text || vorgang, bookingText: normalizeBookingText(vorgang) || vorgang || null, counterpartyIban,
+      counterpartyRaw: counterparty, purpose: text || vorgang, bookingText, counterpartyIban,
     }));
   }
   return { txs, signKind, signUnknown };
@@ -164,13 +213,17 @@ export function parseFinanzreport(det, lines, text) {
   const per = FINANZREPORT_RE.exec(text);
   const reportDate = per ? parseGermanDate(per[1]) : null;
   const sections = findSections(lines);
+  const overview = findOverview(lines);
   const ignored = [['Depot', /^Depot(?:bestand)?\b/im], ['Steuerübersicht', /^Ste[uv]er[üu]bersicht/im], ['Zinsübersicht', /^Zins[üu]bersicht/im]]
     .filter(([, re]) => re.test(text)).map(([n]) => n);
   const results = [];
   for (const sec of sections) {
     const { txs, signKind, signUnknown } = toTransactions(sec);
     const unread = sec.bookings.filter(b => b.amount == null).length;
-    const account = { kind: sec.kind, institution: 'comdirect', name: accountName('comdirect', sec.label), iban: null, currency: 'EUR', number: null };
+    // IBAN bzw. Kartenendung aus der Kontoübersicht (Kartenendung auch im Abschnittskopf „Visa-Karte 4871“)
+    const ov = overview.find(o => o.label === sec.label) || null;
+    const card = sec.kind === 'kreditkarte' ? ov?.card || cardEnd(sec.title) : null;
+    const account = { kind: sec.kind, institution: 'comdirect', name: accountName('comdirect', sec.label), iban: ov?.iban || null, currency: 'EUR', number: card };
     const reasons = [];
     const problems = [];
     if (unread) {
@@ -179,6 +232,10 @@ export function parseFinanzreport(det, lines, text) {
     }
     if (signUnknown) reasons.push(`Vorzeichen bei ${signUnknown} Buchung${signUnknown === 1 ? '' : 'en'} unklar – bitte prüfen`);
     if (signKind) problems.push(`Vorzeichen bei ${signKind} Buchung${signKind === 1 ? '' : 'en'} aus dem Vorgang abgeleitet (im Text fehlte „+“/„−“).`);
+    if (ov?.balance != null && sec.closing != null && ov.balance !== sec.closing) {
+      reasons.push('Neuer Saldo weicht von der Kontoübersicht ab – bitte prüfen');
+      problems.push(`Saldo laut Kontoübersicht ${fmtEur(ov.balance)}, Neuer Saldo im Abschnitt ${fmtEur(sec.closing)}.`);
+    }
     const sum = txs.reduce((a, t) => a + t.amount, 0);
     const hasBoth = sec.opening != null && sec.closing != null;
     if (hasBoth && sec.opening + sum !== sec.closing) problems.push(`Saldo geht nicht auf: Alter Saldo + Buchungen ≠ Neuer Saldo (Differenz ${((sec.closing - sec.opening - sum) / 100).toFixed(2).replace('.', ',')} €).`);
@@ -194,6 +251,7 @@ export function parseFinanzreport(det, lines, text) {
       confidence: hasBoth && sec.opening + sum === sec.closing && !unread ? 0.9 : 0.6, reviewReasons: reasons,
       fields: {
         variant: 'finanzreport', section: sec.label, ...(ignored.length ? { infoSections: ignored } : {}),
+        ...(ov?.balance != null ? { overviewBalance: ov.balance } : {}),
         expectedCount: sec.bookings.length, readCount: txs.length,
         diagnostics: {
           pages: new Set(lines.map(l => l.n)).size, lines: lines.length, numberFormat: 'comma', header: sec.label,
