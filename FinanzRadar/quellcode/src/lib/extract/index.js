@@ -2,11 +2,21 @@
 // Parsen, Tabellen und XML laufen in Node (Vitest). Rendern, OCR und Vorschauen nur im Browser.
 import { extOf } from '../util/format.js';
 import { decodeText, parseCsv } from './decode.js';
-import { extractPdfText, closePdf } from './pdf.js';
-import { recognizeCanvas } from './ocr.js';
+import { extractPdfText, closePdf, releasePdfWorker, restartPdfWorker, pdfWorkerSlot, guardPdf } from './pdf.js';
+import { withWorkerRetry, isPdfWorkerFailure } from './pdf-reader.js';
+import { recognizeCanvas, terminateOcr as stopOcr } from './ocr.js';
 import { makeCanvas, canvasToBlob, enhanceCanvas, imageToOcrCanvas, thumbnailBlob, releaseCanvas, THUMB_WIDTH } from './canvas.js';
 
-export { terminateOcr } from './ocr.js';
+export { isPdfWorkerFailure } from './pdf-reader.js';
+
+/**
+ * Hintergrund-Worker nach dem Import freigeben: OCR sofort, den gemeinsamen PDF-Leser, sobald kein Dokument mehr offen
+ * ist (eine geöffnete Vorschau bleibt nutzbar).
+ */
+export async function terminateOcr() {
+  releasePdfWorker();
+  await stopOcr();
+}
 
 const isBrowser = typeof window !== 'undefined';
 const OCR_SCALE = 2;          // Render-Skalierung für Scan-Seiten (Pixel je pt)
@@ -15,6 +25,7 @@ const BOOST_MIN_WIDTH = 2000; // Bilder: Mindestbreite im zweiten Versuch (statt
 const BOOST_MAX_SIDE = 4800;  // Bilder: Obergrenze lange Kante im zweiten Versuch (statt 3200)
 const MAX_PLAIN_TEXT = 1_000_000; // Zeichen
 const SCAN_MIN_ITEMS = 5;     // weniger Textitems je Seite → Scan
+const RENDER_TIMEOUT = 120_000; // ms je gerenderter Seite (OCR/Vorschaubild); danach gilt der PDF-Leser als hängend
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'heic', 'heif']);
 const HEIC_EXT = new Set(['heic', 'heif']);
 const STATEMENT_TEXT_EXT = new Set(['sta', 'mt940', '940']);
@@ -123,28 +134,54 @@ async function safely(fn) {
 
 /** OCR einer Scan-Seite: rendern (Skalierung OCR_SCALE), aufhellen, erkennen. */
 async function ocrPdfPage(doc, n, progressFor, scale = OCR_SCALE) {
-  const page = await doc.getPage(n);
+  const page = await guardPdf(doc, doc.getPage(n), RENDER_TIMEOUT, `Seite ${n}`);
   const viewport = page.getViewport({ scale });
   const canvas = makeCanvas(viewport.width, viewport.height);
-  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  try {
+    await renderPage(doc, page, canvas, viewport, `OCR Seite ${n}`);
+  } catch (e) { releaseCanvas(canvas); throw e; }
   page.cleanup?.();
   enhanceCanvas(canvas);
   try { return await recognizeCanvas(canvas, { unit: scale, onProgress: progressFor }); } finally { releaseCanvas(canvas); }
 }
 
+/** Seite rendern mit Zeitlimit – ein hängender/abgestürzter Worker antwortet sonst nie. */
+async function renderPage(doc, page, canvas, viewport, label) {
+  const task = page.render({ canvasContext: canvas.getContext('2d'), viewport });
+  await guardPdf(doc, task.promise, RENDER_TIMEOUT, label, () => task.cancel?.());
+}
+
 async function pdfThumbnail(doc) {
-  const page = await doc.getPage(1);
+  const page = await guardPdf(doc, doc.getPage(1), RENDER_TIMEOUT, 'Vorschaubild');
   const scale = THUMB_WIDTH / page.getViewport({ scale: 1 }).width;
   const viewport = page.getViewport({ scale });
   const canvas = makeCanvas(viewport.width, viewport.height);
-  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-  page.cleanup?.();
-  try { return await canvasToBlob(canvas, 'image/jpeg', 0.75); } finally { releaseCanvas(canvas); }
+  try {
+    await renderPage(doc, page, canvas, viewport, 'Vorschaubild');
+    page.cleanup?.();
+    return await canvasToBlob(canvas, 'image/jpeg', 0.75);
+  } catch (e) {
+    if (isPdfWorkerFailure(e)) restartPdfWorker(pdfWorkerSlot(doc)); // Vorschaubild ist optional, der Leser aber kaputt
+    throw e;
+  } finally { releaseCanvas(canvas); }
 }
 
+/**
+ * PDF lesen (Text, OCR für Scan-Seiten, E-Rechnungs-Anhang, Vorschaubild). Fällt der PDF-Leser unterwegs aus,
+ * wird er neu gestartet und die Datei einmal komplett neu gelesen; erst dann kommt ein Klartext-Fehler.
+ */
 async function extractPdf(bytes, opts, progress) {
+  let slot = null;
+  return withWorkerRetry((attempt) => extractPdfOnce(bytes, opts, attempt ? (p, label) => progress(p, `neuer Versuch: ${label || ''}`) : progress, (s) => { slot = s; }), {
+    restart: () => restartPdfWorker(slot),
+    onRetry: (e) => console.warn('PDF-Leser ausgefallen – neuer Versuch:', e?.message || e),
+  });
+}
+
+async function extractPdfOnce(bytes, opts, progress, onSlot) {
   progress(0.02, 'PDF lesen');
   const { doc, pages, pageCount, attachments } = await extractPdfText(bytes);
+  onSlot(pdfWorkerSlot(doc));
   try {
     const canOcr = isBrowser && opts.ocr !== false;
     const outPages = [];
