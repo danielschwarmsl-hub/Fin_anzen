@@ -1,7 +1,7 @@
 // KI-Aufgaben: je Aufruf GENAU eine kleine Aufgabe, kurzer System-Prompt, festes JSON-Schema, kein Verlauf.
 import { CATEGORIES } from '../classify/categories.js';
 
-export const DOC_TYPES = ['kontoauszug', 'kreditkarte', 'paypal', 'depot', 'lohn', 'lohnsteuerbescheinigung', 'rechnung', 'kassenbon', 'versicherung', 'rente', 'steuerbescheinigung', 'spende', 'vertrag', 'einkaufszettel', 'finanz_sonstiges', 'irrelevant'];
+export const DOC_TYPES = ['kontoauszug', 'kreditkarte', 'paypal', 'depot', 'lohn', 'lohnsteuerbescheinigung', 'rechnung', 'kassenbon', 'versicherung', 'rente', 'steuerbescheinigung', 'wertpapier', 'spende', 'vertrag', 'einkaufszettel', 'finanz_sonstiges', 'irrelevant'];
 export const TAX_REASONS = ['lohn', 'beruf', 'versicherung_vorsorge', 'kapitalertraege', 'haushalt_handwerker', 'spenden', 'gesundheit', 'kinder_bildung', 'sonstiges'];
 
 const BASE = 'Du bist ein präziser Assistent für deutsche Privatfinanzen. Antworte ausschließlich mit JSON nach Schema. Erfinde nichts; unbekannt = null.';
