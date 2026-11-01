@@ -242,7 +242,9 @@ const server = createServer(async (req, res) => {
   if (p.endsWith('/')) p += 'index.html';
   const f = normalize(join(root, p));
   if (!f.startsWith(root + sep)) { res.writeHead(403).end(); return; }
-  try { const b = await readFile(f); res.writeHead(200, { 'Content-Type': T[extname(f)] || 'application/octet-stream' }).end(b); }
+  // Seite immer frisch (nach Updates heißen die nachgeladenen Dateien anders), gehashte Dateien unter /assets/ dauerhaft
+  const cache = p.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
+  try { const b = await readFile(f); res.writeHead(200, { 'Content-Type': T[extname(f)] || 'application/octet-stream', 'Cache-Control': cache }).end(b); }
   catch { res.writeHead(404).end('not found'); }
 });
 server.listen(port, '127.0.0.1', () => console.log(`FinanzRadar: http://localhost:${server.address().port}/`));

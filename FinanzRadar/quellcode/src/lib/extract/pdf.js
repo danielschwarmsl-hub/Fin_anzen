@@ -32,6 +32,8 @@ export async function getPdfjs() {
       lib.GlobalWorkerOptions.workerSrc = workerUrl;
       return lib;
     })();
+    // Laden gescheitert (z. B. veraltete Seite nach Update): nicht dauerhaft merken, nächster Versuch lädt neu
+    pdfjsPromise.catch(() => { pdfjsPromise = null; });
   }
   return pdfjsPromise;
 }

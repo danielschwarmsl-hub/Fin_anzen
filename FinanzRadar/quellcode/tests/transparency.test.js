@@ -149,3 +149,9 @@ describe('friendlyError', () => {
     expect(friendlyError(null).detail).toBeNull();
   });
 });
+
+import { friendlyError as fe2 } from '../src/lib/util/errors.js';
+import { it as it2, expect as expect2 } from 'vitest';
+it2('veraltete Seite nach Update: Klartext „Seite neu laden“', () => {
+  expect2(fe2('error loading dynamically imported module: http://localhost:8765/assets/pdf-polyfills-CaUEfAGD.js').text).toMatch(/aktualisiert – Seite neu laden/);
+});

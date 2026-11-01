@@ -3,6 +3,7 @@
 
 // [Muster, Klartext]; erstes Muster gewinnt
 const RULES = [
+  [/dynamically imported module|importing a module script failed|Failed to fetch dynamically|error loading dynamically/i, 'FinanzRadar wurde aktualisiert – Seite neu laden (Strg+F5), dann erneut einlesen'],
   [/passw(?:or)?[dt]|PasswordException/i, 'PDF ist passwortgeschützt'],
   [/fake worker|worker was (?:destroyed|terminated)|worker.*(?:failed|crash|abgestürzt|terminated)|WorkerMessageHandler|pdf\.worker|PDF-Leser/i, 'PDF-Leser ist abgestürzt – Datei bitte erneut einlesen'],
   [/invalid pdf|InvalidPDFException|keine gültige pdf|missing pdf header|unexpected end of (?:pdf|file)|bad xref|xref/i, 'Datei ist keine gültige PDF'],

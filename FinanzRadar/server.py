@@ -407,6 +407,14 @@ class Handler(SimpleHTTPRequestHandler):
     def _json(self, status, obj):
         self._send(status, json.dumps(obj, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
 
+    def end_headers(self):
+        # Statische Dateien: Seite immer frisch (nach Updates heißen die nachgeladenen Dateien anders),
+        # gehashte Dateien unter /assets/ dauerhaft; API-Antworten setzen ihr Cache-Control selbst
+        path = urlsplit(self.path).path
+        if not path.startswith('/api/'):
+            self.send_header('Cache-Control', 'public, max-age=31536000, immutable' if path.startswith('/assets/') else 'no-cache')
+        super().end_headers()
+
     def do_HEAD(self):
         if not self._host_ok():
             return self._send(403, b'forbidden', 'text/plain')
